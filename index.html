@@ -1116,10 +1116,18 @@
         The console shares one password, not per-person logins — so this list is by <strong>device</strong>
         (browser), not by name. Rename a device to remember whose it is. If you see one you don't
         recognize, block it — a blocked device is kicked out immediately if it's connected, and can't
-        unlock the console or sync data again until you unblock it.
+        unlock the console or sync data again until you unblock it. Location is approximate (from IP)
+        unless that device has granted the browser's location permission, in which case an exact GPS
+        fix is shown too.
       </p>
-      <div class="row" style="margin-bottom:6px;">
+      <div class="row" style="margin-bottom:6px;align-items:center;">
         <button class="btn ghost small" onclick="renderDevicesTab()" title="Refresh the list">🔄 Refresh</button>
+        <button class="btn danger" onclick="clearOfflineDevices()" title="Remove every offline, unblocked device from this list">🧹 Clear offline devices</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;">
+          <input type="checkbox" id="devicesOnlineOnlyToggle" checked onchange="renderDevicesTab()">
+          Only show devices currently online
+        </label>
+        <span id="devicesLiveDot" class="hint mono" style="font-size:11px;color:var(--surplus);">● live</span>
       </div>
       <div id="devicesEmptyHint" class="hint" style="display:none;">No devices found yet — this loads once the backend is reachable.</div>
       <div style="overflow-x:auto;">
@@ -1127,8 +1135,8 @@
         <thead>
           <tr>
             <th>Device</th>
-            <th>Browser / OS</th>
-            <th>IP address</th>
+            <th>Platform</th>
+            <th>IP / Location</th>
             <th>First seen</th>
             <th>Last seen</th>
             <th>Status</th>
@@ -1183,8 +1191,8 @@ function getDeviceId(){
   }
 }
 
-// Very rough UA sniffing, just enough for a human-readable default label
-// like "Chrome on Windows" — good enough for telling devices apart at a glance.
+// Very rough UA sniffing fallback, used only when the richer User-Agent
+// Client Hints API (below) isn't available — e.g. Safari, Firefox.
 function guessDeviceLabel(){
   const ua = navigator.userAgent || '';
   let browser = 'Unknown browser';
@@ -1199,7 +1207,38 @@ function guessDeviceLabel(){
   else if(/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
   else if(/Mac OS X/.test(ua)) os = 'Mac';
   else if(/Linux/.test(ua)) os = 'Linux';
-  return browser + ' on ' + os;
+  return { browser, os, mobile: /Android|iPhone|iPad|iPod/.test(ua) };
+}
+
+// Proper platform detection: prefers the User-Agent Client Hints API
+// (accurate on Chrome/Edge/Opera/Android — gives real OS version and, on
+// Android, the device model) and falls back to UA-string sniffing on
+// browsers that don't support it yet (Safari, Firefox).
+async function collectDeviceInfo(){
+  const fallback = guessDeviceLabel();
+  const info = {
+    userAgent: navigator.userAgent,
+    platform: navigator.platform || '',
+    browser: fallback.browser,
+    os: fallback.os,
+    deviceModel: '',
+    mobile: fallback.mobile,
+  };
+  try{
+    if(navigator.userAgentData){
+      info.mobile = !!navigator.userAgentData.mobile;
+      info.platform = navigator.userAgentData.platform || info.platform;
+      info.os = navigator.userAgentData.platform || info.os;
+      const brands = (navigator.userAgentData.brands || []).filter(b => !/Not.?A.?Brand/i.test(b.brand));
+      if(brands.length) info.browser = brands[brands.length-1].brand + ' ' + brands[brands.length-1].version;
+      if(navigator.userAgentData.getHighEntropyValues){
+        const hi = await navigator.userAgentData.getHighEntropyValues(['platformVersion','model']);
+        if(hi.platformVersion) info.os = info.platform + ' ' + hi.platformVersion;
+        if(hi.model) info.deviceModel = hi.model;
+      }
+    }
+  }catch(e){ /* Client Hints unsupported/blocked — fallback values stand */ }
+  return info;
 }
 
 // Called right after a successful (or remembered) login. Tells the backend
@@ -1209,14 +1248,20 @@ async function registerDeviceWithServer(){
   const base = getApiBase();
   if(!base) return;
   try{
+    const info = await collectDeviceInfo();
+    const alreadyLabeled = window.localStorage.getItem('maaFuelStationDeviceLabelSet_v1');
     const res = await fetch(base + '/api/devices/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         deviceId: getDeviceId(),
-        userAgent: navigator.userAgent,
-        platform: navigator.platform || '',
-        label: window.localStorage.getItem('maaFuelStationDeviceLabelSet_v1') ? undefined : guessDeviceLabel(),
+        userAgent: info.userAgent,
+        platform: info.platform,
+        browser: info.browser,
+        os: info.os,
+        deviceModel: info.deviceModel,
+        mobile: info.mobile,
+        label: alreadyLabeled ? undefined : (info.browser + ' on ' + info.os),
       })
     });
     if(res.status === 403){
@@ -1232,6 +1277,47 @@ async function registerDeviceWithServer(){
   }
 }
 
+/* ---- Real-time location ----
+   Two tiers: an approximate city-level location the server derives from the
+   device's IP on every check-in (no permission needed), and an exact GPS
+   fix from the browser's Geolocation API, which only appears after the
+   person on that device explicitly grants location permission. Nothing
+   here requests it silently or bypasses the browser's permission prompt. */
+let locationWatchInterval = null;
+
+function requestPreciseLocation(){
+  if(!navigator.geolocation || !isAppUnlocked()) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => sendLocationToServer(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+    err => console.warn('Location unavailable:', err && err.message),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+async function sendLocationToServer(lat, lng, accuracy){
+  const base = getApiBase();
+  if(!base) return;
+  try{
+    await fetch(base + '/api/devices/location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId: getDeviceId(), lat, lng, accuracy })
+    });
+  }catch(e){ /* best effort */ }
+}
+
+function startLocationWatch(){
+  requestPreciseLocation();
+  if(locationWatchInterval) clearInterval(locationWatchInterval);
+  // Refreshed periodically while the console is open so "current location"
+  // stays current for a device that's actually moving (e.g. a phone).
+  locationWatchInterval = setInterval(requestPreciseLocation, 2 * 60 * 1000);
+}
+function stopLocationWatch(){
+  if(locationWatchInterval) clearInterval(locationWatchInterval);
+  locationWatchInterval = null;
+}
+
 function handleDeviceBlocked(){
   try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
   lockApp();
@@ -1240,6 +1326,47 @@ function handleDeviceBlocked(){
     errEl.textContent = '⛔ This device has been blocked by an administrator.';
     errEl.classList.add('show');
   }
+}
+
+let devicesAutoRefreshInterval = null;
+function startDevicesAutoRefresh(){
+  stopDevicesAutoRefresh();
+  // Socket pushes ('devices:changed') cover most updates instantly; this
+  // poll is just a safety net for when the socket is briefly disconnected.
+  devicesAutoRefreshInterval = setInterval(renderDevicesTab, 5000);
+}
+function stopDevicesAutoRefresh(){
+  if(devicesAutoRefreshInterval) clearInterval(devicesAutoRefreshInterval);
+  devicesAutoRefreshInterval = null;
+}
+
+function formatLocationCell(d){
+  const parts = [];
+  if(d.lastIp) parts.push('<div class="mono" style="font-size:11.5px;">' + d.lastIp + '</div>');
+  if(d.ipLocation && (d.ipLocation.city || d.ipLocation.country)){
+    const approx = [d.ipLocation.city, d.ipLocation.region, d.ipLocation.country].filter(Boolean).join(', ');
+    const mapUrl = (typeof d.ipLocation.lat === 'number' && typeof d.ipLocation.lon === 'number')
+      ? 'https://www.google.com/maps?q=' + d.ipLocation.lat + ',' + d.ipLocation.lon
+      : null;
+    parts.push('<div style="font-size:11.5px;color:var(--muted);">' + (mapUrl ? '<a href="'+mapUrl+'" target="_blank" rel="noopener">' + approx + '</a>' : approx) + ' <span style="opacity:.7;">(approx, via IP)</span></div>');
+  }
+  if(d.preciseLocation && typeof d.preciseLocation.lat === 'number'){
+    const mapUrl = 'https://www.google.com/maps?q=' + d.preciseLocation.lat + ',' + d.preciseLocation.lng;
+    const age = d.preciseLocation.updatedAt ? new Date(d.preciseLocation.updatedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '';
+    const acc = typeof d.preciseLocation.accuracy === 'number' ? (' ±' + Math.round(d.preciseLocation.accuracy) + 'm') : '';
+    parts.push('<div style="font-size:11.5px;"><a href="' + mapUrl + '" target="_blank" rel="noopener">📍 Exact location</a> <span style="opacity:.7;">(GPS' + acc + (age ? ', ' + age : '') + ')</span></div>');
+  }
+  return parts.length ? parts.join('') : '<span style="color:var(--muted);">—</span>';
+}
+
+function formatPlatformCell(d){
+  const bits = [];
+  if(d.browser) bits.push(d.browser);
+  if(d.os) bits.push(d.os);
+  if(d.deviceModel) bits.push(d.deviceModel);
+  if(typeof d.mobile === 'boolean') bits.push(d.mobile ? '📱 Mobile' : '💻 Desktop');
+  if(bits.length) return bits.join(' · ');
+  return (d.userAgent || '—');
 }
 
 async function renderDevicesTab(){
@@ -1252,7 +1379,6 @@ async function renderDevicesTab(){
     if(emptyHint){ emptyHint.style.display='block'; emptyHint.textContent = 'No backend URL configured — tap 🔗 Server first.'; }
     return;
   }
-  if(emptyHint){ emptyHint.style.display='block'; emptyHint.textContent = 'Loading…'; }
   try{
     const res = await fetch(base + '/api/devices');
     if(res.status === 404){
@@ -1267,8 +1393,17 @@ async function renderDevicesTab(){
       const text = await res.text().catch(()=> '');
       throw new Error('HTTP ' + res.status + (text ? (' — ' + text) : ''));
     }
-    const devices = await res.json();
-    if(!Array.isArray(devices) || devices.length===0){
+    let devices = await res.json();
+    if(!Array.isArray(devices)) devices = [];
+
+    const onlineOnly = document.getElementById('devicesOnlineOnlyToggle');
+    const filterOnline = onlineOnly ? onlineOnly.checked : true;
+    // Blocked devices always stay visible (even offline) so an admin never
+    // loses track of what they've blocked; the online-only filter only
+    // hides ordinary offline devices.
+    const visible = devices.filter(d => d.online || d.blocked || !filterOnline);
+
+    if(devices.length === 0){
       body.innerHTML = '';
       if(emptyHint){
         emptyHint.style.display='block';
@@ -1276,9 +1411,17 @@ async function renderDevicesTab(){
       }
       return;
     }
+    if(visible.length === 0){
+      body.innerHTML = '';
+      if(emptyHint){
+        emptyHint.style.display='block';
+        emptyHint.textContent = 'No devices currently online. Untick "Only show devices currently online" to see everything.';
+      }
+      return;
+    }
     if(emptyHint) emptyHint.style.display = 'none';
     const myId = getDeviceId();
-    body.innerHTML = devices.map(d => {
+    body.innerHTML = visible.map(d => {
       const isMe = d._id === myId;
       const statusBadges = (d.blocked ? '<span class="badge blocked">Blocked</span> ' : '')
         + (d.online ? '<span class="badge online">Online</span>' : '<span class="badge offline">Offline</span>')
@@ -1286,11 +1429,10 @@ async function renderDevicesTab(){
       const firstSeen = d.firstSeen ? new Date(d.firstSeen).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}) : '—';
       const lastSeen = d.lastSeen ? new Date(d.lastSeen).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}) : '—';
       const safeLabel = (d.label || 'Unnamed device').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
-      const safeUA = (d.userAgent || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
       return '<tr>'
         + '<td class="device-label-cell">' + safeLabel + '</td>'
-        + '<td class="mono" style="font-size:11.5px;color:var(--muted);max-width:260px;">' + (safeUA || '—') + '</td>'
-        + '<td class="mono">' + (d.lastIp || '—') + '</td>'
+        + '<td style="font-size:12px;color:var(--muted);max-width:200px;">' + formatPlatformCell(d) + '</td>'
+        + '<td style="max-width:220px;">' + formatLocationCell(d) + '</td>'
         + '<td>' + firstSeen + '</td>'
         + '<td>' + lastSeen + '</td>'
         + '<td>' + statusBadges + '</td>'
@@ -1308,6 +1450,19 @@ async function renderDevicesTab(){
     body.innerHTML = '';
     if(emptyHint){ emptyHint.style.display='block'; emptyHint.textContent = 'Could not reach the backend to load devices: ' + (e && e.message ? e.message : e); }
   }
+}
+
+async function clearOfflineDevices(){
+  if(!confirm('Remove every offline, unblocked device from this list? Blocked devices are kept regardless of status. This just tidies the list — a removed device will simply reappear next time it logs in.')) return;
+  const base = getApiBase();
+  try{
+    const res = await fetch(base + '/api/devices/clear-offline', { method: 'POST' });
+    const data = await res.json().catch(()=>({}));
+    renderDevicesTab();
+    if(typeof data.removed === 'number'){
+      setAutosaveStatus(data.removed + ' offline device(s) cleared');
+    }
+  }catch(e){ alert('Could not clear offline devices — check the server connection.'); }
 }
 
 async function blockDevice(id){
@@ -1423,12 +1578,15 @@ function unlockApp(){
   document.body.classList.remove('app-locked');
   document.getElementById('loginGate').classList.add('hidden');
   startIdleWatch();
+  startLocationWatch();
 }
 
 function lockApp(){
   document.body.classList.add('app-locked');
   document.getElementById('loginGate').classList.remove('hidden');
   stopIdleWatch();
+  stopLocationWatch();
+  stopDevicesAutoRefresh();
   const userInp = document.getElementById('loginUser');
   const passInp = document.getElementById('loginPass');
   if(userInp) userInp.value = '';
@@ -1585,6 +1743,11 @@ function initServerSync(){
   socket.on('disconnect', ()=> setAutosaveStatus('Offline — changes saved locally, will sync on reconnect', true));
   socket.on('connect_error', ()=> setAutosaveStatus('Cannot reach server — check the URL (🔗 Server)', true));
   socket.on('device:blocked', ()=> handleDeviceBlocked());
+  socket.on('devices:changed', ()=>{
+    // Only bother re-rendering if the Devices tab is actually open right now.
+    const activeTab = document.querySelector('.tab-btn.active');
+    if(activeTab && activeTab.dataset.tab === 'devices') renderDevicesTab();
+  });
   socket.on('state:updated', payload=>{
     if(!payload || !payload.state) return;
     applyingRemoteUpdate = true;
@@ -1736,6 +1899,7 @@ function loadAutosave(){
 function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active', s.id==='tab-'+name));
+  if(name!=='devices') stopDevicesAutoRefresh();
   if(name==='sales') renderSalesTab();
   if(name==='salesreport') renderSalesReportTab();
   if(name==='staff') renderStaffTab();
@@ -1743,7 +1907,7 @@ function switchTab(name){
   if(name==='surplus') renderSurplusTab();
   if(name==='notestock') renderNoteStockTab();
   if(name==='dipchart') renderDipChartTab();
-  if(name==='devices') renderDevicesTab();
+  if(name==='devices'){ renderDevicesTab(); startDevicesAutoRefresh(); }
 }
 
 /* ============== STAFF TAB ============== */
