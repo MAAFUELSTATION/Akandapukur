@@ -2127,16 +2127,35 @@ function onRateInput(){
 function ensureShiftData(date, shift){
   if(!state.sales[date]) state.sales[date] = {};
   if(!state.sales[date][shift]){
-    let defaultTesting = {hsd:0, ms:0};
-    if(shift!=='night'){
-      const r = getRateForDate(date);
-      defaultTesting = {hsd: 20*(r.diesel||0), ms: 20*(r.petrol||0)};
-    }
-    state.sales[date][shift] = {assign:{}, closing:{}, testing:defaultTesting};
+    state.sales[date][shift] = {assign:{}, closing:{}, testing:null};
   }
   const sd = state.sales[date][shift];
+
+  // Testing auto-defaults to 20 L worth of fuel at the day's rate for
+  // Morning/Afternoon (Night never has testing fuel). This must be
+  // recomputed here, not only at first creation above — a shift record can
+  // already exist without a *valid* testing value: restored from an old
+  // export, arrived from another device before this field existed, or (from
+  // an earlier bug) saved as NaN, which JSON silently turns into `null` —
+  // and MongoDB then keeps that `null` forever, since the old code here only
+  // checked "does `.testing` exist at all", not "is `.testing.hsd`/`.ms` an
+  // actual number". That's exactly why Afternoon (or any shift affected once)
+  // kept coming back empty/zero no matter what was entered: the bad value on
+  // the server was never actually corrected, only hidden behind `||0`
+  // fallbacks in the UI. Here we detect and repair it for real, and persist
+  // the repair so it doesn't need re-fixing on every load.
+  const hsdInvalid = !sd.testing || !Number.isFinite(Number(sd.testing.hsd));
+  const msInvalid = !sd.testing || !Number.isFinite(Number(sd.testing.ms));
   if(!sd.testing) sd.testing = {hsd:0, ms:0};
-  if(shift==='night'){ sd.testing.hsd = 0; sd.testing.ms = 0; }
+  if(shift==='night'){
+    sd.testing.hsd = 0;
+    sd.testing.ms = 0;
+  } else if(hsdInvalid || msInvalid){
+    const r = getRateForDate(date);
+    if(hsdInvalid) sd.testing.hsd = 20*(Number(r.diesel)||0);
+    if(msInvalid) sd.testing.ms = 20*(Number(r.petrol)||0);
+    scheduleAutosave();
+  }
   NOZZLES.forEach(nz=>{
     if(sd.assign[nz.id]===undefined) sd.assign[nz.id] = '';
     if(sd.closing[nz.id]===undefined) sd.closing[nz.id] = 0;
@@ -2194,11 +2213,24 @@ function sanitizeShiftReadings(date, shift){
   const sd = ensureShiftData(date, shift);
   let repaired = false;
   NOZZLES.forEach(nz=>{
-    const opening = Number(getOpeningReading(date, shift, nz.id))||0;
-    const closing = Number(sd.closing[nz.id]);
-    const litres = closing-opening;
-    if(!Number.isFinite(closing) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT){
-      sd.closing[nz.id] = opening;
+    // Only repair a truly corrupt/missing stored value (undefined, null,
+    // NaN — e.g. left over from old data or an interrupted save). Do NOT
+    // touch a valid number just because it currently computes negative or
+    // oversized litres against this shift's opening reading: "opening" is
+    // derived from another shift's closing reading and can shift later —
+    // e.g. correcting an earlier shift's closing changes every later
+    // shift's opening. The old version overwrote the stored closing
+    // reading back to the opening reading whenever that made it look
+    // invalid, which silently wiped out a real, correctly-entered closing
+    // reading — and this function runs on every tab switch and every
+    // update received from another device, so the data loss could happen
+    // at any time without the person doing anything wrong. It was also
+    // unnecessary: nozzleLitres() already clamps an out-of-range result to
+    // 0 L for every calculation that uses it, so leaving the raw reading
+    // alone is safe — it recalculates correctly once its opening reading
+    // is corrected.
+    if(!Number.isFinite(Number(sd.closing[nz.id]))){
+      sd.closing[nz.id] = 0;
       repaired = true;
     }
   });
@@ -2450,7 +2482,15 @@ function renderShiftStaffTable(date, shift){
 }
 function ensureDayTesting(date){
   if(!state.sales[date]) state.sales[date] = {};
-  if(!state.sales[date].dayTesting) state.sales[date].dayTesting = {hsdL:20, msL:20};
+  const dt = state.sales[date].dayTesting;
+  // Same class of bug as the shift testing fix above: only checking whether
+  // `dayTesting` exists at all misses the case where it exists but
+  // hsdL/msL is an invalid value (e.g. `null`, left over from an old NaN),
+  // which would otherwise persist unrepaired forever.
+  if(!dt || !Number.isFinite(Number(dt.hsdL)) || !Number.isFinite(Number(dt.msL))){
+    state.sales[date].dayTesting = {hsdL:20, msL:20};
+    scheduleAutosave();
+  }
   return state.sales[date].dayTesting;
 }
 function getDayTesting(date){
