@@ -1912,9 +1912,20 @@ async function pushToServer(){
   // keep hitting the same conflict. The user needs to reload first.
   if(saveConflictPending) return;
   const base = getApiBase();
+  const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  // Free-tier backends (Render etc.) can take 30-60s to wake from sleep on
+  // their first request. Without an explicit timeout, a save that hits a
+  // sleeping backend just hangs on "Saving…" forever with no feedback. 45s
+  // comfortably covers a cold start; if it's still not back by then,
+  // something else is actually wrong and we should say so.
+  const timeoutId = controller ? setTimeout(()=>controller.abort(), 45000) : null;
+  // If we're still waiting past a normal response time, let the person know
+  // it's probably just a slow wake-up rather than silently sitting there.
+  const slowHintId = setTimeout(()=> setAutosaveStatus('Still saving — your server may be waking up from sleep, this can take up to a minute…'), 6000);
   try{
     const res = await fetch(base + '/api/state', {
       method: 'PUT',
+      signal: controller ? controller.signal : undefined,
       headers: {
         'Content-Type': 'application/json',
         'X-Socket-Id': (socket && socket.id) || SOCKET_ID,
@@ -1922,6 +1933,8 @@ async function pushToServer(){
       },
       body: JSON.stringify({ state, sidCounter, ngoCounter, baseUpdatedAt: lastKnownUpdatedAt })
     });
+    if(timeoutId) clearTimeout(timeoutId);
+    clearTimeout(slowHintId);
     if(res.status === 403){ handleDeviceBlocked(); return; }
     if(res.status === 409){
       saveConflictPending = true;
@@ -1954,8 +1967,11 @@ async function pushToServer(){
     if(data && data.updatedAt) lastKnownUpdatedAt = data.updatedAt;
     setAutosaveStatus('Synced ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
   }catch(e){
+    if(timeoutId) clearTimeout(timeoutId);
+    clearTimeout(slowHintId);
+    const reason = (e && e.name === 'AbortError') ? 'Timed out — backend may be down, not just sleeping' : (e && e.message) || 'Unknown error';
     console.warn('Could not sync to server; data is still saved locally.', e);
-    setAutosaveStatus('Sync failed — saved locally, will retry on next change', true);
+    setAutosaveStatus('Sync failed (' + reason + ') — saved locally, will retry on next change', true);
   }
 }
 
@@ -3214,6 +3230,19 @@ loadFromServer().then(function(loaded){
 // still check in with the server so a device blocked since the last visit
 // gets caught right away instead of silently keeping stale access.
 if(isAppUnlocked()) registerDeviceWithServer();
+
+// Free-tier backends (Render etc.) spin down after ~15 min idle, and the
+// next request then has to wait 30-60s for it to wake back up — that's
+// what causes "Saving…" to hang. Pinging a lightweight endpoint every few
+// minutes while this tab is open keeps the backend from going to sleep
+// during an active session, so saves stay fast. This can't prevent the
+// very first cold start of a session, only ones after that.
+setInterval(function(){
+  if(!serverSyncEnabled) return;
+  const base = getApiBase();
+  if(!base) return;
+  fetch(base + '/api/health', { cache: 'no-store' }).catch(()=>{ /* best-effort only */ });
+}, 4 * 60 * 1000);
 </script>
 </body>
 </html>
