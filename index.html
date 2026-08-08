@@ -1736,6 +1736,11 @@ const SOCKET_ID = 'c' + Math.random().toString(36).slice(2) + Date.now().toStrin
 let socket = null;
 let serverSyncEnabled = false;
 let applyingRemoteUpdate = false;
+// The updatedAt timestamp of the state this device last saw from the
+// server (from a load or a save/broadcast). Sent as baseUpdatedAt on every
+// save so the server can detect "someone else saved since I last synced"
+// and refuse to let a stale full-state push silently overwrite it.
+let lastKnownUpdatedAt = null;
 
 function getApiBase(){
   const raw = window.localStorage.getItem(API_BASE_KEY);
@@ -1805,6 +1810,8 @@ function initServerSync(retryCount){
     if(!state.noteGivenOut) state.noteGivenOut = [];
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
+    if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
+    saveConflictPending = false;
     try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
     setAutosaveStatus('Updated from another device ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
     const activeTab = document.querySelector('.tab-btn.active');
@@ -1843,6 +1850,8 @@ async function loadFromServer(){
       if(!state.noteGivenOut) state.noteGivenOut = [];
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
+      if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
+      saveConflictPending = false;
       try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
       setAutosaveStatus('Loaded latest data from server ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
       console.log('[MaaFuelStation] Loaded state from database:', doc);
@@ -1876,8 +1885,13 @@ async function manualFetchFromServer(){
   }
 }
 
+let saveConflictPending = false;
 async function pushToServer(){
   if(!serverSyncEnabled || applyingRemoteUpdate) return;
+  // A conflict already happened and hasn't been resolved (see 409 handling
+  // below) — refuse to keep autosaving on top of it, since that would just
+  // keep hitting the same conflict. The user needs to reload first.
+  if(saveConflictPending) return;
   const base = getApiBase();
   try{
     const res = await fetch(base + '/api/state', {
@@ -1887,10 +1901,21 @@ async function pushToServer(){
         'X-Socket-Id': (socket && socket.id) || SOCKET_ID,
         'X-Device-Id': getDeviceId()
       },
-      body: JSON.stringify({ state, sidCounter, ngoCounter })
+      body: JSON.stringify({ state, sidCounter, ngoCounter, baseUpdatedAt: lastKnownUpdatedAt })
     });
     if(res.status === 403){ handleDeviceBlocked(); return; }
+    if(res.status === 409){
+      // Someone else (another device/tab) saved newer data since we last
+      // synced. Saving our copy on top would silently erase their entries,
+      // so refuse and make it visible instead — pausing autosave until the
+      // person reloads to pick up the latest data.
+      saveConflictPending = true;
+      setAutosaveStatus('⚠ Newer data exists from another device — reload now to avoid losing your latest entry (data is safe in this browser meanwhile)', true);
+      return;
+    }
     if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json().catch(()=>null);
+    if(data && data.updatedAt) lastKnownUpdatedAt = data.updatedAt;
     setAutosaveStatus('Synced ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
   }catch(e){
     console.warn('Could not sync to server; data is still saved locally.', e);
