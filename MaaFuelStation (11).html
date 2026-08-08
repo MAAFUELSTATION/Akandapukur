@@ -1,0 +1,2948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maa Fuel Station</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0F2A3D;
+    --navy2:#153952;
+    --cream:#FBF6EC;
+    --paper:#FFFFFF;
+    --ink:#1C2733;
+    --muted:#707A87;
+    --line:#E4DCC8;
+    --diesel:#1D63D6;
+    --diesel-dark:#12408C;
+    --diesel-glow:#6FA8FF;
+    --petrol:#E08A2B;
+    --petrol-dark:#a8631a;
+    --petrol-glow:#FBBF67;
+    --morning:#D6A419;
+    --afternoon:#C1584A;
+    --night:#4B4E9E;
+    --surplus:#1E8E5A;
+    --shortfall:#D14343;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'Inter',sans-serif;padding-bottom:60px;}
+  h1,h2,h3{font-family:'Fraunces',serif;margin:0;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header.top{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;border-bottom:4px solid var(--petrol);}
+  header.top .brand{display:flex;align-items:center;gap:14px;}
+  header.top .brand svg{flex-shrink:0;}
+  header.top h1{font-size:26px;letter-spacing:0.5px;}
+  header.top .sub{color:#C9D6DF;font-size:12px;margin-top:2px;letter-spacing:1px;text-transform:uppercase;}
+  header.top .right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  header.top .date-live{font-family:'JetBrains Mono',monospace;background:var(--navy2);padding:8px 14px;border-radius:6px;font-size:13px;border:1px solid #2a4d68;}
+  .autosave-indicator{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9FD6C4;background:var(--navy2);padding:7px 12px;border-radius:6px;border:1px solid #2a4d68;white-space:nowrap;}
+  .iobtns button{background:transparent;border:1px solid #3a5b74;color:#dfe8ee;padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:6px;font-family:'Inter',sans-serif;}
+  .iobtns button:hover{background:var(--navy2);}
+
+  nav.tabs{display:flex;background:var(--navy2);padding:0 20px;overflow-x:auto;}
+  nav.tabs button{background:none;border:none;color:#B9C9D6;padding:14px 18px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:3px solid transparent;white-space:nowrap;font-family:'Inter',sans-serif;}
+  nav.tabs button.active{color:#fff;border-bottom-color:var(--petrol);}
+  nav.tabs button:hover{color:#fff;}
+
+  main{max-width:1220px;margin:0 auto;padding:26px 20px;}
+  section.tab{display:none;}
+  section.tab.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:20px;}
+  .card h2{font-size:19px;margin-bottom:14px;color:var(--navy);}
+  .card h2 .tag{font-family:'Inter',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;margin-left:8px;}
+
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:end;margin-bottom:16px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
+  .field input, .field select{padding:9px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:'Inter',sans-serif;background:#fff;color:var(--ink);}
+  .field input:focus, .field select:focus{outline:2px solid var(--petrol);outline-offset:1px;}
+
+  button.btn{background:var(--navy);color:#fff;border:none;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;}
+  button.btn:hover{background:var(--navy2);}
+  button.btn.amber{background:var(--petrol);color:#3a2205;}
+  button.btn.amber:hover{background:var(--petrol-dark);color:#fff;}
+  button.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
+  button.btn.ghost:hover{border-color:var(--navy);}
+  button.btn.danger{background:transparent;border:1px solid var(--shortfall);color:var(--shortfall);padding:6px 10px;font-size:12px;}
+  button.btn.danger:hover{background:var(--shortfall);color:#fff;}
+  button.btn.small{padding:6px 10px;font-size:12px;}
+  button.btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;padding:9px 10px;background:var(--cream);color:var(--navy);font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--line);}
+  td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tfoot td{font-weight:700;background:#F4EEDD;}
+  td input{width:100%;padding:6px 7px;border:1px solid var(--line);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:13px;}
+  .num{text-align:right;font-family:'JetBrains Mono',monospace;}
+  .staff-name-cell{font-weight:600;}
+
+  .readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-bottom:18px;}
+  .digit-box{max-width:100%;background:#0B1C1A;border-radius:10px;padding:16px 18px;box-shadow:inset 0 0 12px rgba(0,0,0,.5);border:1px solid #06110f;overflow:hidden;box-sizing:border-box;position:relative;}
+  .digit-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+  .digit-box.shift-morning::before{background:var(--morning);}
+  .digit-box.shift-afternoon::before{background:var(--afternoon);}
+  .digit-box.shift-night::before{background:var(--night);}
+  .digit-box .lbl{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#7d9c96;margin-bottom:8px;font-weight:600;white-space:normal;line-height:1.3;}
+  .digit-box .val{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;letter-spacing:.2px;word-break:break-word;overflow-wrap:anywhere;line-height:1.45;}
+  .digit-box.diesel .val{color:var(--diesel-glow);text-shadow:0 0 8px rgba(76,224,206,.5);}
+  .digit-box.petrol .val{color:var(--petrol-glow);text-shadow:0 0 8px rgba(251,191,103,.5);}
+  .digit-box.total .val{color:#fff;text-shadow:0 0 8px rgba(255,255,255,.3);}
+  .digit-box.surplus .val{color:#7CF0AE;text-shadow:0 0 8px rgba(124,240,174,.5);}
+  .digit-box.shortfall .val{color:#FF9B9B;text-shadow:0 0 8px rgba(255,155,155,.5);}
+
+  /* ===== Light stat-card (Daily Sales tab readouts) ===== */
+  .stat-card{flex:1;min-width:170px;max-width:100%;background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:13px 16px;box-shadow:0 1px 3px rgba(15,42,61,.05);box-sizing:border-box;}
+  .stat-card .lbl{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .stat-card .val{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;letter-spacing:.2px;word-break:break-word;line-height:1.35;color:var(--navy);}
+  .stat-card.diesel{background:#F2F7FE;border-left-color:var(--diesel);}
+  .stat-card.diesel .val{color:var(--diesel-dark);}
+  .stat-card.petrol{background:#FDF6EA;border-left-color:var(--petrol);}
+  .stat-card.petrol .val{color:var(--petrol-dark);}
+  .stat-card.total{background:#F2F4F8;border-left-color:var(--navy);}
+  .stat-card.total .val{color:var(--navy);font-size:18.5px;}
+  .stat-card.shortfall{background:#FDF2F1;border-left-color:var(--shortfall);}
+  .stat-card.shortfall .val{color:var(--shortfall);font-size:13px;}
+  .stat-card.shift-morning{box-shadow:inset 0 -3px 0 var(--morning);}
+  .stat-card.shift-afternoon{box-shadow:inset 0 -3px 0 var(--afternoon);}
+  .stat-card.shift-night{box-shadow:inset 0 -3px 0 var(--night);}
+
+  /* ================================================================
+     Daily Sales tab — "Forecourt Console" redesign
+     Concept: the tab is styled as the physical console of the two
+     dispensing units — a dark backlit price board, a toggle-switch
+     shift selector, glowing odometer-style meter readouts (echoing
+     a real nozzle's digital counter), and paired unit panels that
+     mirror the actual diesel/petrol nozzle layout. The two ledger
+     tables (shift + full-day) are treated as the paper record kept
+     after reading the machine — a duplicate-style settlement slip.
+     ================================================================ */
+  #tab-sales .card{background:#fff;border:1px solid #ECE4CE;border-radius:16px;box-shadow:0 4px 20px rgba(15,42,61,.06);}
+  #tab-sales .card > h2{display:flex;align-items:center;gap:8px;color:var(--navy);}
+  #tab-sales .card > h2 .tag{font-weight:600;}
+  #tab-sales .divider{background:#ECE4CE;}
+
+  /* --- Price board: rate inputs styled like the forecourt HSD/MS signage --- */
+  #tab-sales .rate-card{
+    background:linear-gradient(155deg,#F6FBF9 0%,#FDF9EC 100%);
+    border:1px solid #E1EFE9;border-radius:12px;padding:16px 18px;
+    box-shadow:0 3px 10px rgba(15,42,61,.06);
+    position:relative;gap:20px;
+  }
+  #tab-sales .rate-card::before{
+    content:'PRICE / LITRE';position:absolute;top:9px;right:16px;
+    font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;
+    color:#9AAFA8;font-weight:700;
+  }
+  #tab-sales .rate-card .field label{color:var(--muted);font-size:10.5px;letter-spacing:1px;}
+  #tab-sales .rate-card .field input{
+    background:transparent;border:none;border-bottom:2px solid #DCE9E2;
+    border-radius:0;color:var(--diesel-dark);font-family:'JetBrains Mono',monospace;
+    font-size:26px;font-weight:700;padding:4px 2px 6px;width:150px;
+    letter-spacing:.5px;
+  }
+  #tab-sales .rate-card .field:nth-of-type(2) input{color:var(--petrol-dark);}
+  #tab-sales .rate-card .field input:focus{outline:none;border-bottom-color:currentColor;}
+  #tab-sales .rate-card .hint{color:var(--muted);}
+
+  /* --- Shift selector: a toggle-switch bank, not plain pill tabs --- */
+  #tab-sales nav.shift-tabs{
+    background:#F8F4E7;padding:6px;border-radius:12px;gap:0;
+    border:1px solid #ECE4CE;
+  }
+  #tab-sales .shift-btn{
+    background:transparent;color:var(--muted);border:none;border-radius:8px;
+    flex:1;position:relative;transition:background .15s,color .15s;
+  }
+  #tab-sales .shift-btn::before{
+    content:'';display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:#D8CFAE;margin-right:7px;vertical-align:middle;transition:background .15s,box-shadow .15s;
+  }
+  #tab-sales .shift-btn.active::before{background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8);}
+  #tab-sales .shift-btn[data-shift="morning"].active{background:var(--morning);color:#3a2205;}
+  #tab-sales .shift-btn[data-shift="afternoon"].active{background:var(--afternoon);color:#fff;}
+  #tab-sales .shift-btn[data-shift="night"].active{background:var(--night);color:#fff;}
+  #tab-sales .shift-btn:hover:not(.active){background:#fff;color:var(--navy);}
+
+  /* --- Meter readouts: light instrument panel for the active shift --- */
+  #tab-sales .readouts{
+    background:linear-gradient(155deg,#F5F9FE 0%,#FDFAF0 100%);
+    border-radius:14px;padding:16px;border:1px solid #E9E3CC;
+    box-shadow:0 2px 10px rgba(15,42,61,.05);gap:12px;
+  }
+  #tab-sales .readouts .digit-box{
+    flex:1 1 150px;background:#fff;border:1px solid var(--line);
+    border-left:4px solid var(--line);box-shadow:0 1px 3px rgba(15,42,61,.05);
+  }
+  #tab-sales .readouts .digit-box .lbl{color:var(--muted);}
+  #tab-sales .readouts .digit-box .val{color:var(--navy);font-size:17px;text-shadow:none;}
+  #tab-sales .readouts .digit-box.diesel{border-left-color:var(--diesel);}
+  #tab-sales .readouts .digit-box.diesel .val{color:var(--diesel-dark);text-shadow:none;}
+  #tab-sales .readouts .digit-box.petrol{border-left-color:var(--petrol);}
+  #tab-sales .readouts .digit-box.petrol .val{color:var(--petrol-dark);text-shadow:none;}
+  #tab-sales .readouts .digit-box.shortfall{border-left-color:var(--shortfall);background:#FDF2F1;}
+  /* Testing totals need extra room: show the complete label and both 20 L prices. */
+  #tab-sales .readouts .digit-box.shortfall{flex:1.45 1 290px;min-width:290px;}
+  #tab-sales .readouts .digit-box.shortfall .lbl{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35;min-height:27px;}
+  #tab-sales .readouts .digit-box.shortfall .val{color:var(--shortfall);font-size:14px;text-shadow:none;line-height:1.5;}
+  #tab-sales .readouts .digit-box.total{
+    flex-basis:100%;border-left-color:var(--navy);
+    background:linear-gradient(120deg,rgba(29,99,214,.06),rgba(224,138,43,.06));
+  }
+  #tab-sales .readouts .digit-box.total .val{font-size:26px;color:var(--navy);text-shadow:none;}
+
+  /* --- Dip Chart tab: light result panel (matches the light "console" look) --- */
+  #tab-dipchart .readouts{
+    background:linear-gradient(155deg,#F5F9FE 0%,#FDFAF0 100%);
+    border-radius:14px;padding:16px;border:1px solid #E9E3CC;
+    box-shadow:0 2px 10px rgba(15,42,61,.05);gap:12px;
+  }
+  #tab-dipchart .readouts .digit-box{
+    flex:1 1 150px;background:#fff;border:1px solid var(--line);
+    border-left:4px solid var(--petrol);box-shadow:0 1px 3px rgba(15,42,61,.05);
+  }
+  #tab-dipchart .readouts .digit-box .lbl{color:var(--muted);}
+  #tab-dipchart .readouts .digit-box .val{color:var(--navy);font-size:18px;text-shadow:none;}
+  #tab-dipchart .readouts .digit-box.total{
+    flex-basis:100%;border-left-color:var(--diesel-dark,var(--navy));
+    background:linear-gradient(120deg,rgba(14,156,143,.08),rgba(224,138,43,.08));
+  }
+  #tab-dipchart .readouts .digit-box.total .val{font-size:26px;color:var(--navy);text-shadow:none;font-weight:800;}
+
+  /* --- Twin dispensing-unit panels (replaces the flat nozzle table) --- */
+  .units-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0 6px;}
+  /* A single column below this width keeps every editable field inside its border. */
+  @media(max-width:1150px){.units-grid{grid-template-columns:1fr;}}
+  .unit-panel{background:#FFFEFB;border:1px solid var(--line);border-radius:14px;padding:14px 14px 6px;box-shadow:0 2px 10px rgba(15,42,61,.05);}
+  .unit-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line);}
+  .unit-head .unit-num{
+    font-family:'Fraunces',serif;font-weight:700;font-size:19px;color:#fff;
+    background:var(--navy);width:34px;height:34px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .unit-head .unit-name{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  .unit-head .unit-titles{display:flex;flex-direction:column;gap:2px;}
+  .unit-head .unit-machine{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.6px;color:var(--navy);font-weight:700;background:var(--cream);border:1px solid var(--line);border-radius:5px;padding:1px 7px;display:inline-block;width:fit-content;}
+  .fuel-group{border-radius:10px;padding:10px 12px 4px;margin-bottom:10px;border-left:3px solid var(--line);}
+  .fuel-group.diesel{background:#F2F7FE;border-left-color:var(--diesel);}
+  .fuel-group.petrol{background:#FDF6EA;border-left-color:var(--petrol);}
+  .fuel-group-head{font-size:11px;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .fuel-group.diesel .fuel-group-head{color:var(--diesel-dark);}
+  .fuel-group.petrol .fuel-group-head{color:var(--petrol-dark);}
+  .fuel-group-head .dot{width:8px;height:8px;border-radius:50%;background:currentColor;}
+  .nozzle-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    grid-template-areas:
+      "name name"
+      "staff staff"
+      "opening closing"
+      "result result";
+    row-gap:8px;column-gap:10px;align-items:end;min-width:0;
+    padding:12px 0;border-bottom:1px dashed rgba(15,42,61,.12);
+  }
+  .nozzle-row:last-child{border-bottom:none;}
+  .nz-name{grid-area:name;font-size:12.5px;color:var(--ink);font-weight:700;letter-spacing:.2px;}
+  .nozzle-row select{grid-area:staff;width:100%;min-width:0;box-sizing:border-box;padding:7px 8px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:12.5px;background:#fff;}
+  .nozzle-row .meter-field{min-width:0;}
+  .nozzle-row .field-opening{grid-area:opening;}
+  .nozzle-row .field-closing{grid-area:closing;}
+  .nozzle-row .meter-input{width:100%;min-width:0;box-sizing:border-box;padding:8px 8px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;text-align:right;}
+  .nozzle-row .meter-input:disabled{background:#F4EEDD;color:var(--muted);cursor:not-allowed;border-style:dashed;}
+  .nz-result{grid-area:result;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;}
+  .nz-chip{border-radius:7px;padding:8px 9px;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35;text-align:center;border:1px solid var(--line);background:#fff;min-width:0;}
+  .fuel-group.diesel .nz-chip.litres{color:var(--diesel-dark);background:#EAF2FE;border-color:#D3E4FC;}
+  .fuel-group.petrol .nz-chip.litres{color:var(--petrol-dark);background:#FCEFDA;border-color:#F5DDB4;}
+  .nz-chip.amount{color:var(--navy);background:var(--cream);border-color:#EDE4C8;}
+  .nz-chip .sfx{opacity:.55;font-weight:500;margin-left:2px;}
+  .field-caption{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;}
+
+  /* --- Testing / adjustment panel: quiet amber "maintenance" tint --- */
+  #tab-sales #testingBlock{
+    background:#FFFCF4;border:1px solid #EEE1BE;border-radius:12px;
+    padding:16px 18px 14px;margin-top:2px;position:relative;overflow:hidden;
+  }
+  #tab-sales #testingBlock::before{content:'';position:absolute;top:0;left:0;bottom:0;width:4px;background:repeating-linear-gradient(-45deg,var(--petrol) 0 6px,#3a2205 6px 12px);}
+  #tab-sales .fds-testing-row{background:linear-gradient(120deg,#F2F8FE 0%,#FDF7EA 100%);border:1px solid #E6E0CC;}
+
+  /* --- Ledger tables: settlement-slip styling for staff totals --- */
+  #tab-sales .ledger-wrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;}
+  #tab-sales .ledger-wrap table{font-size:13px;}
+  #tab-sales .ledger-wrap th{background:var(--navy);color:#C9D6DF;font-size:10px;letter-spacing:.8px;border-bottom:none;}
+  #tab-sales .ledger-wrap th.num{text-align:right;}
+  #tab-sales .ledger-wrap td{border-bottom:1px dashed var(--line);}
+  #tab-sales .ledger-wrap tbody tr:last-child td{border-bottom:none;}
+  #tab-sales .ledger-wrap tbody tr:nth-child(even) td{background:#FCFBF5;}
+  #tab-sales .ledger-wrap tbody tr:hover td{background:#F3F8FE;}
+  #tab-sales .ledger-wrap .num{font-family:'JetBrains Mono',monospace;}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px;}
+  .badge.online{background:rgba(30,142,90,.12);color:var(--surplus);}
+  .badge.offline{background:rgba(112,122,135,.12);color:var(--muted);}
+  .badge.blocked{background:rgba(209,67,67,.12);color:var(--shortfall);}
+  .badge.this-device{background:rgba(29,99,214,.12);color:var(--diesel);margin-left:6px;}
+  #devicesTable td.device-label-cell{font-weight:600;min-width:170px;}
+  #devicesTable .device-actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .badge.surplus{background:#E4F5EC;color:var(--surplus);}
+  .badge.shortfall{background:#FBE7E7;color:var(--shortfall);}
+  .badge.matched{background:#EEF0F2;color:var(--muted);}
+
+
+  .staff-list{display:flex;flex-direction:column;gap:8px;}
+  .staff-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;}
+  .staff-row input{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:14px;}
+  .empty{color:var(--muted);font-style:italic;font-size:13px;padding:14px 0;}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr;}}
+  .divider{height:1px;background:var(--line);margin:18px 0;}
+  .denom-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;margin-bottom:6px;}
+  .denom-cell{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:7px;padding:9px 10px;min-width:0;overflow:hidden;background:#fff;transition:border-color .15s,box-shadow .15s;}
+  .denom-cell:focus-within{border-color:var(--navy);box-shadow:0 0 0 3px rgba(15,42,61,.08);}
+  .denom-cell.tier-high{border-left-color:var(--navy);}
+  .denom-cell.tier-low{border-left-color:var(--petrol);}
+  .denom-cell .note{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--navy);font-size:13px;margin-bottom:5px;white-space:nowrap;}
+  .denom-cell.tier-low .note{color:var(--petrol-dark);}
+  .denom-cell.coin .note{color:var(--petrol-dark);}
+  .denom-cell .sub{font-size:10.5px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .denom-cell input{width:100%;min-width:0;text-align:right;font-weight:600;}
+
+  /* Cash Denomination Calculator — redesigned layout */
+  .cc-header-card{margin-bottom:16px;}
+  .cc-layout{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;align-items:start;}
+  @media(max-width:900px){.cc-layout{grid-template-columns:1fr;}}
+  .cc-entry{display:flex;flex-direction:column;gap:16px;min-width:0;}
+  .cc-block{margin-bottom:0;}
+  .cc-block-title{font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--navy);}
+  .cc-ico{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--cream);font-size:15px;flex-shrink:0;}
+  .cc-summary{position:sticky;top:16px;}
+  .cc-receipt{background:var(--navy);color:#fff;border:none;padding:22px 20px;}
+  .cc-receipt .cc-block-title{color:#fff;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:12px;}
+  .cc-receipt .calc-line{border-bottom:1px dashed rgba(255,255,255,.18);color:#DCE6EC;font-size:13.5px;padding:6px 0;}
+  .cc-receipt .calc-line.total{color:#fff;font-size:15px;}
+  .cc-receipt .calc-line .mono{color:#fff;}
+  .cc-receipt #diffBox{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);box-shadow:none;}
+  .cc-save-btn{width:100%;margin-top:16px;padding:12px;font-size:14px;}
+  .cc-saved-hint{display:block;margin-top:8px;color:#9FD6C4;text-align:center;}
+  .calc-line{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+  .calc-line.total{font-weight:700;border-bottom:none;padding-top:10px;font-size:15.5px;}
+  footer.note{max-width:1220px;margin:0 auto;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6;}
+
+  .rate-card{display:flex;gap:16px;flex-wrap:wrap;align-items:end;background:#F4EEDD;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
+  .fds-testing-row{display:flex;gap:16px;flex-wrap:wrap;align-items:end;background:#F4EEDD;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
+  .fds-testing-row .field input{width:150px;}
+  .fds-testing-row .btn{margin-bottom:1px;}
+  .fds-net-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:6px 0 22px;}
+  .fds-net-tile{border-radius:12px;padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:0 2px 8px rgba(15,42,61,.06);position:relative;overflow:hidden;}
+  .fds-net-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;}
+  .fds-net-tile.diesel{background:linear-gradient(180deg,#F1F7FE 0%,#fff 65%);}
+  .fds-net-tile.diesel::before{background:var(--diesel);}
+  .fds-net-tile.petrol{background:linear-gradient(180deg,#FDF6EA 0%,#fff 65%);}
+  .fds-net-tile.petrol::before{background:var(--petrol);}
+  .fds-net-tile.total{background:linear-gradient(180deg,#F2F4F8 0%,#fff 65%);}
+  .fds-net-tile.total::before{background:linear-gradient(90deg,var(--diesel),var(--petrol));}
+  .fds-net-tile .lbl{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:9px;font-weight:700;}
+  .fds-net-tile .litres{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);margin-bottom:4px;}
+  .fds-net-tile .amount{font-family:'JetBrains Mono',monospace;font-size:23px;font-weight:700;letter-spacing:.3px;}
+  .fds-net-tile.diesel .amount{color:var(--diesel-dark);}
+  .fds-net-tile.petrol .amount{color:var(--petrol-dark);}
+  .fds-net-tile.total .amount{color:var(--navy);}
+  nav.shift-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .shift-btn{background:#F4EEDD;border:1px solid var(--line);color:var(--navy);padding:9px 16px;border-radius:7px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;}
+  .shift-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .shift-btn[data-shift="morning"].active{background:var(--morning);border-color:var(--morning);color:#3a2205;}
+  .shift-btn[data-shift="afternoon"].active{background:var(--afternoon);border-color:var(--afternoon);color:#fff;}
+  .shift-btn[data-shift="night"].active{background:var(--night);border-color:var(--night);color:#fff;}
+  .shift-btn:hover:not(.active){border-color:var(--navy);}
+  #nozzleAssignTable select{width:100%;padding:6px 7px;border:1px solid var(--line);border-radius:5px;font-family:'Inter',sans-serif;font-size:12.5px;background:#fff;}
+  #nozzleAssignTable input:disabled{background:#F4EEDD;color:var(--muted);cursor:not-allowed;}
+  .rate-card .field input{width:130px;}
+  .staff-sale-card{border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;background:#FFFEFB;}
+  .ssc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .ssc-head h3{font-size:16px;color:var(--navy);}
+  .ssc-head .ssc-total{font-size:15px;font-weight:700;color:var(--navy);}
+  .fuel-label{font-size:12px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:6px;}
+  .fuel-label.diesel{color:var(--diesel-dark);}
+  .fuel-label.petrol{color:var(--petrol-dark);}
+  .nozzle-table td, .nozzle-table th{padding:6px 7px;font-size:12.5px;} /* legacy selector, superseded by .nozzle-row */
+  .sub-total{text-align:right;padding:6px 4px;font-size:13px;font-weight:700;}
+  .loan-entry{border:1px solid var(--line);border-radius:8px;padding:10px 10px 9px;margin-bottom:9px;background:#FAF9F3;}
+  .loan-row{display:grid;grid-template-columns:1.2fr 0.9fr 1fr auto auto;gap:8px;align-items:center;}
+  .loan-row input{padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:13px;}
+  .loan-row select{padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:12.5px;font-family:'Inter',sans-serif;background:#fff;}
+  .loan-row .chk-wrap{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;}
+  .loan-row .chk-wrap input{width:16px;height:16px;padding:0;}
+  .loan-note-row{margin-top:7px;}
+  .loan-note-row input{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:5px;font-size:12.5px;background:#fff;color:var(--muted);}
+  .loan-note-row input:focus{color:var(--ink);}
+  @media(max-width:760px){.loan-row{grid-template-columns:1fr 1fr;}}
+  .loan-total-line{display:flex;justify-content:space-between;font-weight:700;padding-top:6px;font-size:13.5px;}
+  th.num{text-align:right;}
+
+  /* ===== Daily Sales tab — mobile-friendly redesign ===== */
+  @media(max-width:700px){
+    header.top{padding:14px 16px;}
+    header.top h1{font-size:20px;}
+    header.top .right{width:100%;justify-content:space-between;}
+    header.top .date-live{font-size:12px;padding:7px 10px;}
+    .autosave-indicator{font-size:10px;padding:6px 9px;}
+    .iobtns{display:flex;width:100%;gap:6px;}
+    .iobtns button{margin-left:0;flex:1;padding:9px 8px;}
+
+    nav.tabs{padding:0 10px;}
+    nav.tabs button{padding:12px 12px;font-size:13px;}
+
+    main{padding:16px 12px;}
+    .card{padding:15px;border-radius:12px;}
+    .card h2{font-size:17px;flex-wrap:wrap;}
+    .card h2 .tag{margin-left:0;flex-basis:100%;}
+
+    /* Rate board & testing rows: stack full-width */
+    #tab-sales .rate-card,
+    #tab-sales .fds-testing-row{flex-direction:column;align-items:stretch;padding:14px;}
+    #tab-sales .rate-card .field input{width:100%;font-size:22px;}
+    #tab-sales .fds-testing-row .field input{width:100%;}
+    #tab-sales .fds-testing-row .btn{width:100%;margin-bottom:0;}
+    #tab-sales .row{flex-direction:column;align-items:stretch;}
+    #tab-sales .row .field input{width:100%;}
+
+    /* Shift toggle bank: stack the 3 switches full-width */
+    #tab-sales nav.shift-tabs{flex-direction:column;gap:4px;}
+    #tab-sales .shift-btn{padding:12px 10px;font-size:13px;text-align:left;justify-content:flex-start;}
+
+    /* Meter console & full-day tiles: one glowing readout per row */
+    #tab-sales .readouts,
+    #tab-sales .fds-net-strip{grid-template-columns:1fr;display:grid;gap:10px;padding:14px;}
+    #tab-sales .readouts .digit-box,
+    #tab-sales .fds-net-tile{min-width:0;width:100%;flex-basis:auto;}
+    #tab-sales .readouts .digit-box.total .val{font-size:23px;}
+    #tab-dipchart .readouts{grid-template-columns:1fr;display:grid;gap:10px;padding:14px;}
+    #tab-dipchart .readouts .digit-box{min-width:0;width:100%;flex-basis:auto;}
+    #tab-dipchart .readouts .digit-box.total .val{font-size:23px;}
+    #tab-sales .fds-net-tile .amount{font-size:20px;}
+
+    /* Dispensing-unit panels: single column on small screens */
+    .units-grid{grid-template-columns:1fr;gap:12px;margin:14px 0 4px;}
+    .unit-panel{padding:12px 12px 4px;}
+    .nozzle-row{row-gap:6px;padding:10px 0;}
+    .nz-chip{padding:7px 8px;font-size:12px;}
+
+    /* Ledger tables -> stacked cards, one card per staff row */
+    #tab-sales .ledger-wrap{border:none;background:transparent;overflow:visible;}
+    #tab-sales .ledger-wrap table{display:block;}
+    #tab-sales .ledger-wrap thead{display:none;}
+    #tab-sales .ledger-wrap tbody{display:block;}
+    #tab-sales .ledger-wrap tr{
+      display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;
+      background:#fff;border:1px solid var(--line);border-radius:10px;
+      padding:11px 12px;margin-bottom:10px;
+    }
+    #tab-sales .ledger-wrap td{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:3px 0;border-bottom:none;grid-column:1 / -1;
+    }
+    #tab-sales .ledger-wrap td::before{
+      content:attr(data-label);font-size:10.5px;text-transform:uppercase;
+      letter-spacing:.4px;color:var(--muted);font-weight:700;
+    }
+    #tab-sales .ledger-wrap td.num{text-align:right;font-family:'JetBrains Mono',monospace;}
+    #tab-sales .ledger-wrap tr td:first-child{
+      font-weight:700;color:var(--navy);border-bottom:1px dashed var(--line);
+      padding-bottom:6px;margin-bottom:2px;
+    }
+    #tab-sales .ledger-wrap tr td:first-child::before{content:none;}
+    #tab-sales .ledger-wrap td.empty{display:block;border-bottom:none;padding:4px 0;}
+    #tab-sales .ledger-wrap td.empty::before{content:none;}
+    #tab-sales .ledger-wrap tr:has(td.empty){
+      display:block;background:transparent;border:none;box-shadow:none;padding:4px 0;
+    }
+
+    #tab-sales .divider{margin:14px 0;}
+    #tab-sales button.btn.small{width:100%;padding:10px;}
+  }
+  /* ================= LOGIN GATE ================= */
+  body.app-locked > header.top,
+  body.app-locked > nav.tabs,
+  body.app-locked > main{ display:none; }
+
+  #loginGate{
+    position:fixed; inset:0; z-index:9999;
+    display:flex; align-items:center; justify-content:center;
+    background:
+      radial-gradient(1100px 600px at 15% -10%, rgba(224,138,43,.18), transparent 60%),
+      radial-gradient(900px 700px at 110% 110%, rgba(29,99,214,.20), transparent 55%),
+      linear-gradient(160deg, var(--navy) 0%, #0A1E2C 60%, #081720 100%);
+    padding:20px;
+  }
+  #loginGate.hidden{ display:none; }
+  .login-card{
+    width:100%; max-width:380px;
+    background:rgba(251,246,236,.98);
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 70px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.03);
+    padding:36px 32px 30px;
+    animation:loginRise .5s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes loginRise{ from{opacity:0; transform:translateY(14px) scale(.98);} to{opacity:1; transform:translateY(0) scale(1);} }
+  @keyframes loginShake{ 10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);} }
+  .login-card.shake{ animation:loginShake .5s; }
+
+  .login-badge{
+    width:56px; height:56px; border-radius:14px; margin:0 auto 18px;
+    background:linear-gradient(145deg,var(--navy),var(--navy2));
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 18px rgba(15,42,61,.35);
+  }
+  .login-card h2{ text-align:center; font-size:22px; color:var(--navy); margin-bottom:4px; }
+  .login-card .login-sub{ text-align:center; font-size:12.5px; color:var(--muted); margin-bottom:26px; letter-spacing:.3px; }
+
+  .login-field{ margin-bottom:16px; }
+  .login-field label{ display:block; font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; }
+  .login-field .input-wrap{ position:relative; }
+  .login-field input{
+    width:100%; padding:12px 14px; padding-right:40px;
+    border:1.5px solid var(--line); border-radius:9px;
+    font-family:'Inter',sans-serif; font-size:14.5px; background:#fff; color:var(--ink);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .login-field input:focus{ outline:none; border-color:var(--petrol); box-shadow:0 0 0 3px rgba(224,138,43,.15); }
+  .login-field .toggle-eye{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    background:none; border:none; cursor:pointer; padding:4px; color:var(--muted); font-size:15px; line-height:1;
+  }
+  .login-field .toggle-eye:hover{ color:var(--navy); }
+
+  .login-error{
+    display:none; align-items:center; gap:8px;
+    background:#FDF2F1; border:1px solid #F3C9C4; color:var(--shortfall);
+    font-size:12.5px; font-weight:600; padding:9px 12px; border-radius:8px; margin-bottom:16px;
+  }
+  .login-error.show{ display:flex; }
+
+  button.btn.login-submit{
+    width:100%; background:var(--petrol); color:#3a2205; padding:12px 16px; font-size:14px;
+    border-radius:9px; letter-spacing:.2px;
+  }
+  button.btn.login-submit:hover{ background:var(--petrol-dark); color:#fff; }
+
+  .login-foot{ text-align:center; margin-top:18px; font-size:11px; color:var(--muted); letter-spacing:.3px; }
+
+  .logout-btn{
+    background:transparent; border:1px solid #3a5b74; color:#dfe8ee; padding:7px 12px;
+    border-radius:6px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; margin-left:6px;
+  }
+  .logout-btn:hover{ background:#c0392b; border-color:#c0392b; color:#fff; }
+
+  /* ===== Idle countdown badge ===== */
+  #idleCountdown{
+    position:fixed; bottom:20px; right:20px; z-index:9999;
+    background:var(--navy2); color:#fff; border:1px solid #2a4d68;
+    border-left:4px solid var(--shortfall); border-radius:8px;
+    padding:10px 16px; font-family:'JetBrains Mono',monospace;
+    box-shadow:0 4px 16px rgba(0,0,0,.25);
+    display:none; align-items:center; gap:10px;
+    animation:idleFadeIn .25s ease;
+  }
+  #idleCountdown.show{ display:flex; }
+  #idleCountdown .idle-lbl{
+    font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase;
+    letter-spacing:.6px; color:#C9D6DF;
+  }
+  #idleCountdown .idle-time{
+    font-size:16px; font-weight:700; color:#FF9B9B; min-width:44px; text-align:right;
+  }
+  @keyframes idleFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+</style>
+</head>
+<body class="app-locked">
+
+<div id="idleCountdown">
+  <span class="idle-lbl">Auto-logout in</span>
+  <span class="idle-time" id="idleCountdownVal">4:00</span>
+</div>
+<div id="loginGate">
+  <div class="login-card" id="loginCard">
+    <div class="login-badge">
+      <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+        <rect x="6" y="10" width="22" height="32" rx="2" fill="#E08A2B"/>
+        <rect x="10" y="15" width="14" height="10" rx="1" fill="#0F2A3D"/>
+        <rect x="10" y="29" width="14" height="3" fill="#0F2A3D"/>
+        <rect x="10" y="35" width="14" height="3" fill="#0F2A3D"/>
+        <path d="M28 20 H33 C35 20 36 21 36 23 V36 C36 38 34.5 39.5 32.5 39.5 C30.5 39.5 29 38 29 36 V27" stroke="#0E9C8F" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <circle cx="32.5" cy="23" r="2.3" fill="#0E9C8F"/>
+      </svg>
+    </div>
+    <h2>Maa Fuel Station</h2>
+    <div class="login-sub">Sign in to open the console</div>
+
+    <div class="login-error" id="loginError">⚠ Wrong username or password. Please try again.</div>
+
+    <form id="loginForm" autocomplete="off">
+      <div class="login-field">
+        <label for="loginUser">Username</label>
+        <div class="input-wrap">
+          <input type="text" id="loginUser" placeholder="Enter username" autocomplete="username">
+        </div>
+      </div>
+      <div class="login-field">
+        <label for="loginPass">Password</label>
+        <div class="input-wrap">
+          <input type="password" id="loginPass" placeholder="Enter password" autocomplete="current-password">
+          <button type="button" class="toggle-eye" id="togglePass" title="Show/hide password">👁</button>
+        </div>
+      </div>
+      <button type="submit" class="btn login-submit">Unlock Console</button>
+    </form>
+    <div class="login-foot">Restricted access · Maa Fuel Station staff only</div>
+  </div>
+</div>
+
+<header class="top">
+  <div class="brand">
+    <svg width="38" height="38" viewBox="0 0 48 48" fill="none">
+      <rect x="6" y="10" width="22" height="32" rx="2" fill="#E08A2B"/>
+      <rect x="10" y="15" width="14" height="10" rx="1" fill="#0F2A3D"/>
+      <rect x="10" y="29" width="14" height="3" fill="#0F2A3D"/>
+      <rect x="10" y="35" width="14" height="3" fill="#0F2A3D"/>
+      <path d="M28 20 H33 C35 20 36 21 36 23 V36 C36 38 34.5 39.5 32.5 39.5 C30.5 39.5 29 38 29 36 V27" stroke="#0E9C8F" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="32.5" cy="23" r="2.3" fill="#0E9C8F"/>
+    </svg>
+    <div>
+      <h1>Maa Fuel Station</h1>
+      <div class="sub">Nozzle Sales &amp; Cash Reconciliation</div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="date-live" id="liveDate"></div>
+    <div class="autosave-indicator" id="autosaveStatus">Autosave: idle</div>
+    <div class="iobtns">
+      <button onclick="configureServerUrl()" title="Set the backend server URL for live multi-device sync">🔗 Server</button>
+      <button onclick="manualFetchFromServer()" title="Force-reload the latest data from the database">⬇️ Fetch from Database</button>
+      <button onclick="exportData()" title="Download all data as a backup file">Export Data</button>
+      <button onclick="document.getElementById('importFile').click()" title="Restore from a backup file">Import Data</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this.files[0])">
+      <button class="logout-btn" onclick="logoutApp()" title="Lock the console">🔒 Logout</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="sales" onclick="switchTab('sales')">⛽ Nozzal's Sale Report</button>
+  <button class="tab-btn" data-tab="salesreport" onclick="switchTab('salesreport')">📊 Sales Report</button>
+  <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
+  <button class="tab-btn" data-tab="cash" onclick="switchTab('cash')">🧮 Cash Denomination Calculator</button>
+  <button class="tab-btn" data-tab="surplus" onclick="switchTab('surplus')">📒 Staff Surplus / Short Data</button>
+  <button class="tab-btn" data-tab="notestock" onclick="switchTab('notestock')">💵 Note Stock</button>
+  <button class="tab-btn" data-tab="dipchart" onclick="switchTab('dipchart')">📏 Dip Chart</button>
+  <button class="tab-btn" data-tab="devices" onclick="switchTab('devices')">🖥️ Devices</button>
+</nav>
+
+<main>
+
+  <!-- ===================== DAILY SALES TAB ===================== -->
+  <section id="tab-sales" class="tab active">
+    <div class="card">
+      <h2>⛽ Daily Nozzle Sales <span class="tag">2 Dispensing Units · Morning, Afternoon &amp; Night shifts</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="salesDate" onchange="renderSalesTab()">
+        </div>
+      </div>
+
+      <div class="rate-card">
+        <div class="field">
+          <label>Diesel (HSD) Rate ₹ / Litre</label>
+          <input type="number" id="dieselRate" min="0" step="0.01" oninput="onRateInput()">
+        </div>
+        <div class="field">
+          <label>Petrol (MS) Rate ₹ / Litre</label>
+          <input type="number" id="petrolRate" min="0" step="0.01" oninput="onRateInput()">
+        </div>
+        <div class="hint" id="rateHint" style="margin-bottom:8px;"></div>
+      </div>
+
+      <nav class="shift-tabs" id="shiftTabs">
+        <button class="shift-btn active" data-shift="morning" onclick="switchShift('morning')">🌅 Morning Shift</button>
+        <button class="shift-btn" data-shift="afternoon" onclick="switchShift('afternoon')">🌇 Afternoon Shift</button>
+        <button class="shift-btn" data-shift="night" onclick="switchShift('night')">🌙 Night Shift</button>
+      </nav>
+
+      <div class="readouts" id="shiftReadouts"></div>
+
+      <div id="nozzleAssignTable" class="units-grid"></div>
+      <div class="hint" id="shiftHint"></div>
+
+      <div class="divider" id="testingDivider"></div>
+      <div id="testingBlock">
+      <h2 style="font-size:14px;margin-bottom:10px;">Testing / Nozzle Adjustment <span class="tag">Fuel given for pump testing this shift — excluded from sale · defaults to 20L each</span></h2>
+      <div class="grid2">
+        <div class="field">
+          <label>Testing HSD (Diesel) ₹ — this shift</label>
+          <input type="number" id="shiftTestingHSD" min="0" step="0.01" value="0" oninput="onShiftTestingInput()">
+          <div class="hint" id="shiftTestingHSDLitres" style="margin-top:4px;">≈ 0.00 L</div>
+        </div>
+        <div class="field">
+          <label>Testing MS (Petrol) ₹ — this shift</label>
+          <input type="number" id="shiftTestingMS" min="0" step="0.01" value="0" oninput="onShiftTestingInput()">
+          <div class="hint" id="shiftTestingMSLitres" style="margin-top:4px;">≈ 0.00 L</div>
+        </div>
+      </div>
+      <button class="btn ghost small" onclick="resetShiftTesting()" style="margin-top:2px;" title="Reset both back to the value of 20 litres each for this shift">↺ Reset to Default (20L)</button>
+      <div class="hint">This is deducted from the nozzle meter total to arrive at the exact sale amount for this shift and for the Full Day Summary. Auto-set to the value of 20 litres each — edit or use the reset button to customize.</div>
+      </div>
+
+      <div class="divider"></div>
+      <h2 style="font-size:14px;margin-bottom:10px;">Shift Staff Totals</h2>
+      <div class="ledger-wrap">
+      <table>
+        <thead><tr><th>Staff</th><th class="num">Diesel L</th><th class="num">Diesel ₹</th><th class="num">Petrol L</th><th class="num">Petrol ₹</th><th class="num">Shift Total ₹</th></tr></thead>
+        <tbody id="shiftStaffBody"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SALES REPORT TAB (Daily + Monthly) ===================== -->
+  <section id="tab-salesreport" class="tab">
+    <div class="card">
+      <h2>🧾 Daily Sale Report <span class="tag">Morning + Afternoon + Night combined · for date <span id="salesReportDateLabel"></span></span></h2>
+
+      <div class="fds-testing-row">
+        <div class="field">
+          <label>Diesel Testing — Litres / Day</label>
+          <input type="number" id="dayTestHSDL" min="0" step="0.01" value="20" oninput="onDayTestingInput()">
+        </div>
+        <div class="field">
+          <label>Petrol Testing — Litres / Day</label>
+          <input type="number" id="dayTestMSL" min="0" step="0.01" value="20" oninput="onDayTestingInput()">
+        </div>
+        <button class="btn ghost small" onclick="resetDayTesting()" title="Reset both back to the default 20L">↺ Reset to Default (20L)</button>
+        <div class="hint" style="flex-basis:100%;">Defaults to 20 litres each for Diesel and Petrol testing — edit the fields above to customize for this day. Change the date on the Nozzal's Sale Report tab to view a different day here.</div>
+      </div>
+
+      <div class="readouts" id="salesReadouts"></div>
+
+      <div class="fds-net-strip" id="salesNetStrip"></div>
+
+      <div class="ledger-wrap">
+      <table>
+        <thead><tr><th>Staff</th><th class="num">Diesel ₹</th><th class="num">Petrol ₹</th><th class="num">Day Total ₹</th></tr></thead>
+        <tbody id="dayStaffBody"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📅 Monthly Sale Report <span class="tag">Diesel &amp; Petrol totals</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="monthPicker" onchange="renderMonthlyTab()">
+        </div>
+      </div>
+      <div class="readouts" id="monthlyReadouts"></div>
+
+      <h2 style="font-size:15px;margin:20px 0 10px;">Date-wise Breakdown</h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th class="num">Diesel Litres</th><th class="num">Diesel ₹</th><th class="num">Petrol Litres</th><th class="num">Petrol ₹</th><th class="num">Day Total ₹</th></tr>
+        </thead>
+        <tbody id="monthlyDateBody"></tbody>
+        <tfoot id="monthlyDateFoot"></tfoot>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Staff-wise Sales <span class="tag">Total sale given by each staff this month</span></h2>
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">Diesel ₹</th><th class="num">Petrol ₹</th><th class="num">Total ₹</th><th class="num">% of Station Sales</th></tr>
+        </thead>
+        <tbody id="monthlyStaffBody"></tbody>
+        <tfoot id="monthlyStaffFoot"></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== STAFF TAB ===================== -->
+  <section id="tab-staff" class="tab">
+    <div class="card">
+      <h2>Manage Staff <span class="tag">Add, rename or remove staff</span></h2>
+      <div class="staff-list" id="staffList"></div>
+      <div class="divider"></div>
+      <div class="row">
+        <div class="field" style="flex:1;">
+          <label>New Staff Name</label>
+          <input type="text" id="newStaffName" placeholder="Enter staff name">
+        </div>
+        <button class="btn amber" onclick="addStaff()">Add Staff</button>
+      </div>
+      <div class="hint">Renaming a staff member updates their name everywhere. Deleting removes them from future entry lists — historical records are kept.</div>
+    </div>
+  </section>
+
+  <!-- ===================== CASH DENOMINATION CALCULATOR TAB ===================== -->
+  <section id="tab-cash" class="tab">
+    <div class="card cc-header-card">
+      <h2>Cash Denomination Calculator <span class="tag">Notes, coins, testing, loans &amp; deposit</span></h2>
+      <div class="row" style="margin-bottom:0;">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="cashDate" onchange="renderCashTab()">
+        </div>
+        <div class="field">
+          <label>Staff</label>
+          <select id="cashStaff" onchange="renderCashTab()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="cc-layout">
+      <!-- ENTRY COLUMN -->
+      <div class="cc-entry">
+
+        <div class="card cc-block">
+          <h2 class="cc-block-title"><span class="cc-ico">💵</span> Notes</h2>
+          <div class="denom-grid" id="denomGrid"></div>
+        </div>
+
+        <div class="card cc-block">
+          <h2 class="cc-block-title"><span class="cc-ico">🪙</span> Coins</h2>
+          <div class="field" style="max-width:220px;">
+            <label>Total Coins ₹</label>
+            <input type="number" id="coinsTotal" min="0" step="0.01" value="0" oninput="calcCash()">
+          </div>
+        </div>
+
+        <div class="card cc-block">
+          <h2 class="cc-block-title"><span class="cc-ico">⛽</span> Testing Fuel <span class="tag">Added to Final Cash Value</span></h2>
+          <div class="grid2">
+            <div class="field">
+              <label>Testing HSD (Diesel) Quantity</label>
+              <select id="testingHSDOption" onchange="onTestingOptionChange()">
+                <option value="0">0 Litre</option>
+                <option value="5">5 Litres</option>
+                <option value="10">10 Litres</option>
+                <option value="custom">Custom Litres</option>
+              </select>
+              <input type="number" id="testingHSDQty" min="0" step="0.01" value="0" style="margin-top:5px; display:none;" oninput="calcCash()" placeholder="Enter litres">
+              <div class="hint" id="testingHSDValDisplay" style="font-weight:600; color:var(--navy); margin-top:4px;">Calculated: ₹0.00</div>
+            </div>
+            <div class="field">
+              <label>Testing MS (Petrol) Quantity</label>
+              <select id="testingMSOption" onchange="onTestingOptionChange()">
+                <option value="0">0 Litre</option>
+                <option value="5">5 Litres</option>
+                <option value="10">10 Litres</option>
+                <option value="custom">Custom Litres</option>
+              </select>
+              <input type="number" id="testingMSQty" min="0" step="0.01" value="0" style="margin-top:5px; display:none;" oninput="calcCash()" placeholder="Enter litres">
+              <div class="hint" id="testingMSValDisplay" style="font-weight:600; color:var(--navy); margin-top:4px;">Calculated: ₹0.00</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card cc-block">
+          <h2 class="cc-block-title"><span class="cc-ico">💳</span> Online &amp; Card Payments <span class="tag">Added to Final Cash Value</span></h2>
+          <div class="grid2">
+            <div class="field">
+              <label>Online / UPI ₹</label>
+              <input type="number" id="onlineAmt" min="0" step="0.01" value="0" oninput="calcCash()">
+            </div>
+            <div class="field">
+              <label>Card / POS ₹</label>
+              <input type="number" id="cardAmt" min="0" step="0.01" value="0" oninput="calcCash()">
+            </div>
+          </div>
+        </div>
+
+        <div class="card cc-block">
+          <h2 class="cc-block-title"><span class="cc-ico">🤝</span> Loan Given <span class="tag">Up to 10 people</span></h2>
+          <div id="loanRows"></div>
+          <button class="btn ghost small" id="addLoanBtn" onclick="addLoanRow()">+ Add Person</button>
+          <div class="loan-total-line"><span>Total Loan</span><span class="mono" id="loanTotalDisplay">₹0.00</span></div>
+        </div>
+
+        <div class="card cc-block">
+          <h2 class="cc-block-title"><span class="cc-ico">🏦</span> Deposit</h2>
+          <div class="field" style="max-width:260px;">
+            <label>Deposit ₹ — banked / deposited amount</label>
+            <input type="number" id="depositAmt" min="0" step="0.01" value="0" oninput="calcCash()">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SUMMARY COLUMN -->
+      <div class="cc-summary">
+        <div class="card cc-receipt">
+          <h2 class="cc-block-title">🧾 Reconciliation Summary</h2>
+          <div class="calc-line"><span>Cash Counted — Notes</span><span class="mono" id="calcNotes">₹0.00</span></div>
+          <div class="calc-line"><span>Cash Counted — Coins</span><span class="mono" id="calcCoins">₹0.00</span></div>
+          <div class="calc-line"><span>+ Online / UPI</span><span class="mono" id="calcOnline">₹0.00</span></div>
+          <div class="calc-line"><span>+ Card / POS</span><span class="mono" id="calcCard">₹0.00</span></div>
+          <div class="calc-line"><span>+ Deposit</span><span class="mono" id="calcDeposit">₹0.00</span></div>
+          <div class="calc-line"><span>+ Loan Given</span><span class="mono" id="calcLoan">₹0.00</span></div>
+          <div class="calc-line"><span>+ Testing HSD</span><span class="mono" id="calcTHSD">₹0.00</span></div>
+          <div class="calc-line"><span>+ Testing MS</span><span class="mono" id="calcTMS">₹0.00</span></div>
+          <div class="calc-line total"><span>Final Cash Value</span><span class="mono" id="calcFinal">₹0.00</span></div>
+          <div class="calc-line total"><span>Nozzle Sales Amount</span><span class="mono" id="calcSales">₹0.00</span></div>
+
+          <div class="readouts" style="margin-top:16px;">
+            <div class="digit-box total" id="diffBox">
+              <div class="lbl">Difference (Final Value − Sales)</div>
+              <div class="val" id="calcDiff">₹0.00</div>
+            </div>
+          </div>
+
+          <button class="btn amber cc-save-btn" onclick="saveCash()">Save to Staff Surplus / Short Data</button>
+          <span class="hint cc-saved-hint" id="cashSavedHint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Past Cash Denomination Records <span class="tag">Every saved entry</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Filter by Month</label>
+          <input type="month" id="cashHistoryMonth" onchange="renderCashHistory()">
+        </div>
+        <div class="field">
+          <label>Filter by Staff</label>
+          <select id="cashHistoryStaffFilter" onchange="renderCashHistory()"></select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Staff</th><th class="num">₹500</th><th class="num">₹200</th><th class="num">₹100</th><th class="num">₹50</th><th class="num">₹20</th><th class="num">₹10</th><th class="num">Coins</th><th class="num">Final Value ₹</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody id="cashHistoryBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="cashHistoryEmpty" style="display:none;">No saved denomination records yet for this filter.</div>
+    </div>
+  </section>
+
+  <!-- ===================== SURPLUS/SHORT TAB ===================== -->
+  <section id="tab-surplus" class="tab">
+    <div class="card">
+      <h2>Staff Surplus / Short Data <span class="tag">Date-wise reconciliation log</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Filter by Month</label>
+          <input type="month" id="surplusMonth" onchange="renderSurplusTab()">
+        </div>
+        <div class="field">
+          <label>Filter by Staff</label>
+          <select id="surplusStaffFilter" onchange="renderSurplusTab()"></select>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Staff</th><th class="num">Sales ₹</th><th class="num">Cash Counted ₹</th><th class="num">Online/Card ₹</th><th class="num">Testing HSD</th><th class="num">Testing MS</th><th class="num">Loan</th><th class="num">Deposit</th><th class="num">Final Value ₹</th><th class="num">Difference ₹</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody id="surplusBody"></tbody>
+      </table>
+      <div class="empty" id="surplusEmpty" style="display:none;">No cash reconciliation records saved for this month/staff yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Month-End Summary — Surplus / Shortfall by Staff</h2>
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">Total Surplus ₹</th><th class="num">Total Shortfall ₹</th><th class="num">Net ₹</th><th>Status</th></tr>
+        </thead>
+        <tbody id="surplusStaffSummary"></tbody>
+      </table>
+      <div class="readouts" style="margin-top:16px;">
+        <div class="digit-box surplus"><div class="lbl">Station Total Surplus</div><div class="val" id="stationSurplus">₹0.00</div></div>
+        <div class="digit-box shortfall"><div class="lbl">Station Total Shortfall</div><div class="val" id="stationShortfall">₹0.00</div></div>
+        <div class="digit-box total"><div class="lbl">Net Position</div><div class="val" id="stationNet">₹0.00</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== NOTE STOCK TAB ===================== -->
+  <section id="tab-notestock" class="tab">
+    <div class="card">
+      <h2>Notes Received — Date-wise <span class="tag">Totalled from saved Cash Denomination entries</span></h2>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Date</th><th class="num">₹500 pcs</th><th class="num">₹200 pcs</th><th class="num">₹100 pcs</th><th class="num">₹50 pcs</th><th class="num">₹20 pcs</th><th class="num">₹10 pcs</th><th class="num">Total Value ₹</th></tr>
+        </thead>
+        <tbody id="noteReceivedBody"></tbody>
+        <tfoot id="noteReceivedFoot"></tfoot>
+      </table>
+      </div>
+      <div class="empty" id="noteReceivedEmpty" style="display:none;">No cash denomination entries saved yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Notes Given Out <span class="tag">Record notes paid out from the drawer</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="noteGivenDate">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Given To (optional)</label>
+          <input type="text" id="noteGivenTo" placeholder="Name / purpose">
+        </div>
+      </div>
+      <div class="denom-grid" id="noteGivenGrid"></div>
+      <div class="row" style="margin-top:14px;">
+        <button class="btn amber" onclick="saveNoteGivenOut()">Save Notes Given Out</button>
+        <span class="hint" id="noteGivenHint"></span>
+      </div>
+
+      <div class="divider"></div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Given To</th><th class="num">₹500</th><th class="num">₹200</th><th class="num">₹100</th><th class="num">₹50</th><th class="num">₹20</th><th class="num">₹10</th><th class="num">Value ₹</th><th></th></tr>
+        </thead>
+        <tbody id="noteGivenBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="noteGivenEmpty" style="display:none;">No notes given out yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Remaining Note Stock <span class="tag">Tracking Today's Note Stock Only</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Today's Date</label>
+          <input type="date" id="stockAsOfDate" onchange="renderNoteStockTab()">
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Denomination</th><th class="num">Received (pcs)</th><th class="num">Given Out (pcs)</th><th class="num">Remaining (pcs)</th><th class="num">Remaining Value ₹</th></tr>
+        </thead>
+        <tbody id="stockRemainingBody"></tbody>
+      </table>
+      </div>
+      <div class="readouts" style="margin-top:16px;">
+        <div class="digit-box total"><div class="lbl">Total Remaining Pieces</div><div class="val" id="stockTotalPieces">0</div></div>
+        <div class="digit-box surplus"><div class="lbl">Total Remaining Value</div><div class="val" id="stockTotalValue">₹0.00</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DIP CHART TAB ===================== -->
+  <section id="tab-dipchart" class="tab">
+    <div class="card">
+      <h2>Calibration Chart <span class="tag">20 KL Horizontal Tank</span></h2>
+      <p class="hint" style="display:block;margin-bottom:10px;">
+        Deadwood: 15 KL — 16 Lts &nbsp;·&nbsp; 20 KL — 18 Lts &nbsp;·&nbsp; 70 KL — 81 Lts.
+        Chart as per IS: 2166-1963 (Appendix 'A'). DIP in CMs, VOLUME in Lts, DIFF. in Lts/MM.
+        Tank Dimensions — DIA: 210 CMs, LENGTH: 625 CMs, P1: 0 CMs, P2: 0 CMs.
+        This chart is prepared based on mathematical calculation only, hence a variation of (+/-) 4% of stock is permissible.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Dip Value Finder</h2>
+      <div class="row">
+        <div class="field">
+          <label>Box 1 — DIP</label>
+          <input type="number" id="dipInput" placeholder="e.g. 132" step="1">
+        </div>
+        <div class="field">
+          <label>Box 2 — POINT (mm)</label>
+          <input type="number" id="pointInput" placeholder="e.g. 4" step="any">
+        </div>
+        <div class="field">
+          <label>Box 3 — FINAL VALUE (auto)</label>
+          <input type="text" id="finalInput" placeholder="Result appears here" readonly>
+        </div>
+      </div>
+      <div class="row" style="margin-top:4px;">
+        <button class="btn" onclick="calcDip()">Calculate</button>
+        <button class="btn amber" onclick="clearDipLog()">Clear Log</button>
+      </div>
+      <div class="hint" id="dipErrBox" style="display:none;color:#c0392b;margin-top:8px;"></div>
+
+      <div class="readouts" id="dipResultBox" style="display:none;margin-top:14px;">
+        <div class="digit-box"><div class="lbl">DIP</div><div class="val" id="rDip">-</div></div>
+        <div class="digit-box"><div class="lbl">Volume</div><div class="val" id="rVolume">-</div></div>
+        <div class="digit-box"><div class="lbl">Diff (Lts/mm)</div><div class="val" id="rDiff">-</div></div>
+        <div class="digit-box"><div class="lbl">Point</div><div class="val" id="rPoint">-</div></div>
+        <div class="digit-box"><div class="lbl">Output (Point × Diff)</div><div class="val" id="rOutput">-</div></div>
+        <div class="digit-box total"><div class="lbl">Final Value (Lts)</div><div class="val" id="rFinal">-</div></div>
+      </div>
+
+      <div class="divider" style="margin-top:16px;"></div>
+      <div style="overflow-x:auto;">
+      <table id="dipLogTable" style="display:none;">
+        <thead>
+          <tr><th>#</th><th>DIP</th><th class="num">Point</th><th class="num">Volume</th><th class="num">Diff</th><th class="num">Output</th><th class="num">Final Value</th></tr>
+        </thead>
+        <tbody id="dipLogBody"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Full Calibration Chart <span class="tag">DIP 1 – 210</span></h2>
+      <div style="overflow-x:auto;max-height:520px;overflow-y:auto;">
+      <table>
+        <thead>
+          <tr><th>DIP</th><th class="num">VOLUME</th><th class="num">DIFF.</th></tr>
+        </thead>
+        <tbody id="dipChartBody"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DEVICES TAB ===================== -->
+  <section id="tab-devices" class="tab">
+    <div class="card">
+      <h2>🖥️ Signed-in Devices <span class="tag">Everyone who has unlocked this console</span></h2>
+      <p class="hint" style="display:block;margin-bottom:14px;">
+        The console shares one password, not per-person logins — so this list is by <strong>device</strong>
+        (browser), not by name. Rename a device to remember whose it is. If you see one you don't
+        recognize, block it — a blocked device is kicked out immediately if it's connected, and can't
+        unlock the console or sync data again until you unblock it.
+      </p>
+      <div class="row" style="margin-bottom:6px;">
+        <button class="btn ghost small" onclick="renderDevicesTab()" title="Refresh the list">🔄 Refresh</button>
+      </div>
+      <div id="devicesEmptyHint" class="hint" style="display:none;">No devices found yet — this loads once the backend is reachable.</div>
+      <div style="overflow-x:auto;">
+      <table id="devicesTable">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Browser / OS</th>
+            <th>IP address</th>
+            <th>First seen</th>
+            <th>Last seen</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="devicesBody"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="note">
+  Data autosaves to this browser automatically as you type. Use <strong>Export Data</strong> to back up your data locally.
+</footer>
+
+<script>
+/* ============== LOGIN GATE ==============
+   Note: this is a simple client-side lock (a "keep casual visitors out" gate),
+   not real security — anyone who views the page source can find the
+   credentials. Don't rely on this alone if the data behind it is sensitive;
+   pair it with real server-side auth if that ever matters here. */
+const AUTH_STORAGE_KEY = 'maaFuelStationAuth_v1';
+const VALID_USERNAME = 'maafuelstation@2025';
+const VALID_PASSWORD = 'Jc730927h';
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;   // auto-logout after 5 minutes of inactivity
+const IDLE_WARN_MS = 1 * 60 * 1000;      // start showing the countdown after 1 minute idle
+let idleTickInterval = null;
+let idleLastActivity = Date.now();
+
+/* ============== DEVICE IDENTITY & MANAGEMENT ==============
+   Since the login above is one shared password rather than per-person
+   accounts, "who's logged in" is tracked per-browser instead: each browser
+   gets a random id (kept in localStorage) the first time it unlocks the
+   console, which the backend then remembers. That lets an admin see every
+   device that's ever signed in and block ones they don't recognize. */
+const DEVICE_ID_KEY = 'maaFuelStationDeviceId_v1';
+
+function getDeviceId(){
+  try{
+    let id = window.localStorage.getItem(DEVICE_ID_KEY);
+    if(!id){
+      id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+      window.localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  }catch(e){
+    // localStorage unavailable — fall back to a per-page-load id (won't persist, but keeps things working)
+    return 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+}
+
+// Very rough UA sniffing, just enough for a human-readable default label
+// like "Chrome on Windows" — good enough for telling devices apart at a glance.
+function guessDeviceLabel(){
+  const ua = navigator.userAgent || '';
+  let browser = 'Unknown browser';
+  if(/Edg\//.test(ua)) browser = 'Edge';
+  else if(/OPR\//.test(ua)) browser = 'Opera';
+  else if(/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+  else if(/Firefox\//.test(ua)) browser = 'Firefox';
+  else if(/Safari\//.test(ua) && !/Chrome\//.test(ua)) browser = 'Safari';
+  let os = 'Unknown device';
+  if(/Windows/.test(ua)) os = 'Windows';
+  else if(/Android/.test(ua)) os = 'Android';
+  else if(/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+  else if(/Mac OS X/.test(ua)) os = 'Mac';
+  else if(/Linux/.test(ua)) os = 'Linux';
+  return browser + ' on ' + os;
+}
+
+// Called right after a successful (or remembered) login. Tells the backend
+// this device is active; if it comes back blocked, kick the user straight
+// back out — the shared password alone won't get a blocked device back in.
+async function registerDeviceWithServer(){
+  const base = getApiBase();
+  if(!base) return;
+  try{
+    const res = await fetch(base + '/api/devices/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId: getDeviceId(),
+        userAgent: navigator.userAgent,
+        platform: navigator.platform || '',
+        label: window.localStorage.getItem('maaFuelStationDeviceLabelSet_v1') ? undefined : guessDeviceLabel(),
+      })
+    });
+    if(res.status === 403){
+      handleDeviceBlocked();
+      return;
+    }
+    if(!res.ok) return;
+    // Remember we've sent a first-guess label so future registers don't
+    // clobber a name the admin has since set from the Devices tab.
+    window.localStorage.setItem('maaFuelStationDeviceLabelSet_v1', '1');
+  }catch(e){
+    console.warn('Could not register device with server (offline / no backend URL yet).', e);
+  }
+}
+
+function handleDeviceBlocked(){
+  try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  lockApp();
+  const errEl = document.getElementById('loginError');
+  if(errEl){
+    errEl.textContent = '⛔ This device has been blocked by an administrator.';
+    errEl.classList.add('show');
+  }
+}
+
+async function renderDevicesTab(){
+  const base = getApiBase();
+  const body = document.getElementById('devicesBody');
+  const emptyHint = document.getElementById('devicesEmptyHint');
+  if(!body) return;
+  if(!base){
+    body.innerHTML = '';
+    if(emptyHint){ emptyHint.style.display='block'; emptyHint.textContent = 'No backend URL configured — tap 🔗 Server first.'; }
+    return;
+  }
+  if(emptyHint){ emptyHint.style.display='block'; emptyHint.textContent = 'Loading…'; }
+  try{
+    const res = await fetch(base + '/api/devices');
+    if(res.status === 404){
+      body.innerHTML = '';
+      if(emptyHint){
+        emptyHint.style.display='block';
+        emptyHint.textContent = 'Backend returned 404 for /api/devices — the server hasn\'t been redeployed with the updated server.js yet.';
+      }
+      return;
+    }
+    if(!res.ok){
+      const text = await res.text().catch(()=> '');
+      throw new Error('HTTP ' + res.status + (text ? (' — ' + text) : ''));
+    }
+    const devices = await res.json();
+    if(!Array.isArray(devices) || devices.length===0){
+      body.innerHTML = '';
+      if(emptyHint){
+        emptyHint.style.display='block';
+        emptyHint.textContent = 'No devices registered yet — log out and back in on this device, or reload the page, to register it.';
+      }
+      return;
+    }
+    if(emptyHint) emptyHint.style.display = 'none';
+    const myId = getDeviceId();
+    body.innerHTML = devices.map(d => {
+      const isMe = d._id === myId;
+      const statusBadges = (d.blocked ? '<span class="badge blocked">Blocked</span> ' : '')
+        + (d.online ? '<span class="badge online">Online</span>' : '<span class="badge offline">Offline</span>')
+        + (isMe ? '<span class="badge this-device">This device</span>' : '');
+      const firstSeen = d.firstSeen ? new Date(d.firstSeen).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}) : '—';
+      const lastSeen = d.lastSeen ? new Date(d.lastSeen).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}) : '—';
+      const safeLabel = (d.label || 'Unnamed device').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+      const safeUA = (d.userAgent || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+      return '<tr>'
+        + '<td class="device-label-cell">' + safeLabel + '</td>'
+        + '<td class="mono" style="font-size:11.5px;color:var(--muted);max-width:260px;">' + (safeUA || '—') + '</td>'
+        + '<td class="mono">' + (d.lastIp || '—') + '</td>'
+        + '<td>' + firstSeen + '</td>'
+        + '<td>' + lastSeen + '</td>'
+        + '<td>' + statusBadges + '</td>'
+        + '<td><div class="device-actions">'
+          + '<button class="btn ghost small" onclick="renameDevice(\'' + d._id + '\')">Rename</button>'
+          + (d.blocked
+              ? '<button class="btn small" onclick="unblockDevice(\'' + d._id + '\')">Unblock</button>'
+              : '<button class="btn danger" onclick="blockDevice(\'' + d._id + '\')">Block</button>')
+          + '<button class="btn danger" onclick="forgetDevice(\'' + d._id + '\')">Forget</button>'
+        + '</div></td>'
+        + '</tr>';
+    }).join('');
+  }catch(e){
+    console.error('Could not load devices list', e);
+    body.innerHTML = '';
+    if(emptyHint){ emptyHint.style.display='block'; emptyHint.textContent = 'Could not reach the backend to load devices: ' + (e && e.message ? e.message : e); }
+  }
+}
+
+async function blockDevice(id){
+  if(!confirm('Block this device? It will be signed out immediately and won\'t be able to unlock the console or sync data until you unblock it.')) return;
+  const base = getApiBase();
+  try{
+    await fetch(base + '/api/devices/' + encodeURIComponent(id) + '/block', { method:'POST' });
+    renderDevicesTab();
+  }catch(e){ alert('Could not block device — check the server connection.'); }
+}
+
+async function unblockDevice(id){
+  const base = getApiBase();
+  try{
+    await fetch(base + '/api/devices/' + encodeURIComponent(id) + '/unblock', { method:'POST' });
+    renderDevicesTab();
+  }catch(e){ alert('Could not unblock device — check the server connection.'); }
+}
+
+async function forgetDevice(id){
+  if(!confirm('Forget this device? It will disappear from the list. If it connects again later it will show up as a new, unrecognized device.')) return;
+  const base = getApiBase();
+  try{
+    await fetch(base + '/api/devices/' + encodeURIComponent(id), { method:'DELETE' });
+    renderDevicesTab();
+  }catch(e){ alert('Could not forget device — check the server connection.'); }
+}
+
+async function renameDevice(id){
+  const name = prompt('Label for this device (e.g. "Front desk PC", "Manager\'s phone"):');
+  if(name === null || !name.trim()) return;
+  const base = getApiBase();
+  try{
+    await fetch(base + '/api/devices/' + encodeURIComponent(id), {
+      method:'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: name.trim() })
+    });
+    if(id === getDeviceId()) window.localStorage.setItem('maaFuelStationDeviceLabelSet_v1', '1');
+    renderDevicesTab();
+  }catch(e){ alert('Could not rename device — check the server connection.'); }
+}
+
+function isAppUnlocked(){
+  return !document.body.classList.contains('app-locked');
+}
+
+function idleLogout(){
+  if(!isAppUnlocked()) return;
+  try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  lockApp();
+}
+
+function formatCountdown(ms){
+  const totalSec = Math.max(0, Math.ceil(ms/1000));
+  const m = Math.floor(totalSec/60);
+  const s = totalSec%60;
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+function idleTick(){
+  if(!isAppUnlocked()){ hideIdleCountdown(); return; }
+  const elapsed = Date.now() - idleLastActivity;
+  const remaining = IDLE_TIMEOUT_MS - elapsed;
+  if(remaining <= 0){
+    hideIdleCountdown();
+    idleLogout();
+    return;
+  }
+  if(elapsed >= IDLE_WARN_MS){
+    showIdleCountdown(remaining);
+  } else {
+    hideIdleCountdown();
+  }
+}
+
+function showIdleCountdown(remaining){
+  const badge = document.getElementById('idleCountdown');
+  const val = document.getElementById('idleCountdownVal');
+  if(!badge || !val) return;
+  val.textContent = formatCountdown(remaining);
+  badge.classList.add('show');
+}
+
+function hideIdleCountdown(){
+  const badge = document.getElementById('idleCountdown');
+  if(badge) badge.classList.remove('show');
+}
+
+function resetIdleTimer(){
+  if(!isAppUnlocked()) return; // don't track while already locked
+  idleLastActivity = Date.now();
+  hideIdleCountdown();
+}
+
+function startIdleWatch(){
+  ['mousedown','mousemove','keydown','scroll','touchstart','wheel','click'].forEach(evt=>{
+    document.addEventListener(evt, resetIdleTimer, {passive:true});
+  });
+  idleLastActivity = Date.now();
+  hideIdleCountdown();
+  if(idleTickInterval) clearInterval(idleTickInterval);
+  idleTickInterval = setInterval(idleTick, 1000);
+}
+
+function stopIdleWatch(){
+  if(idleTickInterval) clearInterval(idleTickInterval);
+  idleTickInterval = null;
+  hideIdleCountdown();
+}
+
+function unlockApp(){
+  document.body.classList.remove('app-locked');
+  document.getElementById('loginGate').classList.add('hidden');
+  startIdleWatch();
+}
+
+function lockApp(){
+  document.body.classList.add('app-locked');
+  document.getElementById('loginGate').classList.remove('hidden');
+  stopIdleWatch();
+  const userInp = document.getElementById('loginUser');
+  const passInp = document.getElementById('loginPass');
+  if(userInp) userInp.value = '';
+  if(passInp) passInp.value = '';
+  setTimeout(()=>{ if(userInp) userInp.focus(); }, 50);
+}
+
+function logoutApp(){
+  if(!confirm('Lock the console? You will need the password to open it again on this device.')) return;
+  try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  lockApp();
+}
+
+(function initLoginGate(){
+  try{
+    if(localStorage.getItem(AUTH_STORAGE_KEY) === 'granted'){
+      unlockApp();
+    } else {
+      lockApp();
+    }
+  }catch(e){ lockApp(); }
+
+  const form = document.getElementById('loginForm');
+  const errEl = document.getElementById('loginError');
+  const card = document.getElementById('loginCard');
+  const userInp = document.getElementById('loginUser');
+  const passInp = document.getElementById('loginPass');
+  const toggleBtn = document.getElementById('togglePass');
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const u = userInp.value.trim();
+    const p = passInp.value;
+    if(u === VALID_USERNAME && p === VALID_PASSWORD){
+      errEl.classList.remove('show');
+      try{ localStorage.setItem(AUTH_STORAGE_KEY, 'granted'); }catch(e){}
+      unlockApp();
+      registerDeviceWithServer();
+    } else {
+      errEl.classList.add('show');
+      card.classList.remove('shake');
+      void card.offsetWidth; // restart animation
+      card.classList.add('shake');
+      passInp.value = '';
+      passInp.focus();
+    }
+  });
+
+  toggleBtn.addEventListener('click', function(){
+    const showing = passInp.type === 'text';
+    passInp.type = showing ? 'password' : 'text';
+    toggleBtn.textContent = showing ? '👁' : '🙈';
+  });
+})();
+
+/* ============== STATE ============== */
+let state = {
+  staff: [
+    {id:'s1',name:'Abhijit'},
+    {id:'s2',name:'Anindo'},
+    {id:'s3',name:'Bappa'},
+    {id:'s4',name:'Palash'},
+    {id:'s5',name:'Nasir'},
+    {id:'s6',name:'Sujai'}
+  ],
+  sales: {},   
+  rates: {},   
+  cash: {},    
+  noteGivenOut: [] 
+};
+const NOTES = [500,200,100,50,20,10];
+const NOZZLES = [
+  {id:'u1-d1', unit:1, fuel:'diesel', label:'Diesel Nozzle 1'},
+  {id:'u1-d2', unit:1, fuel:'diesel', label:'Diesel Nozzle 2'},
+  {id:'u1-p1', unit:1, fuel:'petrol', label:'Petrol Nozzle 1'},
+  {id:'u1-p2', unit:1, fuel:'petrol', label:'Petrol Nozzle 2'},
+  {id:'u2-d1', unit:2, fuel:'diesel', label:'Diesel Nozzle 1'},
+  {id:'u2-d2', unit:2, fuel:'diesel', label:'Diesel Nozzle 2'},
+  {id:'u2-p1', unit:2, fuel:'petrol', label:'Petrol Nozzle 1'},
+  {id:'u2-p2', unit:2, fuel:'petrol', label:'Petrol Nozzle 2'}
+];
+// A single nozzle cannot legitimately dispense an unlimited number of litres in
+// one shift. This guards summaries against an accidental pasted/appended meter value.
+// Raised to crore-range (1,00,00,000) so large legitimate readings are never rejected.
+const MAX_NOZZLE_LITRES_PER_SHIFT = 10000000;
+const SHIFTS = [{id:'morning', label:'Morning'}, {id:'afternoon', label:'Afternoon'}, {id:'night', label:'Night'}];
+let currentShift = 'morning';
+let sidCounter = 7;
+let ngoCounter = 1;
+let loanRows = []; 
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function thisMonthStr(){ return new Date().toISOString().slice(0,7); }
+function fmt(n){ n = Number(n)||0; return '₹' + n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtNum(n){ return (Number(n)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function updateLiveDate(){
+  const d = new Date();
+  document.getElementById('liveDate').textContent = d.toLocaleDateString('en-IN',{weekday:'short',year:'numeric',month:'short',day:'numeric'}) + '  ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+}
+updateLiveDate(); setInterval(updateLiveDate,30000);
+
+/* ============== SERVER SYNC ============== */
+// This is your deployed backend (server.js). All data syncs here — every
+// device/browser that opens this file talks to the same MongoDB-backed
+// server, so nothing is stuck in a single browser's localStorage anymore.
+// The "🔗 Server" button can still override this (e.g. if you redeploy).
+const DEFAULT_API_BASE = 'https://maa-fuel-station-backend.onrender.com';
+const API_BASE_KEY = 'maaFuelStationApiBase_v1';
+const SOCKET_ID = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+let socket = null;
+let serverSyncEnabled = false;
+let applyingRemoteUpdate = false;
+
+function getApiBase(){
+  const raw = window.localStorage.getItem(API_BASE_KEY);
+  return (raw ? raw.trim() : DEFAULT_API_BASE).replace(/\/$/, '');
+}
+
+function configureServerUrl(){
+  const current = getApiBase();
+  const input = prompt(
+    'Enter your Maa Fuel Station backend URL (where server.js is deployed), e.g. https://your-app.onrender.com\n\nLeave blank to reset to the default backend.',
+    current
+  );
+  if(input === null) return; // cancelled
+  const trimmed = input.trim().replace(/\/$/, '');
+  if(trimmed && trimmed !== DEFAULT_API_BASE){
+    window.localStorage.setItem(API_BASE_KEY, trimmed);
+  } else {
+    window.localStorage.removeItem(API_BASE_KEY);
+  }
+  location.reload();
+}
+
+function initServerSync(){
+  const base = getApiBase();
+  if(!base){
+    serverSyncEnabled = false;
+    setAutosaveStatus('Local autosave only — tap 🔗 Server to enable sync');
+    return;
+  }
+  if(typeof io === 'undefined'){
+    serverSyncEnabled = false;
+    setAutosaveStatus('Realtime library failed to load — local autosave only', true);
+    return;
+  }
+  serverSyncEnabled = true;
+  socket = io(base, { transports: ['websocket','polling'], query: { deviceId: getDeviceId() } });
+  socket.on('connect', ()=>{
+    setAutosaveStatus('Connected — live sync active');
+    if(isAppUnlocked()) registerDeviceWithServer();
+  });
+  socket.on('disconnect', ()=> setAutosaveStatus('Offline — changes saved locally, will sync on reconnect', true));
+  socket.on('connect_error', ()=> setAutosaveStatus('Cannot reach server — check the URL (🔗 Server)', true));
+  socket.on('device:blocked', ()=> handleDeviceBlocked());
+  socket.on('state:updated', payload=>{
+    if(!payload || !payload.state) return;
+    applyingRemoteUpdate = true;
+    state = payload.state;
+    if(!state.rates) state.rates = {};
+    if(!state.cash) state.cash = {};
+    if(!state.sales) state.sales = {};
+    if(!state.staff) state.staff = [];
+    if(!state.noteGivenOut) state.noteGivenOut = [];
+    sidCounter = payload.sidCounter || sidCounter;
+    ngoCounter = payload.ngoCounter || ngoCounter;
+    try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
+    setAutosaveStatus('Updated from another device ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+    const activeTab = document.querySelector('.tab-btn.active');
+    if(activeTab) switchTab(activeTab.dataset.tab);
+    applyingRemoteUpdate = false;
+  });
+}
+
+async function loadFromServer(){
+  if(!serverSyncEnabled){
+    console.warn('[MaaFuelStation] Sync is not enabled — no API base configured.');
+    return false;
+  }
+  const base = getApiBase();
+  console.log('[MaaFuelStation] Fetching state from', base + '/api/state');
+  const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(()=>controller.abort(), 15000) : null;
+  try{
+    const res = await fetch(base + '/api/state', {
+      signal: controller ? controller.signal : undefined,
+      headers: { 'X-Device-Id': getDeviceId() }
+    });
+    if(timeoutId) clearTimeout(timeoutId);
+    if(res.status === 403){ handleDeviceBlocked(); return false; }
+    if(!res.ok){
+      const bodyText = await res.text().catch(()=> '');
+      throw new Error('HTTP ' + res.status + (bodyText ? (' — ' + bodyText) : ''));
+    }
+    const doc = await res.json();
+    if(doc && doc.state){
+      state = doc.state;
+      if(!state.rates) state.rates = {};
+      if(!state.cash) state.cash = {};
+      if(!state.sales) state.sales = {};
+      if(!state.staff) state.staff = [];
+      if(!state.noteGivenOut) state.noteGivenOut = [];
+      sidCounter = doc.sidCounter || sidCounter;
+      ngoCounter = doc.ngoCounter || ngoCounter;
+      try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
+      setAutosaveStatus('Loaded latest data from server ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+      console.log('[MaaFuelStation] Loaded state from database:', doc);
+      return true;
+    }
+    console.warn('[MaaFuelStation] Server responded but sent no state — is the DB document initialized?', doc);
+    setAutosaveStatus('Server has no saved data yet', true);
+  }catch(e){
+    console.error('[MaaFuelStation] Could not load state from server, using local autosave instead.', e);
+    const reason = (e && e.name === 'AbortError') ? 'Request timed out' : (e && e.message) || 'Unknown error';
+    setAutosaveStatus('Server unreachable (' + reason + ') — showing local data', true);
+  }
+  return false;
+}
+
+// Lets the user explicitly re-pull from the database (e.g. after fixing a
+// backend URL or reconnecting), instead of only relying on the silent
+// page-load fetch. Overwrites in-browser data with whatever is in MongoDB.
+async function manualFetchFromServer(){
+  if(!getApiBase()){
+    alert('No backend URL is set. Tap 🔗 Server first and enter your deployed backend URL.');
+    return;
+  }
+  if(!confirm('This will replace the data currently shown in this browser with the latest data saved in the database. Continue?')) return;
+  setAutosaveStatus('Fetching latest data…');
+  if(!serverSyncEnabled) initServerSync();
+  const loaded = await loadFromServer();
+  if(loaded){
+    const activeTab = document.querySelector('.tab-btn.active');
+    if(activeTab) switchTab(activeTab.dataset.tab);
+  }
+}
+
+async function pushToServer(){
+  if(!serverSyncEnabled || applyingRemoteUpdate) return;
+  const base = getApiBase();
+  try{
+    const res = await fetch(base + '/api/state', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Socket-Id': (socket && socket.id) || SOCKET_ID,
+        'X-Device-Id': getDeviceId()
+      },
+      body: JSON.stringify({ state, sidCounter, ngoCounter })
+    });
+    if(res.status === 403){ handleDeviceBlocked(); return; }
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    setAutosaveStatus('Synced ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+  }catch(e){
+    console.warn('Could not sync to server; data is still saved locally.', e);
+    setAutosaveStatus('Sync failed — saved locally, will retry on next change', true);
+  }
+}
+
+/* ============== AUTOSAVE ============== */
+const AUTOSAVE_KEY = 'maaFuelStationData_v3';
+let autosaveTimer = null;
+function scheduleAutosave(){
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(doAutosave, 500);
+}
+function doAutosave(){
+  try{
+    window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter}));
+    setAutosaveStatus('Saving…');
+    pushToServer();
+  }catch(e){
+    setAutosaveStatus('Autosave unavailable here — use Export Data', true);
+  }
+}
+function setAutosaveStatus(text, isError){
+  const el = document.getElementById('autosaveStatus');
+  if(el){
+    el.textContent = text;
+    el.style.color = isError ? '#ff9b9b' : '';
+  }
+}
+function loadAutosave(){
+  try{
+    const raw = window.localStorage.getItem(AUTOSAVE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed.state){
+        state = parsed.state;
+        if(!state.rates) state.rates = {};
+        if(!state.cash) state.cash = {};
+        if(!state.sales) state.sales = {};
+        if(!state.staff) state.staff = [];
+        if(!state.noteGivenOut) state.noteGivenOut = [];
+        sidCounter = parsed.sidCounter || sidCounter;
+        ngoCounter = parsed.ngoCounter || ngoCounter;
+        setAutosaveStatus('Restored from autosave');
+      }
+    }
+  }catch(e){ }
+}
+
+/* ============== TABS ============== */
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active', s.id==='tab-'+name));
+  if(name==='sales') renderSalesTab();
+  if(name==='salesreport') renderSalesReportTab();
+  if(name==='staff') renderStaffTab();
+  if(name==='cash') renderCashTab();
+  if(name==='surplus') renderSurplusTab();
+  if(name==='notestock') renderNoteStockTab();
+  if(name==='dipchart') renderDipChartTab();
+  if(name==='devices') renderDevicesTab();
+}
+
+/* ============== STAFF TAB ============== */
+function renderStaffTab(){
+  const list = document.getElementById('staffList');
+  if(state.staff.length===0){
+    list.innerHTML = '<div class="empty">No staff added yet.</div>';
+  } else {
+    list.innerHTML = state.staff.map(s=>`
+      <div class="staff-row">
+        <input type="text" value="${escapeHtml(s.name)}" onchange="renameStaff('${s.id}', this.value)">
+        <button class="btn danger" onclick="deleteStaff('${s.id}')">Delete</button>
+      </div>`).join('');
+  }
+}
+function addStaff(){
+  const inp = document.getElementById('newStaffName');
+  const name = inp.value.trim();
+  if(!name){ return; }
+  state.staff.push({id:'s'+(sidCounter++), name});
+  inp.value='';
+  renderStaffTab();
+  scheduleAutosave();
+}
+function renameStaff(id, name){
+  name = name.trim();
+  if(!name) return;
+  const s = state.staff.find(x=>x.id===id);
+  if(s) s.name = name;
+  renderStaffTab();
+  scheduleAutosave();
+}
+function deleteStaff(id){
+  if(!confirm('Remove this staff member from future entry lists? Their past records are kept.')) return;
+  state.staff = state.staff.filter(s=>s.id!==id);
+  renderStaffTab();
+  scheduleAutosave();
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============== RATES ============== */
+function getRateForDate(date){
+  if(state.rates[date]) return state.rates[date];
+  const priorDates = Object.keys(state.rates).filter(d=>d<date).sort();
+  if(priorDates.length) return state.rates[priorDates[priorDates.length-1]];
+  return {diesel:0, petrol:0};
+}
+function onRateInput(){
+  const date = document.getElementById('salesDate').value;
+  const previousRate = getRateForDate(date);
+  const diesel = parseFloat(document.getElementById('dieselRate').value)||0;
+  const petrol = parseFloat(document.getElementById('petrolRate').value)||0;
+  state.rates[date] = {diesel, petrol};
+  syncDefaultShiftTestingPrices(date, previousRate, state.rates[date]);
+  renderShiftPanel();
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+
+/* ============== DAILY SALES TAB ============== */
+function ensureShiftData(date, shift){
+  if(!state.sales[date]) state.sales[date] = {};
+  if(!state.sales[date][shift]){
+    let defaultTesting = {hsd:0, ms:0};
+    if(shift!=='night'){
+      const r = getRateForDate(date);
+      defaultTesting = {hsd: 20*(r.diesel||0), ms: 20*(r.petrol||0)};
+    }
+    state.sales[date][shift] = {assign:{}, closing:{}, testing:defaultTesting};
+  }
+  const sd = state.sales[date][shift];
+  if(!sd.testing) sd.testing = {hsd:0, ms:0};
+  if(shift==='night'){ sd.testing.hsd = 0; sd.testing.ms = 0; }
+  NOZZLES.forEach(nz=>{
+    if(sd.assign[nz.id]===undefined) sd.assign[nz.id] = '';
+    if(sd.closing[nz.id]===undefined) sd.closing[nz.id] = 0;
+  });
+  return sd;
+}
+function getPrevClosing(date, nzId){
+  const dates = Object.keys(state.sales).filter(d=> d<date).sort();
+  if(!dates.length) return 0;
+  const day = state.sales[dates[dates.length-1]];
+  for(let i=SHIFTS.length-1;i>=0;i--){
+    const sh = SHIFTS[i].id;
+    if(day[sh]) return (day[sh].closing && day[sh].closing[nzId]) || 0;
+  }
+  return 0;
+}
+function getOpeningReading(date, shift, nzId){
+  if(shift==='morning'){
+    return getPrevClosing(date, nzId);
+  }
+  const idx = SHIFTS.findIndex(s=>s.id===shift);
+  const prevShift = idx>0 ? SHIFTS[idx-1].id : null;
+  const pd = prevShift && state.sales[date] && state.sales[date][prevShift];
+  return pd ? (pd.closing[nzId]||0) : 0;
+}
+function getShiftTesting(date, shift){
+  const sd = state.sales[date] && state.sales[date][shift];
+  return (sd && sd.testing) || {hsd:0, ms:0};
+}
+function syncDefaultShiftTestingPrices(date, previousRate, newRate){
+  // Shift testing is stored in rupees. Keep an untouched 20 L default tied to
+  // the current price while leaving any manually entered testing amount intact.
+  const sales = state.sales[date];
+  if(!sales) return;
+  ['morning','afternoon'].forEach(shift=>{
+    const sd = sales[shift];
+    if(!sd || !sd.testing) return;
+    const hsdWasDefault = Math.abs((Number(sd.testing.hsd)||0) - 20*(Number(previousRate.diesel)||0)) < 0.01;
+    const msWasDefault = Math.abs((Number(sd.testing.ms)||0) - 20*(Number(previousRate.petrol)||0)) < 0.01;
+    if(hsdWasDefault) sd.testing.hsd = 20*(Number(newRate.diesel)||0);
+    if(msWasDefault) sd.testing.ms = 20*(Number(newRate.petrol)||0);
+  });
+}
+function getClosingReading(date, shift, nzId){
+  const sd = state.sales[date] && state.sales[date][shift];
+  return sd ? (sd.closing[nzId]||0) : 0;
+}
+function nozzleLitres(date, shift, nzId){
+  const o = Number(getOpeningReading(date, shift, nzId))||0;
+  const c = Number(getClosingReading(date, shift, nzId))||0;
+  const litres = c-o;
+  return Number.isFinite(litres) && litres >= 0 && litres <= MAX_NOZZLE_LITRES_PER_SHIFT ? litres : 0;
+}
+function sanitizeShiftReadings(date, shift){
+  const sd = ensureShiftData(date, shift);
+  let repaired = false;
+  NOZZLES.forEach(nz=>{
+    const opening = Number(getOpeningReading(date, shift, nz.id))||0;
+    const closing = Number(sd.closing[nz.id]);
+    const litres = closing-opening;
+    if(!Number.isFinite(closing) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT){
+      sd.closing[nz.id] = opening;
+      repaired = true;
+    }
+  });
+  return repaired;
+}
+function staffIdsForDate(date){
+  const set = new Set();
+  SHIFTS.forEach(sh=>{
+    const sd = state.sales[date] && state.sales[date][sh.id];
+    if(sd) Object.values(sd.assign).forEach(sid=>{ if(sid) set.add(sid); });
+  });
+  return [...set];
+}
+function computeStaffShiftTotals(date, shift, sid){
+  const rates = getRateForDate(date);
+  let dl=0, pl=0;
+  const sd = state.sales[date] && state.sales[date][shift];
+  if(sd){
+    NOZZLES.forEach(nz=>{
+      if(sd.assign[nz.id]!==sid) return;
+      const lit = nozzleLitres(date, shift, nz.id);
+      if(nz.fuel==='diesel') dl+=lit; else pl+=lit;
+    });
+  }
+  return {dl, da: dl*rates.diesel, pl, pa: pl*rates.petrol};
+}
+function computeStaffDayTotals(date, sid){
+  const rates = getRateForDate(date);
+  let dl=0, pl=0;
+  SHIFTS.forEach(sh=>{
+    const sd = state.sales[date] && state.sales[date][sh.id];
+    if(!sd) return;
+    NOZZLES.forEach(nz=>{
+      if(sd.assign[nz.id]!==sid) return;
+      const lit = nozzleLitres(date, sh.id, nz.id);
+      if(nz.fuel==='diesel') dl+=lit; else pl+=lit;
+    });
+  });
+  return {dl, da: dl*rates.diesel, pl, pa: pl*rates.petrol};
+}
+function renderSalesTab(){
+  const dateInp = document.getElementById('salesDate');
+  if(!dateInp.value) dateInp.value = todayStr();
+  const date = dateInp.value;
+  const rates = getRateForDate(date);
+  document.getElementById('dieselRate').value = rates.diesel;
+  document.getElementById('petrolRate').value = rates.petrol;
+  document.getElementById('rateHint').textContent = state.rates[date]
+    ? 'Rate set specifically for ' + date + '.'
+    : 'No rate set for ' + date + ' yet — showing the most recent rate.';
+
+  document.querySelectorAll('.shift-btn').forEach(b=>b.classList.toggle('active', b.dataset.shift===currentShift));
+  renderShiftPanel();
+  renderDaySummary(date);
+}
+function switchShift(shift){
+  currentShift = shift;
+  document.querySelectorAll('.shift-btn').forEach(b=>b.classList.toggle('active', b.dataset.shift===shift));
+  renderShiftPanel();
+}
+function staffOptionsHtml(selectedId){
+  return '<option value="">— Unassigned —</option>' + state.staff.map(s=>
+    `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${escapeHtml(s.name)}</option>`).join('');
+}
+function renderShiftPanel(){
+  const date = document.getElementById('salesDate').value;
+  const sd = ensureShiftData(date, currentShift);
+  if(sanitizeShiftReadings(date, currentShift)) scheduleAutosave();
+  renderNozzleAssignTable(date, currentShift);
+  renderShiftReadouts(date, currentShift);
+  renderShiftStaffTable(date, currentShift);
+
+  const isNight = currentShift==='night';
+  document.getElementById('testingBlock').style.display = isNight ? 'none' : '';
+  document.getElementById('testingDivider').style.display = isNight ? 'none' : '';
+
+  document.getElementById('shiftTestingHSD').value = sd.testing.hsd || 0;
+  document.getElementById('shiftTestingMS').value = sd.testing.ms || 0;
+  updateShiftTestingLitres(date);
+
+  const hint = document.getElementById('shiftHint');
+  hint.textContent = currentShift==='morning'
+    ? "Morning Opening reading is carried automatically from the previous day's Night Closing."
+    : `${SHIFTS.find(s=>s.id===currentShift).label} Opening reading is carried automatically from previous shift's Closing.`;
+}
+function updateShiftTestingLitres(date){
+  const rate = getRateForDate(date);
+  const hsdVal = parseFloat(document.getElementById('shiftTestingHSD').value)||0;
+  const msVal = parseFloat(document.getElementById('shiftTestingMS').value)||0;
+  const hsdL = rate.diesel>0 ? hsdVal/rate.diesel : 0;
+  const msL = rate.petrol>0 ? msVal/rate.petrol : 0;
+  document.getElementById('shiftTestingHSDLitres').textContent = '≈ ' + fmtNum(hsdL) + ' L';
+  document.getElementById('shiftTestingMSLitres').textContent = '≈ ' + fmtNum(msL) + ' L';
+}
+function resetShiftTesting(){
+  if(currentShift==='night') return;
+  const date = document.getElementById('salesDate').value;
+  const sd = ensureShiftData(date, currentShift);
+  const rate = getRateForDate(date);
+  sd.testing.hsd = 20*(rate.diesel||0);
+  sd.testing.ms = 20*(rate.petrol||0);
+  document.getElementById('shiftTestingHSD').value = sd.testing.hsd;
+  document.getElementById('shiftTestingMS').value = sd.testing.ms;
+  updateShiftTestingLitres(date);
+  renderShiftReadouts(date, currentShift);
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+function onShiftTestingInput(){
+  const date = document.getElementById('salesDate').value;
+  const sd = ensureShiftData(date, currentShift);
+  sd.testing.hsd = parseFloat(document.getElementById('shiftTestingHSD').value)||0;
+  sd.testing.ms = parseFloat(document.getElementById('shiftTestingMS').value)||0;
+  updateShiftTestingLitres(date);
+  renderShiftReadouts(date, currentShift);
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+function renderNozzleAssignTable(date, shift){
+  const sd = ensureShiftData(date, shift);
+  const rate = getRateForDate(date);
+  const openingTitle = shift==='morning' ? "Carried automatically from previous day's Night closing" : 'Carried from previous shift';
+
+  const nozzleRowHtml = (nz) => {
+    const opening = getOpeningReading(date, shift, nz.id);
+    const closing = getClosingReading(date, shift, nz.id);
+    const litres = nozzleLitres(date, shift, nz.id);
+    const amount = litres * rate[nz.fuel];
+    const shortLabel = nz.label.replace(/^(Diesel|Petrol)\s*/, '');
+    return `<div class="nozzle-row">
+      <div class="nz-name">${shortLabel}</div>
+      <select data-nz="${nz.id}" onchange="onAssignChange(this)">${staffOptionsHtml(sd.assign[nz.id])}</select>
+      <div class="meter-field field-opening"><span class="field-caption">Opening</span><input type="number" class="meter-input" data-f="opening" value="${opening}" disabled title="${openingTitle}"></div>
+      <div class="meter-field field-closing"><span class="field-caption">Closing</span><input type="number" class="meter-input" step="0.01" value="${closing}" data-nz="${nz.id}" data-f="closing" oninput="onReadingInput(this)" onchange="validateClosingReading(this)"></div>
+      <div class="nz-result">
+        <div class="nz-chip litres"><span id="lit-${nz.id}">${fmtNum(litres)}</span><span class="sfx">L</span></div>
+        <div class="nz-chip amount"><span class="sfx">₹</span><span id="amt-${nz.id}">${fmtNum(amount)}</span></div>
+      </div>
+    </div>`;
+  };
+
+  const UNIT_MACHINE_NO = {1:'M241409', 2:'M2402032'};
+
+  const unitPanelHtml = (unitNum) => {
+    const unitNozzles = NOZZLES.filter(nz=>nz.unit===unitNum);
+    const dieselRows = unitNozzles.filter(nz=>nz.fuel==='diesel').map(nozzleRowHtml).join('');
+    const petrolRows = unitNozzles.filter(nz=>nz.fuel==='petrol').map(nozzleRowHtml).join('');
+    const machineNo = UNIT_MACHINE_NO[unitNum] || '';
+    return `<div class="unit-panel">
+      <div class="unit-head"><span class="unit-num">${String(unitNum).padStart(2,'0')}</span><span class="unit-titles"><span class="unit-name">Dispensing Unit</span>${machineNo?`<span class="unit-machine">${machineNo}</span>`:''}</span></div>
+      <div class="fuel-group diesel">
+        <div class="fuel-group-head"><span class="dot"></span>Diesel · HSD</div>
+        ${dieselRows}
+      </div>
+      <div class="fuel-group petrol">
+        <div class="fuel-group-head"><span class="dot"></span>Petrol · MS</div>
+        ${petrolRows}
+      </div>
+    </div>`;
+  };
+
+  const units = [...new Set(NOZZLES.map(nz=>nz.unit))];
+  document.getElementById('nozzleAssignTable').innerHTML = units.map(unitPanelHtml).join('');
+}
+function onAssignChange(el){
+  const date = document.getElementById('salesDate').value;
+  const sd = ensureShiftData(date, currentShift);
+  sd.assign[el.dataset.nz] = el.value;
+  renderShiftStaffTable(date, currentShift);
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+function onReadingInput(el){
+  const date = document.getElementById('salesDate').value;
+  const nzId = el.dataset.nz, f = el.dataset.f;
+  const sd = ensureShiftData(date, currentShift);
+  const val = parseFloat(el.value)||0;
+  if(f==='closing') sd.closing[nzId] = val;
+
+  const nz = NOZZLES.find(n=>n.id===nzId);
+  const litres = nozzleLitres(date, currentShift, nzId);
+  const rate = getRateForDate(date)[nz.fuel];
+  const litEl = document.getElementById('lit-'+nzId);
+  const amtEl = document.getElementById('amt-'+nzId);
+  if(litEl) litEl.textContent = fmtNum(litres);
+  if(amtEl) amtEl.textContent = fmtNum(litres*rate);
+
+  renderShiftReadouts(date, currentShift);
+  renderShiftStaffTable(date, currentShift);
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+function validateClosingReading(el){
+  const date = document.getElementById('salesDate').value;
+  const opening = Number(getOpeningReading(date, currentShift, el.dataset.nz))||0;
+  const closing = Number(el.value);
+  const litres = closing-opening;
+  if(Number.isFinite(closing) && litres >= 0 && litres <= MAX_NOZZLE_LITRES_PER_SHIFT) return;
+  const sd = ensureShiftData(date, currentShift);
+  sd.closing[el.dataset.nz] = opening;
+  el.value = opening;
+  setAutosaveStatus('Invalid meter reading reset — please enter the correct closing reading.');
+  renderShiftReadouts(date, currentShift);
+  renderShiftStaffTable(date, currentShift);
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+function renderShiftReadouts(date, shift){
+  let dl=0,da=0,pl=0,pa=0;
+  const rate = getRateForDate(date);
+  NOZZLES.forEach(nz=>{
+    const lit = nozzleLitres(date, shift, nz.id);
+    if(nz.fuel==='diesel'){ dl+=lit; da+=lit*rate.diesel; } else { pl+=lit; pa+=lit*rate.petrol; }
+  });
+  const testing = getShiftTesting(date, shift);
+  const testingHSD = Number(testing.hsd)||0;
+  const testingMS = Number(testing.ms)||0;
+  const testingHSDL = rate.diesel>0 ? testingHSD/rate.diesel : 0;
+  const testingMSL = rate.petrol>0 ? testingMS/rate.petrol : 0;
+  const testingTotal = testingHSD + testingMS;
+  const dieselNetL = dl - testingHSDL;
+  const petrolNetL = pl - testingMSL;
+  const dieselNet = da - testingHSD;
+  const petrolNet = pa - testingMS;
+  const net = (da+pa) - testingTotal;
+  const label = SHIFTS.find(s=>s.id===shift).label;
+  const sc = 'shift-' + shift;
+  const testingBox = shift==='night' ? '' : `<div class="digit-box shortfall ${sc}"><div class="lbl">${label} Testing Deducted</div><div class="val">HSD ${fmtNum(testingHSDL)} L (${fmt(testingHSD)}) · MS ${fmtNum(testingMSL)} L (${fmt(testingMS)})</div></div>`;
+  document.getElementById('shiftReadouts').innerHTML = `
+    <div class="digit-box diesel ${sc}"><div class="lbl">${label} Diesel — L / ₹</div><div class="val">${fmtNum(dl)} L / ${fmt(da)}</div></div>
+    <div class="digit-box petrol ${sc}"><div class="lbl">${label} Petrol — L / ₹</div><div class="val">${fmtNum(pl)} L / ${fmt(pa)}</div></div>
+    ${testingBox}
+    <div class="digit-box diesel ${sc}"><div class="lbl">${label} Diesel Exact Sale (Net)</div><div class="val">${fmtNum(dieselNetL)} L / ${fmt(dieselNet)}</div></div>
+    <div class="digit-box petrol ${sc}"><div class="lbl">${label} Petrol Exact Sale (Net)</div><div class="val">${fmtNum(petrolNetL)} L / ${fmt(petrolNet)}</div></div>
+    <div class="digit-box total ${sc}"><div class="lbl">${label} Exact Sale (Net)</div><div class="val">${fmt(net)}</div></div>`;
+}
+function renderShiftStaffTable(date, shift){
+  const sd = state.sales[date] && state.sales[date][shift];
+  const assignedIds = sd ? [...new Set(Object.values(sd.assign).filter(Boolean))] : [];
+  const body = document.getElementById('shiftStaffBody');
+  if(assignedIds.length===0){
+    body.innerHTML = '<tr><td colspan="6" class="empty">No staff assigned to any nozzle this shift yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = assignedIds.map(sid=>{
+    const t = computeStaffShiftTotals(date, shift, sid);
+    return `<tr><td class="staff-name-cell" data-label="Staff">${escapeHtml(staffNameById(sid))}</td><td class="num" data-label="Diesel L">${fmtNum(t.dl)}</td><td class="num" data-label="Diesel ₹">${fmtNum(t.da)}</td><td class="num" data-label="Petrol L">${fmtNum(t.pl)}</td><td class="num" data-label="Petrol ₹">${fmtNum(t.pa)}</td><td class="num" data-label="Shift Total ₹">${fmtNum(t.da+t.pa)}</td></tr>`;
+  }).join('');
+}
+function ensureDayTesting(date){
+  if(!state.sales[date]) state.sales[date] = {};
+  if(!state.sales[date].dayTesting) state.sales[date].dayTesting = {hsdL:20, msL:20};
+  return state.sales[date].dayTesting;
+}
+function getDayTesting(date){
+  const dt = ensureDayTesting(date);
+  const rates = getRateForDate(date);
+  const hsdL = Number(dt.hsdL)||0;
+  const msL = Number(dt.msL)||0;
+  const hsd = hsdL*rates.diesel;
+  const ms = msL*rates.petrol;
+  return {hsdL, msL, hsd, ms, total: hsd+ms};
+}
+function onDayTestingInput(){
+  const date = document.getElementById('salesDate').value;
+  const dt = ensureDayTesting(date);
+  dt.hsdL = parseFloat(document.getElementById('dayTestHSDL').value)||0;
+  dt.msL = parseFloat(document.getElementById('dayTestMSL').value)||0;
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+function resetDayTesting(){
+  const date = document.getElementById('salesDate').value;
+  state.sales[date].dayTesting = {hsdL:20, msL:20};
+  renderDaySummary(date);
+  scheduleAutosave();
+}
+function renderDaySummary(date){
+  let totalDL=0,totalDA=0,totalPL=0,totalPA=0;
+  const ids = staffIdsForDate(date);
+  const rows = ids.map(sid=>{
+    const t = computeStaffDayTotals(date, sid);
+    totalDL+=t.dl; totalDA+=t.da; totalPL+=t.pl; totalPA+=t.pa;
+    return `<tr><td class="staff-name-cell" data-label="Staff">${escapeHtml(staffNameById(sid))}</td><td class="num" data-label="Diesel ₹">${fmtNum(t.da)}</td><td class="num" data-label="Petrol ₹">${fmtNum(t.pa)}</td><td class="num" data-label="Day Total ₹">${fmtNum(t.da+t.pa)}</td></tr>`;
+  }).join('');
+  document.getElementById('dayStaffBody').innerHTML = rows || '<tr><td colspan="4" class="empty">No staff assigned to any nozzle today yet.</td></tr>';
+
+  const dt = ensureDayTesting(date);
+  document.getElementById('dayTestHSDL').value = dt.hsdL;
+  document.getElementById('dayTestMSL').value = dt.msL;
+
+  const dayTesting = getDayTesting(date);
+  const dieselNetL = totalDL - dayTesting.hsdL;
+  const petrolNetL = totalPL - dayTesting.msL;
+  const dieselNet = totalDA - dayTesting.hsd;
+  const petrolNet = totalPA - dayTesting.ms;
+  const netDayL = dieselNetL + petrolNetL;
+  const netDayTotal = (totalDA+totalPA) - dayTesting.total;
+
+  document.getElementById('salesReadouts').innerHTML = `
+    <div class="digit-box diesel"><div class="lbl">Diesel (HSD) — Gross Litres / ₹</div><div class="val">${fmtNum(totalDL)} L / ${fmt(totalDA)}</div></div>
+    <div class="digit-box petrol"><div class="lbl">Petrol (MS) — Gross Litres / ₹</div><div class="val">${fmtNum(totalPL)} L / ${fmt(totalPA)}</div></div>
+    <div class="digit-box shortfall"><div class="lbl">Testing Deducted (Day)</div><div class="val">${fmtNum(dayTesting.hsdL)} L HSD · ${fmtNum(dayTesting.msL)} L MS = ${fmt(dayTesting.total)}</div></div>`;
+
+  document.getElementById('salesNetStrip').innerHTML = `
+    <div class="fds-net-tile diesel">
+      <div class="lbl">Diesel Exact Sale (Net of Testing)</div>
+      <div class="litres">${fmtNum(dieselNetL)} L</div>
+      <div class="amount">${fmt(dieselNet)}</div>
+    </div>
+    <div class="fds-net-tile petrol">
+      <div class="lbl">Petrol Exact Sale (Net of Testing)</div>
+      <div class="litres">${fmtNum(petrolNetL)} L</div>
+      <div class="amount">${fmt(petrolNet)}</div>
+    </div>
+    <div class="fds-net-tile total">
+      <div class="lbl">Day's Exact Sale (Net of Testing)</div>
+      <div class="litres">${fmtNum(netDayL)} L</div>
+      <div class="amount">${fmt(netDayTotal)}</div>
+    </div>`;
+}
+
+/* ============== SALES REPORT TAB (Daily + Monthly) ============== */
+function renderSalesReportTab(){
+  const dateInp = document.getElementById('salesDate');
+  const date = dateInp && dateInp.value ? dateInp.value : todayStr();
+  const lbl = document.getElementById('salesReportDateLabel');
+  if(lbl) lbl.textContent = date;
+  renderDaySummary(date);
+  renderMonthlyTab();
+}
+
+/* ============== MONTHLY SUMMARY TAB ============== */
+function renderMonthlyTab(){
+  const mInp = document.getElementById('monthPicker');
+  if(!mInp.value) mInp.value = thisMonthStr();
+  const month = mInp.value;
+
+  const dates = Object.keys(state.sales).filter(d=>d.startsWith(month)).sort();
+  let mDL=0,mDA=0,mPL=0,mPA=0;
+  let dateRows='';
+  const staffTotals = {};
+  state.staff.forEach(s=> staffTotals[s.id] = {name:s.name, da:0, pa:0});
+
+  dates.forEach(date=>{
+    let dl=0,da=0,pl=0,pa=0;
+    staffIdsForDate(date).forEach(sid=>{
+      const t = computeStaffDayTotals(date, sid);
+      dl+=t.dl; da+=t.da; pl+=t.pl; pa+=t.pa;
+      if(!staffTotals[sid]) staffTotals[sid] = {name: staffNameById(sid), da:0, pa:0};
+      staffTotals[sid].da += t.da;
+      staffTotals[sid].pa += t.pa;
+    });
+    mDL+=dl; mDA+=da; mPL+=pl; mPA+=pa;
+    dateRows += `<tr><td>${date}</td><td class="num">${fmtNum(dl)}</td><td class="num">${fmtNum(da)}</td><td class="num">${fmtNum(pl)}</td><td class="num">${fmtNum(pa)}</td><td class="num">${fmtNum(da+pa)}</td></tr>`;
+  });
+  document.getElementById('monthlyDateBody').innerHTML = dateRows || '<tr><td colspan="6" class="empty">No sales recorded for this month yet.</td></tr>';
+  document.getElementById('monthlyDateFoot').innerHTML = dates.length ? `<tr><td>Month Total</td><td class="num">${fmtNum(mDL)}</td><td class="num">${fmtNum(mDA)}</td><td class="num">${fmtNum(mPL)}</td><td class="num">${fmtNum(mPA)}</td><td class="num">${fmtNum(mDA+mPA)}</td></tr>` : '';
+
+  document.getElementById('monthlyReadouts').innerHTML = `
+    <div class="digit-box diesel"><div class="lbl">Monthly Diesel (HSD)</div><div class="val">${fmtNum(mDL)} L / ${fmt(mDA)}</div></div>
+    <div class="digit-box petrol"><div class="lbl">Monthly Petrol (MS)</div><div class="val">${fmtNum(mPL)} L / ${fmt(mPA)}</div></div>
+    <div class="digit-box total"><div class="lbl">Monthly Grand Total</div><div class="val">${fmt(mDA+mPA)}</div></div>`;
+
+  const grand = mDA+mPA;
+  let staffRows = Object.values(staffTotals).map(st=>{
+    const tot = st.da+st.pa;
+    const pct = grand>0 ? (tot/grand*100).toFixed(1) : '0.0';
+    return `<tr><td class="staff-name-cell">${escapeHtml(st.name)}</td><td class="num">${fmtNum(st.da)}</td><td class="num">${fmtNum(st.pa)}</td><td class="num">${fmtNum(tot)}</td><td class="num">${pct}%</td></tr>`;
+  }).join('');
+  document.getElementById('monthlyStaffBody').innerHTML = staffRows || '<tr><td colspan="5" class="empty">No staff to summarize.</td></tr>';
+  document.getElementById('monthlyStaffFoot').innerHTML = `<tr><td>Total</td><td class="num">${fmtNum(mDA)}</td><td class="num">${fmtNum(mPA)}</td><td class="num">${fmtNum(grand)}</td><td class="num">100%</td></tr>`;
+}
+
+/* ============== CASH DENOMINATION CALCULATOR TAB ============== */
+function populateCashStaffSelect(){
+  const sel = document.getElementById('cashStaff');
+  const prev = sel.value;
+  sel.innerHTML = state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  if(prev && state.staff.some(s=>s.id===prev)) sel.value = prev;
+}
+
+function onTestingOptionChange(){
+  const hOpt = document.getElementById('testingHSDOption').value;
+  const hQtyInp = document.getElementById('testingHSDQty');
+  if(hOpt === 'custom'){
+    hQtyInp.style.display = 'block';
+  } else {
+    hQtyInp.style.display = 'none';
+    hQtyInp.value = hOpt;
+  }
+
+  const mOpt = document.getElementById('testingMSOption').value;
+  const mQtyInp = document.getElementById('testingMSQty');
+  if(mOpt === 'custom'){
+    mQtyInp.style.display = 'block';
+  } else {
+    mQtyInp.style.display = 'none';
+    mQtyInp.value = mOpt;
+  }
+  calcCash();
+}
+
+function renderCashTab(){
+  populateCashStaffSelect();
+  const dateInp = document.getElementById('cashDate');
+  if(!dateInp.value) dateInp.value = todayStr();
+  const date = dateInp.value;
+  const staffId = document.getElementById('cashStaff').value;
+
+  const existing = (state.cash[date] && state.cash[date][staffId]) || null;
+  const denoms = existing ? existing.denoms : {};
+
+  document.getElementById('denomGrid').innerHTML = NOTES.map(d=>`
+    <div class="denom-cell ${d>=100?'tier-high':'tier-low'}">
+      <div class="note">₹${d}</div>
+      <input type="number" min="0" step="1" value="${denoms[d]||0}" data-denom="${d}" oninput="calcCash()" placeholder="count">
+      <div class="sub" id="denomSub-${d}">= ₹0.00</div>
+    </div>`).join('');
+
+  document.getElementById('coinsTotal').value = existing ? (existing.coinsTotal||0) : 0;
+  
+  if(existing && existing.testingHSDQty !== undefined){
+    const hq = existing.testingHSDQty;
+    if(hq == 0 || hq == 5 || hq == 10){
+      document.getElementById('testingHSDOption').value = hq;
+      document.getElementById('testingHSDQty').style.display = 'none';
+    } else {
+      document.getElementById('testingHSDOption').value = 'custom';
+      document.getElementById('testingHSDQty').style.display = 'block';
+    }
+    document.getElementById('testingHSDQty').value = hq;
+  } else {
+    document.getElementById('testingHSDOption').value = '0';
+    document.getElementById('testingHSDQty').style.display = 'none';
+    document.getElementById('testingHSDQty').value = 0;
+  }
+
+  if(existing && existing.testingMSQty !== undefined){
+    const mq = existing.testingMSQty;
+    if(mq == 0 || mq == 5 || mq == 10){
+      document.getElementById('testingMSOption').value = mq;
+      document.getElementById('testingMSQty').style.display = 'none';
+    } else {
+      document.getElementById('testingMSOption').value = 'custom';
+      document.getElementById('testingMSQty').style.display = 'block';
+    }
+    document.getElementById('testingMSQty').value = mq;
+  } else {
+    document.getElementById('testingMSOption').value = '0';
+    document.getElementById('testingMSQty').style.display = 'none';
+    document.getElementById('testingMSQty').value = 0;
+  }
+
+  document.getElementById('onlineAmt').value = existing ? (existing.onlineAmt||0) : 0;
+  document.getElementById('cardAmt').value = existing ? (existing.cardAmt||0) : 0;
+  document.getElementById('depositAmt').value = existing ? existing.deposit : 0;
+  document.getElementById('cashSavedHint').textContent = existing ? 'A saved record exists for this staff/date — editing will update it.' : '';
+
+  loanRows = existing && existing.loans && existing.loans.length ? existing.loans.map(l=>({name:l.name, amount:l.amount, type:l.type||'loan', checked:!!l.checked, note:l.note||''})) : [];
+  if(loanRows.length===0) loanRows.push({name:'', amount:0, type:'loan', checked:false, note:''});
+  renderLoanRows();
+
+  calcCash();
+  renderCashHistory();
+}
+
+function renderLoanRows(){
+  const container = document.getElementById('loanRows');
+  container.innerHTML = loanRows.map((r,i)=>`
+    <div class="loan-entry">
+      <div class="loan-row">
+        <input type="text" placeholder="Person's name" value="${escapeHtml(r.name)}" oninput="onLoanFieldInput(${i},'name',this.value)">
+        <input type="number" min="0" step="0.01" placeholder="Amount ₹" value="${r.amount||0}" oninput="onLoanFieldInput(${i},'amount',this.value)">
+        <select onchange="onLoanFieldInput(${i},'type',this.value)">
+          <option value="loan" ${r.type!=='addon'?'selected':''}>Loan</option>
+          <option value="addon" ${r.type==='addon'?'selected':''}>Add-on</option>
+        </select>
+        <label class="chk-wrap"><input type="checkbox" ${r.checked?'checked':''} onchange="onLoanFieldInput(${i},'checked',this.checked)"> Checked</label>
+        <button class="btn danger" onclick="removeLoanRow(${i})" ${loanRows.length<=1?'style="visibility:hidden"':''}>Remove</button>
+      </div>
+      <div class="loan-note-row">
+        <input type="text" placeholder="Note (optional)" value="${escapeHtml(r.note||'')}" oninput="onLoanFieldInput(${i},'note',this.value)">
+      </div>
+    </div>`).join('');
+  document.getElementById('addLoanBtn').disabled = loanRows.length>=10;
+}
+function onLoanFieldInput(i, field, value){
+  if(field==='amount') loanRows[i][field] = parseFloat(value)||0;
+  else if(field==='checked') loanRows[i][field] = !!value;
+  else loanRows[i][field] = value;
+  calcCash();
+}
+function addLoanRow(){
+  if(loanRows.length>=10) return;
+  loanRows.push({name:'', amount:0, type:'loan', checked:false, note:''});
+  renderLoanRows();
+  calcCash();
+}
+function removeLoanRow(i){
+  loanRows.splice(i,1);
+  if(loanRows.length===0) loanRows.push({name:'', amount:0, type:'loan', checked:false, note:''});
+  renderLoanRows();
+  calcCash();
+}
+function getSalesAmountFor(date, staffId){
+  const t = computeStaffDayTotals(date, staffId);
+  return t.da + t.pa;
+}
+
+function calcCash(){
+  let notesTotal = 0;
+  NOTES.forEach(d=>{
+    const el = document.querySelector(`[data-denom="${d}"]`);
+    const count = el ? (parseInt(el.value)||0) : 0;
+    const sub = count * d;
+    notesTotal += sub;
+    const subEl = document.getElementById('denomSub-'+d);
+    if(subEl) subEl.textContent = '= ' + fmt(sub);
+  });
+  const coinsTotal = parseFloat(document.getElementById('coinsTotal').value)||0;
+  
+  const date = document.getElementById('cashDate').value;
+  const rates = getRateForDate(date);
+
+  const hsdQty = parseFloat(document.getElementById('testingHSDQty').value)||0;
+  const testingHSD = hsdQty * rates.diesel;
+  document.getElementById('testingHSDValDisplay').textContent = `Calculated: ${fmt(testingHSD)} (${hsdQty} L @ ₹${rates.diesel})`;
+
+  const msQty = parseFloat(document.getElementById('testingMSQty').value)||0;
+  const testingMS = msQty * rates.petrol;
+  document.getElementById('testingMSValDisplay').textContent = `Calculated: ${fmt(testingMS)} (${msQty} L @ ₹${rates.petrol})`;
+
+  const onlineAmt = parseFloat(document.getElementById('onlineAmt').value)||0;
+  const cardAmt = parseFloat(document.getElementById('cardAmt').value)||0;
+  const loanTotal = loanRows.reduce((sum,r)=> sum + (Number(r.amount)||0), 0);
+  const deposit = parseFloat(document.getElementById('depositAmt').value)||0;
+
+  const counted = notesTotal + coinsTotal;
+  // ADD Testing HSD and Testing MS to Final Cash Value
+  const finalValue = counted + onlineAmt + cardAmt + deposit + loanTotal + testingHSD + testingMS;
+
+  const staffId = document.getElementById('cashStaff').value;
+  const salesAmount = getSalesAmountFor(date, staffId);
+  const diff = finalValue - salesAmount;
+
+  document.getElementById('calcNotes').textContent = fmt(notesTotal);
+  document.getElementById('calcCoins').textContent = fmt(coinsTotal);
+  document.getElementById('calcOnline').textContent = fmt(onlineAmt);
+  document.getElementById('calcCard').textContent = fmt(cardAmt);
+  document.getElementById('calcDeposit').textContent = fmt(deposit);
+  document.getElementById('calcLoan').textContent = fmt(loanTotal);
+  document.getElementById('calcTHSD').textContent = fmt(testingHSD);
+  document.getElementById('calcTMS').textContent = fmt(testingMS);
+  document.getElementById('calcFinal').textContent = fmt(finalValue);
+  document.getElementById('calcSales').textContent = fmt(salesAmount);
+  document.getElementById('calcDiff').textContent = (diff>=0?'+':'') + fmt(diff);
+  document.getElementById('loanTotalDisplay').textContent = fmt(loanTotal);
+
+  const box = document.getElementById('diffBox');
+  box.className = 'digit-box ' + (diff>0?'surplus':diff<0?'shortfall':'total');
+
+  scheduleAutosave();
+  return {counted,coinsTotal,notesTotal,testingHSDQty:hsdQty,testingHSD,testingMSQty:msQty,testingMS,onlineAmt,cardAmt,loanTotal,deposit,finalValue,salesAmount,diff};
+}
+
+function saveCash(){
+  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('cashStaff').value;
+  const c = calcCash();
+  const denoms = {};
+  NOTES.forEach(d=>{
+    const el = document.querySelector(`[data-denom="${d}"]`);
+    denoms[d] = el ? (parseInt(el.value)||0) : 0;
+  });
+  if(!state.cash[date]) state.cash[date] = {};
+  state.cash[date][staffId] = {
+    denoms,
+    coinsTotal: c.coinsTotal,
+    cashCounted: c.counted,
+    testingHSDQty: c.testingHSDQty,
+    testingHSD: c.testingHSD,
+    testingMSQty: c.testingMSQty,
+    testingMS: c.testingMS,
+    onlineAmt: c.onlineAmt,
+    cardAmt: c.cardAmt,
+    loans: loanRows.filter(r=>r.name.trim()!=='' || r.amount>0).map(r=>({name:r.name, amount:r.amount, type:r.type||'loan', checked:!!r.checked, note:r.note||''})),
+    loan: c.loanTotal,
+    deposit: c.deposit,
+    salesAmount: c.salesAmount,
+    finalValue: c.finalValue,
+    difference: c.diff,
+    status: c.diff>0?'Surplus':c.diff<0?'Shortfall':'Matched'
+  };
+  document.getElementById('cashSavedHint').textContent = 'Saved to Staff Surplus / Short Data for ' + date + '.';
+  scheduleAutosave();
+  renderCashHistory();
+}
+
+/* ---- Past cash denomination records (history) ---- */
+function populateCashHistoryStaffFilter(){
+  const sel = document.getElementById('cashHistoryStaffFilter');
+  const prev = sel.value;
+  const opts = ['<option value="all">All Staff</option>'].concat(state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`));
+  sel.innerHTML = opts.join('');
+  if(prev) sel.value = prev;
+}
+function renderCashHistory(){
+  populateCashHistoryStaffFilter();
+  const mInp = document.getElementById('cashHistoryMonth');
+  if(!mInp.value) mInp.value = thisMonthStr();
+  const month = mInp.value;
+  const staffFilter = document.getElementById('cashHistoryStaffFilter').value;
+
+  let rows = [];
+  Object.keys(state.cash).filter(d=>d.startsWith(month)).sort().reverse().forEach(date=>{
+    Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      if(staffFilter!=='all' && sid!==staffFilter) return;
+      rows.push({date,sid,...rec});
+    });
+  });
+
+  const body = document.getElementById('cashHistoryBody');
+  const empty = document.getElementById('cashHistoryEmpty');
+  if(rows.length===0){
+    body.innerHTML='';
+    empty.style.display='block';
+    return;
+  }
+  empty.style.display='none';
+  body.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${r.date}</td>
+      <td class="staff-name-cell">${escapeHtml(staffNameById(r.sid))}</td>
+      <td class="num">${(r.denoms&&r.denoms[500])||0}</td>
+      <td class="num">${(r.denoms&&r.denoms[200])||0}</td>
+      <td class="num">${(r.denoms&&r.denoms[100])||0}</td>
+      <td class="num">${(r.denoms&&r.denoms[50])||0}</td>
+      <td class="num">${(r.denoms&&r.denoms[20])||0}</td>
+      <td class="num">${(r.denoms&&r.denoms[10])||0}</td>
+      <td class="num">${fmtNum(r.coinsTotal||0)}</td>
+      <td class="num">${fmtNum(r.finalValue)}</td>
+      <td><span class="badge ${r.status.toLowerCase()}">${r.status}</span></td>
+      <td><button class="btn ghost small" onclick="loadCashRecord('${r.date}','${r.sid}')">Load</button></td>
+    </tr>`).join('');
+}
+function loadCashRecord(date, sid){
+  document.getElementById('cashDate').value = date;
+  document.getElementById('cashStaff').value = sid;
+  renderCashTab();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+/* ============== STAFF SURPLUS / SHORT DATA TAB ============== */
+function populateSurplusStaffFilter(){
+  const sel = document.getElementById('surplusStaffFilter');
+  const opts = ['<option value="all">All Staff</option>'].concat(state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`));
+  sel.innerHTML = opts.join('');
+}
+function staffNameById(id){
+  const s = state.staff.find(x=>x.id===id);
+  return s ? s.name : '(removed staff)';
+}
+function renderSurplusTab(){
+  populateSurplusStaffFilter();
+  const mInp = document.getElementById('surplusMonth');
+  if(!mInp.value) mInp.value = thisMonthStr();
+  const month = mInp.value;
+  const staffFilter = document.getElementById('surplusStaffFilter').value;
+
+  let rows = [];
+  Object.keys(state.cash).filter(d=>d.startsWith(month)).sort().forEach(date=>{
+    Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      if(staffFilter!=='all' && sid!==staffFilter) return;
+      rows.push({date,sid,...rec});
+    });
+  });
+
+  if(rows.length===0){
+    document.getElementById('surplusBody').innerHTML = '';
+    document.getElementById('surplusEmpty').style.display='block';
+  } else {
+    document.getElementById('surplusEmpty').style.display='none';
+    document.getElementById('surplusBody').innerHTML = rows.map(r=>`
+      <tr>
+        <td>${r.date}</td>
+        <td class="staff-name-cell">${escapeHtml(staffNameById(r.sid))}</td>
+        <td class="num">${fmtNum(r.salesAmount)}</td>
+        <td class="num">${fmtNum(r.cashCounted)}</td>
+        <td class="num">${fmtNum((r.onlineAmt||0)+(r.cardAmt||0))}</td>
+        <td class="num">${fmtNum(r.testingHSD)}</td>
+        <td class="num">${fmtNum(r.testingMS)}</td>
+        <td class="num">${fmtNum(r.loan)}</td>
+        <td class="num">${fmtNum(r.deposit)}</td>
+        <td class="num">${fmtNum(r.finalValue)}</td>
+        <td class="num">${r.difference>=0?'+':''}${fmtNum(r.difference)}</td>
+        <td><span class="badge ${r.status.toLowerCase()}">${r.status}</span></td>
+        <td><button class="btn danger" onclick="deleteCashRecord('${r.date}','${r.sid}')">Delete</button></td>
+      </tr>`).join('');
+  }
+
+  const summary = {};
+  state.staff.forEach(s=> summary[s.id] = {name:s.name, surplus:0, shortfall:0});
+  Object.keys(state.cash).filter(d=>d.startsWith(month)).forEach(date=>{
+    Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      if(!summary[sid]) summary[sid] = {name:staffNameById(sid), surplus:0, shortfall:0};
+      if(rec.difference>0) summary[sid].surplus += rec.difference;
+      else if(rec.difference<0) summary[sid].shortfall += Math.abs(rec.difference);
+    });
+  });
+  let stationSurplus=0, stationShortfall=0;
+  const summaryRows = Object.values(summary).map(st=>{
+    const net = st.surplus - st.shortfall;
+    stationSurplus += st.surplus; stationShortfall += st.shortfall;
+    const status = net>0?'Surplus':net<0?'Shortfall':'Matched';
+    return `<tr>
+      <td class="staff-name-cell">${escapeHtml(st.name)}</td>
+      <td class="num">${fmtNum(st.surplus)}</td>
+      <td class="num">${fmtNum(st.shortfall)}</td>
+      <td class="num">${net>=0?'+':''}${fmtNum(net)}</td>
+      <td><span class="badge ${status.toLowerCase()}">${status}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('surplusStaffSummary').innerHTML = summaryRows || '<tr><td colspan="5" class="empty">No records for this month.</td></tr>';
+
+  document.getElementById('stationSurplus').textContent = fmt(stationSurplus);
+  document.getElementById('stationShortfall').textContent = fmt(stationShortfall);
+  const net = stationSurplus-stationShortfall;
+  document.getElementById('stationNet').textContent = (net>=0?'+':'') + fmt(net);
+}
+function deleteCashRecord(date, sid){
+  if(!confirm('Delete this reconciliation record?')) return;
+  if(state.cash[date]){
+    delete state.cash[date][sid];
+    if(Object.keys(state.cash[date]).length===0) delete state.cash[date];
+  }
+  renderSurplusTab();
+  scheduleAutosave();
+}
+
+/* ============== NOTE STOCK TAB ============== */
+function getReceivedTotalsByDate(){
+  const out = {};
+  Object.keys(state.cash).sort().forEach(date=>{
+    const counts = {}; NOTES.forEach(d=> counts[d]=0);
+    let value = 0;
+    Object.values(state.cash[date]).forEach(rec=>{
+      NOTES.forEach(d=>{
+        const c = (rec.denoms && rec.denoms[d]) || 0;
+        counts[d] += c;
+        value += c*d;
+      });
+    });
+    out[date] = {counts, value};
+  });
+  return out;
+}
+function renderNoteStockTab(){
+  renderNoteReceivedTable();
+  renderNoteGivenForm();
+  renderNoteGivenTable();
+  const asOf = document.getElementById('stockAsOfDate');
+  if(!asOf.value) asOf.value = todayStr();
+  renderNoteStockRemaining();
+}
+function renderNoteReceivedTable(){
+  const received = getReceivedTotalsByDate();
+  const dates = Object.keys(received);
+  const body = document.getElementById('noteReceivedBody');
+  const empty = document.getElementById('noteReceivedEmpty');
+  if(dates.length===0){
+    body.innerHTML=''; document.getElementById('noteReceivedFoot').innerHTML='';
+    empty.style.display='block';
+    return;
+  }
+  empty.style.display='none';
+  let totals={}; NOTES.forEach(d=>totals[d]=0); let grandValue=0;
+  body.innerHTML = dates.map(date=>{
+    const r = received[date];
+    NOTES.forEach(d=> totals[d]+=r.counts[d]);
+    grandValue += r.value;
+    return `<tr><td>${date}</td>${NOTES.map(d=>`<td class="num">${r.counts[d]}</td>`).join('')}<td class="num">${fmtNum(r.value)}</td></tr>`;
+  }).join('');
+  document.getElementById('noteReceivedFoot').innerHTML = `<tr><td>Total</td>${NOTES.map(d=>`<td class="num">${totals[d]}</td>`).join('')}<td class="num">${fmtNum(grandValue)}</td></tr>`;
+}
+function renderNoteGivenForm(){
+  const dateInp = document.getElementById('noteGivenDate');
+  if(!dateInp.value) dateInp.value = todayStr();
+  document.getElementById('noteGivenGrid').innerHTML = NOTES.map(d=>`
+    <div class="denom-cell ${d>=100?'tier-high':'tier-low'}">
+      <div class="note">₹${d}</div>
+      <input type="number" min="0" step="1" value="0" data-given="${d}" placeholder="count">
+    </div>`).join('');
+}
+function saveNoteGivenOut(){
+  const date = document.getElementById('noteGivenDate').value || todayStr();
+  const to = document.getElementById('noteGivenTo').value.trim();
+  const counts = {};
+  let value = 0, pieces = 0;
+  NOTES.forEach(d=>{
+    const el = document.querySelector(`[data-given="${d}"]`);
+    const c = el ? (parseInt(el.value)||0) : 0;
+    counts[d] = c;
+    value += c*d;
+    pieces += c;
+  });
+  if(pieces===0){
+    document.getElementById('noteGivenHint').textContent = 'Enter at least one note count before saving.';
+    return;
+  }
+  state.noteGivenOut.push({id:'ngo'+(ngoCounter++), date, to, counts, value});
+  document.getElementById('noteGivenHint').textContent = 'Saved.';
+  document.getElementById('noteGivenTo').value='';
+  renderNoteGivenForm();
+  renderNoteGivenTable();
+  renderNoteStockRemaining();
+  scheduleAutosave();
+}
+function renderNoteGivenTable(){
+  const body = document.getElementById('noteGivenBody');
+  const empty = document.getElementById('noteGivenEmpty');
+  const rows = [...state.noteGivenOut].sort((a,b)=> a.date<b.date?1:-1);
+  if(rows.length===0){
+    body.innerHTML=''; empty.style.display='block'; return;
+  }
+  empty.style.display='none';
+  body.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${r.date}</td>
+      <td>${escapeHtml(r.to||'—')}</td>
+      ${NOTES.map(d=>`<td class="num">${r.counts[d]||0}</td>`).join('')}
+      <td class="num">${fmtNum(r.value)}</td>
+      <td><button class="btn danger" onclick="deleteNoteGivenOut('${r.id}')">Delete</button></td>
+    </tr>`).join('');
+}
+function deleteNoteGivenOut(id){
+  if(!confirm('Delete this given-out record?')) return;
+  state.noteGivenOut = state.noteGivenOut.filter(r=>r.id!==id);
+  renderNoteGivenTable();
+  renderNoteStockRemaining();
+  scheduleAutosave();
+}
+
+/* TRACK ONLY TODAY'S NOTE STOCK */
+function renderNoteStockRemaining(){
+  const today = document.getElementById('stockAsOfDate').value || todayStr();
+  const received = getReceivedTotalsByDate();
+  const recvTotals = {}; NOTES.forEach(d=>recvTotals[d]=0);
+  
+  if (received[today]) {
+    NOTES.forEach(d => recvTotals[d] = received[today].counts[d]);
+  }
+
+  const givenTotals = {}; NOTES.forEach(d=>givenTotals[d]=0);
+  state.noteGivenOut.filter(r=>r.date === today).forEach(r=>{
+    NOTES.forEach(d=> givenTotals[d]+=(r.counts[d]||0));
+  });
+
+  let totalPieces=0, totalValue=0;
+  document.getElementById('stockRemainingBody').innerHTML = NOTES.map(d=>{
+    const remaining = recvTotals[d]-givenTotals[d];
+    totalPieces += remaining;
+    totalValue += remaining*d;
+    return `<tr>
+      <td class="staff-name-cell">₹${d}</td>
+      <td class="num">${recvTotals[d]}</td>
+      <td class="num">${givenTotals[d]}</td>
+      <td class="num" style="${remaining<0?'color:var(--shortfall);font-weight:700;':''}">${remaining}</td>
+      <td class="num">${fmtNum(remaining*d)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('stockTotalPieces').textContent = totalPieces;
+  document.getElementById('stockTotalValue').textContent = fmt(totalValue);
+}
+
+/* ============== EXPORT / IMPORT ============== */
+function exportData(){
+  const blob = new Blob([JSON.stringify({state, sidCounter}, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'maa-fuel-station-backup-' + todayStr() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(parsed.state && parsed.state.staff && parsed.state.sales && parsed.state.cash){
+        state = parsed.state;
+        if(!state.rates) state.rates = {};
+        if(!state.noteGivenOut) state.noteGivenOut = [];
+        sidCounter = parsed.sidCounter || sidCounter;
+        ngoCounter = parsed.ngoCounter || ngoCounter;
+        alert('Data restored successfully.');
+        switchTab(document.querySelector('.tab-btn.active').dataset.tab);
+        scheduleAutosave();
+      } else {
+        alert('This file does not look like a valid Maa Fuel Station backup.');
+      }
+    }catch(err){
+      alert('Could not read this file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ============== DIP CHART TAB ============== */
+const dipChartData = {
+  1:{volume:11.97,diff:1.20}, 2:{volume:33.89,diff:2.19}, 3:{volume:62.22,diff:2.83}, 4:{volume:95.71,diff:3.35},
+  5:{volume:133.61,diff:3.79}, 6:{volume:175.43,diff:4.18}, 7:{volume:220.80,diff:4.54}, 8:{volume:269.41,diff:4.86},
+  9:{volume:321.05,diff:5.16}, 10:{volume:375.51,diff:5.45}, 11:{volume:432.63,diff:5.71}, 12:{volume:492.26,diff:5.96},
+  13:{volume:554.27,diff:6.20}, 14:{volume:618.56,diff:6.43}, 15:{volume:685.03,diff:6.65}, 16:{volume:753.57,diff:6.85},
+  17:{volume:824.11,diff:7.05}, 18:{volume:896.57,diff:7.25}, 19:{volume:970.88,diff:7.43}, 20:{volume:1046.97,diff:7.61},
+  21:{volume:1124.79,diff:7.78}, 22:{volume:1204.28,diff:7.95}, 23:{volume:1285.38,diff:8.11}, 24:{volume:1368.04,diff:8.27},
+  25:{volume:1452.22,diff:8.42}, 26:{volume:1537.87,diff:8.56}, 27:{volume:1624.95,diff:8.71}, 28:{volume:1713.41,diff:8.85},
+  29:{volume:1803.22,diff:8.98}, 30:{volume:1894.35,diff:9.11}, 31:{volume:1986.75,diff:9.24}, 32:{volume:2080.39,diff:9.36},
+  33:{volume:2175.24,diff:9.49}, 34:{volume:2271.27,diff:9.60}, 35:{volume:2368.44,diff:9.72}, 36:{volume:2466.74,diff:9.83},
+  37:{volume:2566.12,diff:9.94}, 38:{volume:2666.57,diff:10.04}, 39:{volume:2768.05,diff:10.15}, 40:{volume:2870.54,diff:10.25},
+  41:{volume:2974.02,diff:10.35}, 42:{volume:3078.46,diff:10.44}, 43:{volume:3183.83,diff:10.54}, 44:{volume:3290.12,diff:10.63},
+  45:{volume:3397.31,diff:10.72}, 46:{volume:3505.36,diff:10.81}, 47:{volume:3614.26,diff:10.89}, 48:{volume:3723.99,diff:10.97},
+  49:{volume:3834.53,diff:11.05}, 50:{volume:3945.86,diff:11.13}, 51:{volume:4057.96,diff:11.21}, 52:{volume:4170.80,diff:11.28},
+  53:{volume:4284.38,diff:11.36}, 54:{volume:4398.67,diff:11.43}, 55:{volume:4513.65,diff:11.50}, 56:{volume:4629.31,diff:11.57},
+  57:{volume:4745.63,diff:11.63}, 58:{volume:4862.59,diff:11.70}, 59:{volume:4980.18,diff:11.76}, 60:{volume:5098.38,diff:11.82},
+  61:{volume:5217.17,diff:11.88}, 62:{volume:5336.53,diff:11.94}, 63:{volume:5456.46,diff:11.99}, 64:{volume:5576.94,diff:12.05},
+  65:{volume:5697.94,diff:12.10}, 66:{volume:5819.46,diff:12.15}, 67:{volume:5941.48,diff:12.20}, 68:{volume:6063.98,diff:12.25},
+  69:{volume:6186.96,diff:12.30}, 70:{volume:6310.39,diff:12.34}, 71:{volume:6434.29,diff:12.39}, 72:{volume:6558.56,diff:12.43},
+  73:{volume:6683.28,diff:12.47}, 74:{volume:6808.39,diff:12.51}, 75:{volume:6933.89,diff:12.55}, 76:{volume:7059.77,diff:12.59},
+  77:{volume:7186.00,diff:12.62}, 78:{volume:7312.58,diff:12.66}, 79:{volume:7439.49,diff:12.69}, 80:{volume:7566.72,diff:12.72},
+  81:{volume:7694.26,diff:12.75}, 82:{volume:7822.09,diff:12.78}, 83:{volume:7950.20,diff:12.81}, 84:{volume:8078.58,diff:12.84},
+  85:{volume:8207.21,diff:12.86}, 86:{volume:8336.09,diff:12.89}, 87:{volume:8465.20,diff:12.91}, 88:{volume:8594.52,diff:12.93},
+  89:{volume:8724.05,diff:12.95}, 90:{volume:8853.77,diff:12.97}, 91:{volume:8983.68,diff:12.99}, 92:{volume:9113.75,diff:13.01},
+  93:{volume:9243.97,diff:13.02}, 94:{volume:9374.34,diff:13.04}, 95:{volume:9504.85,diff:13.05}, 96:{volume:9635.47,diff:13.06},
+  97:{volume:9766.20,diff:13.07}, 98:{volume:9897.02,diff:13.08}, 99:{volume:10027.93,diff:13.09}, 100:{volume:10158.91,diff:13.10},
+  101:{volume:10289.95,diff:13.10}, 102:{volume:10421.04,diff:13.11}, 103:{volume:10552.16,diff:13.11}, 104:{volume:10683.31,diff:13.11},
+  105:{volume:10814.47,diff:13.12}, 106:{volume:10945.62,diff:13.12}, 107:{volume:11076.77,diff:13.11}, 108:{volume:11207.89,diff:13.11},
+  109:{volume:11338.98,diff:13.11}, 110:{volume:11470.02,diff:13.10}, 111:{volume:11601.00,diff:13.10}, 112:{volume:11731.91,diff:13.09},
+  113:{volume:11862.73,diff:13.08}, 114:{volume:11993.46,diff:13.07}, 115:{volume:12124.08,diff:13.06}, 116:{volume:12254.59,diff:13.05},
+  117:{volume:12384.96,diff:13.04}, 118:{volume:12515.18,diff:13.02}, 119:{volume:12645.26,diff:13.01}, 120:{volume:12775.16,diff:12.99},
+  121:{volume:12904.88,diff:12.97}, 122:{volume:13034.41,diff:12.95}, 123:{volume:13163.73,diff:12.93}, 124:{volume:13292.84,diff:12.91},
+  125:{volume:13421.72,diff:12.89}, 126:{volume:13550.35,diff:12.86}, 127:{volume:13678.73,diff:12.84}, 128:{volume:13806.84,diff:12.81},
+  129:{volume:13934.67,diff:12.78}, 130:{volume:14062.21,diff:12.75}, 131:{volume:14189.44,diff:12.72}, 132:{volume:14316.35,diff:12.69},
+  133:{volume:14442.93,diff:12.66}, 134:{volume:14569.16,diff:12.62}, 135:{volume:14695.04,diff:12.59}, 136:{volume:14820.54,diff:12.55},
+  137:{volume:14945.65,diff:12.51}, 138:{volume:15070.37,diff:12.47}, 139:{volume:15194.67,diff:12.43}, 140:{volume:15318.54,diff:12.39},
+  141:{volume:15441.97,diff:12.34}, 142:{volume:15564.95,diff:12.30}, 143:{volume:15687.45,diff:12.25}, 144:{volume:15809.47,diff:12.20},
+  145:{volume:15930.99,diff:12.15}, 146:{volume:16051.99,diff:12.10}, 147:{volume:16172.47,diff:12.05}, 148:{volume:16292.40,diff:11.99},
+  149:{volume:16411.76,diff:11.94}, 150:{volume:16530.55,diff:11.88}, 151:{volume:16648.75,diff:11.82}, 152:{volume:16766.34,diff:11.76},
+  153:{volume:16883.30,diff:11.70}, 154:{volume:16999.62,diff:11.63}, 155:{volume:17115.28,diff:11.57}, 156:{volume:17230.26,diff:11.50},
+  157:{volume:17344.55,diff:11.43}, 158:{volume:17458.13,diff:11.36}, 159:{volume:17570.97,diff:11.28}, 160:{volume:17683.07,diff:11.21},
+  161:{volume:17794.40,diff:11.13}, 162:{volume:17904.94,diff:11.05}, 163:{volume:18014.67,diff:10.97}, 164:{volume:18123.57,diff:10.89},
+  165:{volume:18231.62,diff:10.81}, 166:{volume:18338.81,diff:10.72}, 167:{volume:18445.10,diff:10.63}, 168:{volume:18550.47,diff:10.54},
+  169:{volume:18654.91,diff:10.44}, 170:{volume:18758.39,diff:10.35}, 171:{volume:18860.88,diff:10.25}, 172:{volume:18962.36,diff:10.15},
+  173:{volume:19062.81,diff:10.04}, 174:{volume:19162.19,diff:9.94}, 175:{volume:19260.49,diff:9.83}, 176:{volume:19357.66,diff:9.72},
+  177:{volume:19453.69,diff:9.60}, 178:{volume:19548.54,diff:9.49}, 179:{volume:19642.18,diff:9.36}, 180:{volume:19734.58,diff:9.24},
+  181:{volume:19825.71,diff:9.11}, 182:{volume:19915.52,diff:8.98}, 183:{volume:20003.98,diff:8.85}, 184:{volume:20091.06,diff:8.71},
+  185:{volume:20176.71,diff:8.56}, 186:{volume:20260.89,diff:8.42}, 187:{volume:20343.55,diff:8.27}, 188:{volume:20424.65,diff:8.11},
+  189:{volume:20504.14,diff:7.95}, 190:{volume:20581.96,diff:7.78}, 191:{volume:20658.05,diff:7.61}, 192:{volume:20732.36,diff:7.43},
+  193:{volume:20804.82,diff:7.25}, 194:{volume:20875.36,diff:7.05}, 195:{volume:20943.91,diff:6.85}, 196:{volume:21010.37,diff:6.65},
+  197:{volume:21074.66,diff:6.43}, 198:{volume:21136.67,diff:6.20}, 199:{volume:21196.30,diff:5.96}, 200:{volume:21253.42,diff:5.71},
+  201:{volume:21307.88,diff:5.45}, 202:{volume:21359.52,diff:5.16}, 203:{volume:21408.13,diff:4.86}, 204:{volume:21453.50,diff:4.54},
+  205:{volume:21495.32,diff:4.18}, 206:{volume:21533.22,diff:3.79}, 207:{volume:21566.71,diff:3.35}, 208:{volume:21595.04,diff:2.83},
+  209:{volume:21616.96,diff:2.19}, 210:{volume:21628.93,diff:1.20}
+};
+let dipLogCounter = 0;
+let dipChartRendered = false;
+
+function renderDipChartTab(){
+  if(dipChartRendered) return;
+  const body = document.getElementById('dipChartBody');
+  let html = '';
+  for(let dip=1; dip<=210; dip++){
+    const row = dipChartData[dip];
+    html += `<tr><td>${dip}</td><td class="num">${row.volume.toFixed(2)}</td><td class="num">${row.diff.toFixed(2)}</td></tr>`;
+  }
+  body.innerHTML = html;
+  dipChartRendered = true;
+}
+
+function calcDip(){
+  const dipEl = document.getElementById('dipInput');
+  const pointEl = document.getElementById('pointInput');
+  const finalEl = document.getElementById('finalInput');
+  const errBox = document.getElementById('dipErrBox');
+  const resultBox = document.getElementById('dipResultBox');
+
+  errBox.style.display = 'none';
+  const dip = parseInt(dipEl.value, 10);
+  const point = parseFloat(pointEl.value);
+
+  if(isNaN(dip) || !dipChartData[dip]){
+    errBox.textContent = 'Please enter a valid DIP between 1 and 210.';
+    errBox.style.display = 'block';
+    resultBox.style.display = 'none';
+    finalEl.value = '';
+    return;
+  }
+  if(isNaN(point)){
+    errBox.textContent = 'Please enter a valid Point value.';
+    errBox.style.display = 'block';
+    resultBox.style.display = 'none';
+    finalEl.value = '';
+    return;
+  }
+
+  const volume = dipChartData[dip].volume;
+  const diff = dipChartData[dip].diff;
+  const output = point * diff;
+  const finalValue = volume + output;
+
+  document.getElementById('rDip').textContent = dip;
+  document.getElementById('rVolume').textContent = volume.toFixed(2);
+  document.getElementById('rDiff').textContent = diff.toFixed(2);
+  document.getElementById('rPoint').textContent = point;
+  document.getElementById('rOutput').textContent = output.toFixed(2);
+  document.getElementById('rFinal').textContent = finalValue.toFixed(2);
+  finalEl.value = finalValue.toFixed(2) + ' Lts';
+  resultBox.style.display = 'grid';
+
+  dipLogCounter++;
+  const logTable = document.getElementById('dipLogTable');
+  const logBody = document.getElementById('dipLogBody');
+  logTable.style.display = 'table';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${dipLogCounter}</td><td>${dip}</td><td class="num">${point}</td><td class="num">${volume.toFixed(2)}</td><td class="num">${diff.toFixed(2)}</td><td class="num">${output.toFixed(2)}</td><td class="num"><strong>${finalValue.toFixed(2)}</strong></td>`;
+  logBody.prepend(tr);
+}
+
+function clearDipLog(){
+  document.getElementById('dipLogBody').innerHTML = '';
+  document.getElementById('dipLogTable').style.display = 'none';
+  dipLogCounter = 0;
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  ['dipInput','pointInput'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('keydown', e=>{ if(e.key === 'Enter') calcDip(); });
+  });
+});
+
+/* ============== INIT ============== */
+loadAutosave();
+document.getElementById('salesDate').value = todayStr();
+document.getElementById('monthPicker').value = thisMonthStr();
+document.getElementById('cashDate').value = todayStr();
+document.getElementById('surplusMonth').value = thisMonthStr();
+renderSalesTab();
+
+initServerSync();
+loadFromServer().then(function(loaded){
+  if(loaded){
+    const activeTab = document.querySelector('.tab-btn.active');
+    if(activeTab) switchTab(activeTab.dataset.tab);
+  }
+});
+// If this browser was already remembered as logged-in (AUTH_STORAGE_KEY),
+// still check in with the server so a device blocked since the last visit
+// gets caught right away instead of silently keeping stale access.
+if(isAppUnlocked()) registerDeviceWithServer();
+</script>
+</body>
+</html>
