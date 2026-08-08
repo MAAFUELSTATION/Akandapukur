@@ -1753,6 +1753,18 @@ let applyingRemoteUpdate = false;
 // save so the server can detect "someone else saved since I last synced"
 // and refuse to let a stale full-state push silently overwrite it.
 let lastKnownUpdatedAt = null;
+// Snapshot of the exact shared data last loaded from, or successfully saved to,
+// the server.  Rendering a tab recalculates its totals and can queue autosave;
+// without this guard that harmless render would still write the same full state
+// again and notify every other device as if something had changed.
+let lastSyncedStateSignature = null;
+function getStateSignature(){
+  try{
+    return JSON.stringify({state, sidCounter, ngoCounter});
+  }catch(e){
+    return null;
+  }
+}
 // A page-load render (e.g. filling in default testing-fuel values) can
 // trigger an autosave within ~500ms — often faster than the initial fetch
 // from the server, especially on mobile networks. Without this guard, a
@@ -1849,6 +1861,7 @@ function initServerSync(retryCount){
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
+    lastSyncedStateSignature = getStateSignature();
     saveConflictPending = false;
     try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
     setAutosaveStatus('Updated from another device ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
@@ -1889,6 +1902,7 @@ async function loadFromServer(){
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
+      lastSyncedStateSignature = getStateSignature();
       saveConflictPending = false;
       try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
       setAutosaveStatus('Loaded latest data from server ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
@@ -1943,6 +1957,13 @@ async function pushToServer(){
   // keep hitting the same conflict. The user needs to reload first.
   if(saveConflictPending) return;
   const base = getApiBase();
+  // Do not write or broadcast just because a screen was opened/re-rendered.
+  // Only a real change to the shared state should create a server update.
+  const stateSignatureAtSave = getStateSignature();
+  if(stateSignatureAtSave && stateSignatureAtSave === lastSyncedStateSignature){
+    setAutosaveStatus('Already synced ✓');
+    return;
+  }
   const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   // Free-tier backends (Render etc.) can take 30-60s to wake from sleep on
   // their first request. Without an explicit timeout, a save that hits a
@@ -1996,6 +2017,13 @@ async function pushToServer(){
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json().catch(()=>null);
     if(data && data.updatedAt) lastKnownUpdatedAt = data.updatedAt;
+    // Keep the signature only when no newer local edit was made while this
+    // request was in flight.  If one was, queue a follow-up save for it.
+    if(stateSignatureAtSave === getStateSignature()){
+      lastSyncedStateSignature = stateSignatureAtSave;
+    } else {
+      scheduleAutosave();
+    }
     setAutosaveStatus('Synced ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
   }catch(e){
     if(timeoutId) clearTimeout(timeoutId);
