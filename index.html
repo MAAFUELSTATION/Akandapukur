@@ -1661,6 +1661,18 @@ function logoutApp(){
       try{ localStorage.setItem(AUTH_STORAGE_KEY, 'granted'); }catch(e){}
       unlockApp();
       registerDeviceWithServer();
+      // Force a fresh pull from the server right at login, rather than
+      // trusting whatever the background page-load fetch (or the socket)
+      // last delivered. A device can sit on the login screen for a while
+      // before someone actually types the password, so re-fetching here
+      // guarantees the data shown right after login is current, not just
+      // whatever was current a while ago when the page first loaded.
+      loadFromServer().then(function(loaded){
+        if(loaded){
+          const activeTab = document.querySelector('.tab-btn.active');
+          if(activeTab) switchTab(activeTab.dataset.tab);
+        }
+      });
     } else {
       errEl.classList.add('show');
       card.classList.remove('shake');
