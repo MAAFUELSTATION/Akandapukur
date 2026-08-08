@@ -1741,6 +1741,13 @@ let applyingRemoteUpdate = false;
 // save so the server can detect "someone else saved since I last synced"
 // and refuse to let a stale full-state push silently overwrite it.
 let lastKnownUpdatedAt = null;
+// A page-load render (e.g. filling in default testing-fuel values) can
+// trigger an autosave within ~500ms — often faster than the initial fetch
+// from the server, especially on mobile networks. Without this guard, a
+// device that hasn't loaded the server's real data yet could push its own
+// blank/default state and overwrite it before ever seeing it. Pushes wait
+// until the first load attempt (success or failure) has finished.
+let initialLoadDone = false;
 
 function getApiBase(){
   const raw = window.localStorage.getItem(API_BASE_KEY);
@@ -1863,6 +1870,14 @@ async function loadFromServer(){
     console.error('[MaaFuelStation] Could not load state from server, using local autosave instead.', e);
     const reason = (e && e.name === 'AbortError') ? 'Request timed out' : (e && e.message) || 'Unknown error';
     setAutosaveStatus('Server unreachable (' + reason + ') — showing local data', true);
+  }finally{
+    if(!initialLoadDone){
+      initialLoadDone = true;
+      // If a page-load render queued a save while we were still waiting on
+      // this fetch, it was held back — give it one chance to go through now
+      // that we know what the server actually has (or that it's unreachable).
+      scheduleAutosave();
+    }
   }
   return false;
 }
@@ -1888,6 +1903,10 @@ async function manualFetchFromServer(){
 let saveConflictPending = false;
 async function pushToServer(){
   if(!serverSyncEnabled || applyingRemoteUpdate) return;
+  // Don't push until we've at least tried to load the server's current
+  // data first — otherwise a fresh device can overwrite real data with its
+  // own blank defaults (see initialLoadDone comment above).
+  if(!initialLoadDone) return;
   // A conflict already happened and hasn't been resolved (see 409 handling
   // below) — refuse to keep autosaving on top of it, since that would just
   // keep hitting the same conflict. The user needs to reload first.
