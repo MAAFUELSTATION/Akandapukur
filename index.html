@@ -1924,12 +1924,29 @@ async function pushToServer(){
     });
     if(res.status === 403){ handleDeviceBlocked(); return; }
     if(res.status === 409){
-      // Someone else (another device/tab) saved newer data since we last
-      // synced. Saving our copy on top would silently erase their entries,
-      // so refuse and make it visible instead — pausing autosave until the
-      // person reloads to pick up the latest data.
       saveConflictPending = true;
-      setAutosaveStatus('⚠ Newer data exists from another device — reload now to avoid losing your latest entry (data is safe in this browser meanwhile)', true);
+      if(lastKnownUpdatedAt === null){
+        // This device never actually finished loading the server's data —
+        // e.g. the initial fetch was still in flight or timed out (slow
+        // network, backend waking up from sleep) — so it has nothing real
+        // to lose. Retry the load automatically instead of leaving the
+        // person stuck on a warning; once it succeeds, saveConflictPending
+        // is cleared and normal autosaving resumes.
+        setAutosaveStatus('Catching up with the server…');
+        loadFromServer().then(function(loaded){
+          if(loaded){
+            const activeTab = document.querySelector('.tab-btn.active');
+            if(activeTab) switchTab(activeTab.dataset.tab);
+          }
+        });
+      } else {
+        // A genuine conflict: this device DID load successfully before, so
+        // it may hold real edits made since then. Saving over the newer
+        // server copy would silently erase someone else's entries, so
+        // refuse and make it visible instead — pause autosave until the
+        // person reloads to pick up the latest data themselves.
+        setAutosaveStatus('⚠ Newer data exists from another device — reload now to avoid losing your latest entry (data is safe in this browser meanwhile)', true);
+      }
       return;
     }
     if(!res.ok) throw new Error('HTTP ' + res.status);
