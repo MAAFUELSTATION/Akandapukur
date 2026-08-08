@@ -4,7 +4,44 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maa Fuel Station</title>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+// Resilient loader for the Socket.IO client. A single external CDN can be
+// blocked by ad-blockers, corporate/school firewalls, or a flaky connection
+// at the exact moment the page loads. Instead of relying on one <script src>
+// tag, try a primary CDN, then a secondary CDN, then fall back to the
+// client library that your own backend already serves for free at
+// "<backend-url>/socket.io/socket.io.js". Whichever source wins defines the
+// same global `io`, so nothing else in the app needs to change.
+(function(){
+  var DEFAULT_API_BASE = 'https://maa-fuel-station-backend.onrender.com';
+  var API_BASE_KEY = 'maaFuelStationApiBase_v1';
+  var base;
+  try{
+    var raw = window.localStorage.getItem(API_BASE_KEY);
+    base = (raw ? raw.trim() : DEFAULT_API_BASE).replace(/\/$/, '');
+  }catch(e){ base = DEFAULT_API_BASE; }
+
+  var sources = [
+    'https://cdn.socket.io/4.7.2/socket.io.min.js',
+    'https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js',
+    base + '/socket.io/socket.io.js'
+  ];
+
+  window.__socketIoLoadFailed = false;
+
+  function tryLoad(i){
+    if(i >= sources.length){
+      window.__socketIoLoadFailed = true;
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = sources[i];
+    s.onerror = function(){ tryLoad(i + 1); };
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -1721,7 +1758,8 @@ function configureServerUrl(){
   location.reload();
 }
 
-function initServerSync(){
+function initServerSync(retryCount){
+  retryCount = retryCount || 0;
   const base = getApiBase();
   if(!base){
     serverSyncEnabled = false;
@@ -1729,6 +1767,15 @@ function initServerSync(){
     return;
   }
   if(typeof io === 'undefined'){
+    // The socket.io client loads via a fallback chain (primary CDN ->
+    // secondary CDN -> our own backend) which can take a beat, especially
+    // on a slow connection or when the first source is blocked. Retry for
+    // a few seconds before reporting a real failure, instead of failing on
+    // the very first check.
+    if(!window.__socketIoLoadFailed && retryCount < 20){
+      setTimeout(()=> initServerSync(retryCount + 1), 250);
+      return;
+    }
     serverSyncEnabled = false;
     setAutosaveStatus('Realtime library failed to load — local autosave only', true);
     return;
