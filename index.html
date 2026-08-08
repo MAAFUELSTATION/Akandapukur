@@ -2761,21 +2761,43 @@ function calcCash(){
   const box = document.getElementById('diffBox');
   box.className = 'digit-box ' + (diff>0?'surplus':diff<0?'shortfall':'total');
 
+  const result = {counted,coinsTotal,notesTotal,testingHSDQty:hsdQty,testingHSD,testingMSQty:msQty,testingMS,onlineAmt,cardAmt,loanTotal,deposit,finalValue,salesAmount,diff};
+
+  // Persist this entry into the shared `state.cash` object as the user
+  // types, exactly like every other tab in the app does (e.g. the Sales
+  // tab's onShiftTestingInput writes straight into `state` on every
+  // keystroke). Previously this function only recalculated the on-screen
+  // totals and called scheduleAutosave() — it never touched state.cash, so
+  // the "Synced ✓" status was misleading: it synced whatever was already
+  // saved, not what was currently on screen. Typed values only became part
+  // of the synced record once the explicit Save button was clicked, so
+  // switching staff/date (which rebuilds the form from state.cash) or
+  // simply trusting the autosave indicator silently discarded them — and
+  // they were never on the server for another device to see.
+  //
+  // Guard against creating junk empty records just from viewing a
+  // staff/date that has no data yet: only write when there's something
+  // meaningful entered, or when a record already exists here (so editing
+  // an existing entry back down to zero still updates it).
+  const hasData = notesTotal>0 || coinsTotal>0 || testingHSD>0 || testingMS>0 ||
+    onlineAmt>0 || cardAmt>0 || loanTotal>0 || deposit>0 ||
+    (state.cash[date] && state.cash[date][staffId]);
+  if(hasData){
+    if(!state.cash[date]) state.cash[date] = {};
+    state.cash[date][staffId] = buildCashRecord(result);
+  }
+
   scheduleAutosave();
-  return {counted,coinsTotal,notesTotal,testingHSDQty:hsdQty,testingHSD,testingMSQty:msQty,testingMS,onlineAmt,cardAmt,loanTotal,deposit,finalValue,salesAmount,diff};
+  return result;
 }
 
-function saveCash(){
-  const date = document.getElementById('cashDate').value;
-  const staffId = document.getElementById('cashStaff').value;
-  const c = calcCash();
+function buildCashRecord(c){
   const denoms = {};
   NOTES.forEach(d=>{
     const el = document.querySelector(`[data-denom="${d}"]`);
     denoms[d] = el ? (parseInt(el.value)||0) : 0;
   });
-  if(!state.cash[date]) state.cash[date] = {};
-  state.cash[date][staffId] = {
+  return {
     denoms,
     coinsTotal: c.coinsTotal,
     cashCounted: c.counted,
@@ -2793,6 +2815,18 @@ function saveCash(){
     difference: c.diff,
     status: c.diff>0?'Surplus':c.diff<0?'Shortfall':'Matched'
   };
+}
+
+function saveCash(){
+  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('cashStaff').value;
+  const c = calcCash();
+  // calcCash() above already writes the live entry into state.cash; this
+  // forces it in unconditionally (covers the all-zero case, e.g. someone
+  // deliberately recording a "nothing to reconcile" day) and gives explicit
+  // confirmation feedback.
+  if(!state.cash[date]) state.cash[date] = {};
+  state.cash[date][staffId] = buildCashRecord(c);
   document.getElementById('cashSavedHint').textContent = 'Saved to Staff Surplus / Short Data for ' + date + '.';
   scheduleAutosave();
   renderCashHistory();
