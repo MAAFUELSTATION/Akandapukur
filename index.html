@@ -1946,6 +1946,10 @@ async function manualFetchFromServer(){
 }
 
 let saveConflictPending = false;
+// Serialize saves so rapid input cannot create overlapping requests and leave
+// the status stuck on "Saving…" while the backend is slow or waking up.
+let saveInProgress = false;
+let saveQueued = false;
 async function pushToServer(){
   if(!serverSyncEnabled || applyingRemoteUpdate) return;
   // Don't push until we've at least tried to load the server's current
@@ -1956,6 +1960,11 @@ async function pushToServer(){
   // below) — refuse to keep autosaving on top of it, since that would just
   // keep hitting the same conflict. The user needs to reload first.
   if(saveConflictPending) return;
+  if(saveInProgress){
+    saveQueued = true;
+    setAutosaveStatus('Saving latest change…');
+    return;
+  }
   const base = getApiBase();
   // Do not write or broadcast just because a screen was opened/re-rendered.
   // Only a real change to the shared state should create a server update.
@@ -1964,16 +1973,17 @@ async function pushToServer(){
     setAutosaveStatus('Already synced ✓');
     return;
   }
+  saveInProgress = true;
   const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   // Free-tier backends (Render etc.) can take 30-60s to wake from sleep on
   // their first request. Without an explicit timeout, a save that hits a
   // sleeping backend just hangs on "Saving…" forever with no feedback. 45s
   // comfortably covers a cold start; if it's still not back by then,
   // something else is actually wrong and we should say so.
-  const timeoutId = controller ? setTimeout(()=>controller.abort(), 45000) : null;
+  const timeoutId = controller ? setTimeout(()=>controller.abort(), 12000) : null;
   // If we're still waiting past a normal response time, let the person know
   // it's probably just a slow wake-up rather than silently sitting there.
-  const slowHintId = setTimeout(()=> setAutosaveStatus('Still saving — your server may be waking up from sleep, this can take up to a minute…'), 6000);
+  const slowHintId = setTimeout(()=> setAutosaveStatus('Server is slow — your data is safe locally…'), 4000);
   try{
     const res = await fetch(base + '/api/state', {
       method: 'PUT',
@@ -2030,7 +2040,18 @@ async function pushToServer(){
     clearTimeout(slowHintId);
     const reason = (e && e.name === 'AbortError') ? 'Timed out — backend may be down, not just sleeping' : (e && e.message) || 'Unknown error';
     console.warn('Could not sync to server; data is still saved locally.', e);
-    setAutosaveStatus('Sync failed (' + reason + ') — saved locally, will retry on next change', true);
+    setAutosaveStatus('Sync delayed (' + reason + ') — saved locally; retrying shortly', true);
+    // A free-tier server may still be starting. Retry automatically so the
+    // person does not need to edit the form again.
+    setTimeout(()=>{
+      if(serverSyncEnabled && !saveConflictPending) scheduleAutosave();
+    }, 5000);
+  }finally{
+    saveInProgress = false;
+    if(saveQueued){
+      saveQueued = false;
+      scheduleAutosave();
+    }
   }
 }
 
