@@ -1793,6 +1793,25 @@ function initServerSync(retryCount){
     return;
   }
   serverSyncEnabled = true;
+  // Fire the initial load from here, not from the bottom of the page. The
+  // Socket.IO client loads asynchronously (see the loader at the top of
+  // <head>), so by the time the page-bottom init code runs, `io` often
+  // isn't defined yet and this function returns early via the retry branch
+  // above WITHOUT setting serverSyncEnabled. If loadFromServer() were only
+  // called once from the bottom of the page, it could run during that
+  // window, see serverSyncEnabled still false, bail out immediately, and
+  // — critically — never set initialLoadDone (that only happens in its
+  // `finally` block, which an early return skips). With initialLoadDone
+  // stuck false, pushToServer()'s `if(!initialLoadDone) return;` guard
+  // would then silently drop every autosave forever, since nothing else
+  // ever calls loadFromServer() again on its own. Calling it right here
+  // guarantees it only runs once serverSyncEnabled is actually true.
+  loadFromServer().then(function(loaded){
+    if(loaded){
+      const activeTab = document.querySelector('.tab-btn.active');
+      if(activeTab) switchTab(activeTab.dataset.tab);
+    }
+  });
   socket = io(base, { transports: ['websocket','polling'], query: { deviceId: getDeviceId() } });
   socket.on('connect', ()=>{
     setAutosaveStatus('Connected — live sync active');
@@ -3219,13 +3238,11 @@ document.getElementById('cashDate').value = todayStr();
 document.getElementById('surplusMonth').value = thisMonthStr();
 renderSalesTab();
 
+// The initial loadFromServer() call now happens inside initServerSync(),
+// right when serverSyncEnabled actually flips to true — see the comment
+// there for why calling it from here directly used to race the async
+// Socket.IO library load and could permanently disable autosaving.
 initServerSync();
-loadFromServer().then(function(loaded){
-  if(loaded){
-    const activeTab = document.querySelector('.tab-btn.active');
-    if(activeTab) switchTab(activeTab.dataset.tab);
-  }
-});
 // If this browser was already remembered as logged-in (AUTH_STORAGE_KEY),
 // still check in with the server so a device blocked since the last visit
 // gets caught right away instead of silently keeping stale access.
