@@ -1601,6 +1601,31 @@ function isAppUnlocked(){
   return !document.body.classList.contains('app-locked');
 }
 
+// A small in-browser confirmation chime. Using Web Audio keeps the page
+// self-contained and lets the sound play directly from the login click.
+function playLoginSuccessSound(){
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if(!AudioContextClass) return;
+  try{
+    const audio = new AudioContextClass();
+    const now = audio.currentTime;
+    [523.25, 659.25, 783.99].forEach((frequency, index)=>{
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      const start = now + index * 0.11;
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.12, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 0.17);
+    });
+    setTimeout(()=>audio.close(), 600);
+  }catch(e){ /* Audio is optional; login should never be blocked by it. */ }
+}
+
 function idleLogout(){
   if(!isAppUnlocked()) return;
   try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
@@ -1714,6 +1739,7 @@ function logoutApp(){
     if(u === VALID_USERNAME && p === VALID_PASSWORD){
       errEl.classList.remove('show');
       try{ localStorage.setItem(AUTH_STORAGE_KEY, 'granted'); }catch(e){}
+      playLoginSuccessSound();
       unlockApp();
       registerDeviceWithServer();
       // Force a fresh pull from the server right at login, rather than
