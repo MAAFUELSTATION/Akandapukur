@@ -1381,7 +1381,7 @@
       <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>Date</th><th>Staff</th><th class="num">₹500</th><th class="num">₹200</th><th class="num">₹100</th><th class="num">₹50</th><th class="num">₹20</th><th class="num">₹10</th><th class="num">Coins</th><th class="num">Final Value ₹</th><th>Status</th><th></th></tr>
+          <tr><th>Date</th><th>Staff</th><th class="num">₹500</th><th class="num">₹200</th><th class="num">₹100</th><th class="num">₹50</th><th class="num">₹20</th><th class="num">₹10</th><th class="num">Coins</th><th class="num">Final Value ₹</th><th>Status</th><th>Saved At</th><th></th></tr>
         </thead>
         <tbody id="cashHistoryBody"></tbody>
       </table>
@@ -3710,7 +3710,13 @@ function calcCash(){
     (state.cash[date] && state.cash[date][staffId]);
   if(hasData){
     if(!state.cash[date]) state.cash[date] = {};
-    state.cash[date][staffId] = buildCashRecord(result);
+    // Preserve the existing savedAt timestamp (set only by the explicit
+    // Save button, see saveCash()) so live-sync writes on every keystroke
+    // don't wipe out when the entry was actually saved.
+    const prevSavedAt = state.cash[date][staffId] && state.cash[date][staffId].savedAt;
+    const rec = buildCashRecord(result);
+    if(prevSavedAt) rec.savedAt = prevSavedAt;
+    state.cash[date][staffId] = rec;
   }
 
   scheduleAutosave();
@@ -3752,8 +3758,14 @@ function saveCash(){
   // deliberately recording a "nothing to reconcile" day) and gives explicit
   // confirmation feedback.
   if(!state.cash[date]) state.cash[date] = {};
-  state.cash[date][staffId] = buildCashRecord(c);
-  document.getElementById('cashSavedHint').textContent = 'Saved to Staff Surplus / Short Data for ' + date + '.';
+  const rec = buildCashRecord(c);
+  // Capture the moment this Save button was actually clicked (not just
+  // when the form was live-synced on every keystroke) so the Past Cash
+  // Denomination Records table can show exactly when each entry was saved.
+  rec.savedAt = new Date().toISOString();
+  state.cash[date][staffId] = rec;
+  const savedTimeStr = new Date(rec.savedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('cashSavedHint').textContent = 'Saved to Staff Surplus / Short Data for ' + date + ' at ' + savedTimeStr + '.';
   scheduleAutosave();
   renderCashHistory();
 }
@@ -3802,6 +3814,7 @@ function renderCashHistory(){
       <td class="num">${fmtNum(r.coinsTotal||0)}</td>
       <td class="num">${fmtNum(r.finalValue)}</td>
       <td><span class="badge ${r.status.toLowerCase()}">${r.status}</span></td>
+      <td class="mono">${r.savedAt ? new Date(r.savedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—'}</td>
       <td><button class="btn ghost small" onclick="loadCashRecord('${r.date}','${r.sid}')">Load</button></td>
     </tr>`).join('');
 }
