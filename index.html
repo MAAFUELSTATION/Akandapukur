@@ -2216,17 +2216,27 @@ function escapeHtml(str){
 // way as every other tab.
 let dutyWeekStart = null;
 const DUTY_DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// NOTE: date math here must stay in LOCAL time throughout. Round-tripping
+// through Date.prototype.toISOString() (as earlier code did) converts to
+// UTC, which silently shifts every date back by one day for any timezone
+// ahead of UTC (e.g. IST, UTC+5:30) — that's what caused "Mon" to show a
+// Saturday's date. localDateStr() below reads the local Y/M/D fields
+// instead, so the string always matches the calendar day shown to the user.
+function pad2(n){ return String(n).padStart(2, '0'); }
+function localDateStr(d){
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
 function addDaysStr(dateStr, n){
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0,10);
+  return localDateStr(d);
 }
 function mondayOf(dateStr){
   const d = new Date(dateStr + 'T00:00:00');
   const day = d.getDay(); // 0=Sun..6=Sat
   const diffToMon = (day === 0) ? -6 : (1 - day);
   d.setDate(d.getDate() + diffToMon);
-  return d.toISOString().slice(0,10);
+  return localDateStr(d);
 }
 function fmtDutyDate(dateStr){
   const d = new Date(dateStr + 'T00:00:00');
