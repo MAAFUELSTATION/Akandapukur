@@ -131,6 +131,10 @@
   .duty-chip{font-family:'Inter',sans-serif;font-size:12px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;line-height:1.3;}
   .duty-chip:hover{border-color:var(--navy);}
   .duty-chip.on{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .duty-chip.manual{background:var(--petrol);border-color:var(--petrol);color:#3a2205;}
+  .duty-chip.manual:hover{background:var(--petrol-dark);color:#fff;}
+  .duty-add{font-family:'Inter',sans-serif;font-size:12px;padding:5px 11px;border-radius:20px;border:1px dashed var(--muted);background:transparent;color:var(--muted);cursor:pointer;}
+  .duty-add:hover{border-color:var(--navy);color:var(--navy);}
   .duty-clear{border:none;background:transparent;color:var(--shortfall);cursor:pointer;font-size:11px;padding:3px 4px;text-decoration:underline;white-space:nowrap;}
   .duty-clear:hover{color:#a92e2e;}
   tr.duty-today td{background:#FDF3E3;}
@@ -2246,19 +2250,48 @@ function ensureDuty(date){
   if(!state.duty) state.duty = {};
   if(!state.duty[date]) state.duty[date] = {};
   const d = state.duty[date];
-  SHIFTS.forEach(sh=>{ if(!Array.isArray(d[sh.id])) d[sh.id] = []; });
+  SHIFTS.forEach(sh=>{
+    const cur = d[sh.id];
+    if(Array.isArray(cur)){
+      // Migrate the older format (a plain array of staff IDs) so any duty
+      // already saved before manual entries existed keeps working.
+      d[sh.id] = {staff: cur.slice(), manual: []};
+    } else if(!cur || typeof cur !== 'object'){
+      d[sh.id] = {staff: [], manual: []};
+    } else {
+      if(!Array.isArray(cur.staff)) cur.staff = [];
+      if(!Array.isArray(cur.manual)) cur.manual = [];
+    }
+  });
   return d;
 }
 function toggleDutyStaff(date, shift, staffId){
   const d = ensureDuty(date);
-  const idx = d[shift].indexOf(staffId);
-  if(idx >= 0) d[shift].splice(idx, 1); else d[shift].push(staffId);
+  const arr = d[shift].staff;
+  const idx = arr.indexOf(staffId);
+  if(idx >= 0) arr.splice(idx, 1); else arr.push(staffId);
+  scheduleAutosave();
+  renderDutyTab();
+}
+function addManualDutyEntry(date, shift){
+  const text = prompt('Type a name or note for this shift (e.g. a substitute staff member not in your list):');
+  if(text === null) return;
+  const trimmed = text.trim();
+  if(!trimmed) return;
+  const d = ensureDuty(date);
+  d[shift].manual.push({id: 'm' + Date.now() + Math.random().toString(36).slice(2,7), text: trimmed});
+  scheduleAutosave();
+  renderDutyTab();
+}
+function removeManualDutyEntry(date, shift, id){
+  const d = ensureDuty(date);
+  d[shift].manual = d[shift].manual.filter(m=>m.id !== id);
   scheduleAutosave();
   renderDutyTab();
 }
 function clearDutyCell(date, shift){
   const d = ensureDuty(date);
-  d[shift] = [];
+  d[shift] = {staff: [], manual: []};
   scheduleAutosave();
   renderDutyTab();
 }
@@ -2285,23 +2318,30 @@ function copyPrevWeekDuty(){
   for(let i=0; i<7; i++){
     const src = addDaysStr(prevStart, i);
     const dst = addDaysStr(dutyWeekStart, i);
-    const srcDuty = state.duty && state.duty[src];
+    const srcDuty = ensureDuty(src);
     const dstDuty = ensureDuty(dst);
     SHIFTS.forEach(sh=>{
-      dstDuty[sh.id] = (srcDuty && Array.isArray(srcDuty[sh.id])) ? srcDuty[sh.id].slice() : [];
+      dstDuty[sh.id] = {
+        staff: srcDuty[sh.id].staff.slice(),
+        manual: srcDuty[sh.id].manual.map(m=>({id: 'm' + Date.now() + Math.random().toString(36).slice(2,7), text: m.text}))
+      };
     });
   }
   scheduleAutosave();
   renderDutyTab();
 }
-function dutyCellHtml(date, shift, assignedIds){
-  if(!state.staff.length) return '<span class="empty">No staff added yet</span>';
-  const chips = state.staff.map(s=>{
-    const on = assignedIds.indexOf(s.id) >= 0;
+function dutyCellHtml(date, shift, cell){
+  const staffChips = state.staff.map(s=>{
+    const on = cell.staff.indexOf(s.id) >= 0;
     return `<button type="button" class="duty-chip${on ? ' on' : ''}" onclick="toggleDutyStaff('${date}','${shift}','${s.id}')">${escapeHtml(s.name)}</button>`;
   }).join('');
-  const clearBtn = assignedIds.length ? `<button type="button" class="duty-clear" onclick="clearDutyCell('${date}','${shift}')">Clear</button>` : '';
-  return `<div class="duty-cell">${chips}${clearBtn}</div>`;
+  const manualChips = cell.manual.map(m=>
+    `<button type="button" class="duty-chip on manual" title="Tap to remove" onclick="removeManualDutyEntry('${date}','${shift}','${m.id}')">${escapeHtml(m.text)} ✕</button>`
+  ).join('');
+  const addBtn = `<button type="button" class="duty-add" onclick="addManualDutyEntry('${date}','${shift}')" title="Type a name or note manually">+ Type manually</button>`;
+  const hasAny = cell.staff.length || cell.manual.length;
+  const clearBtn = hasAny ? `<button type="button" class="duty-clear" onclick="clearDutyCell('${date}','${shift}')">Clear</button>` : '';
+  return `<div class="duty-cell">${staffChips}${manualChips}${addBtn}${clearBtn}</div>`;
 }
 function renderDutyTab(){
   if(!dutyWeekStart) dutyWeekStart = mondayOf(todayStr());
@@ -2376,8 +2416,9 @@ async function downloadDutyRosterPDF(){
     doc.text(`Week of ${fmtDutyDate(dutyWeekStart)} – ${fmtDutyDate(weekEnd)}`, 40, 58);
 
     const cellFor = (d, shift)=>{
-      const ids = d[shift];
-      return ids.length ? ids.map(id=>staffNameById(id)).join(', ') : '—';
+      const cell = d[shift];
+      const names = cell.staff.map(id=>staffNameById(id)).concat(cell.manual.map(m=>m.text));
+      return names.length ? names.join(', ') : '—';
     };
     const body = [];
     for(let i=0; i<7; i++){
