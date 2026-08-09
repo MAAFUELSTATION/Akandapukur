@@ -120,6 +120,25 @@
   .num{text-align:right;font-family:'JetBrains Mono',monospace;}
   .staff-name-cell{font-weight:600;}
 
+  /* ===== Duty Roster tab ===== */
+  .duty-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;}
+  table.duty-table{min-width:640px;}
+  table.duty-table th{white-space:nowrap;}
+  table.duty-table td{vertical-align:top;min-width:150px;}
+  .duty-daycell{white-space:nowrap;}
+  .duty-daycell .d{color:var(--muted);font-size:11.5px;}
+  .duty-cell{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+  .duty-chip{font-family:'Inter',sans-serif;font-size:12px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;line-height:1.3;}
+  .duty-chip:hover{border-color:var(--navy);}
+  .duty-chip.on{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .duty-clear{border:none;background:transparent;color:var(--shortfall);cursor:pointer;font-size:11px;padding:3px 4px;text-decoration:underline;white-space:nowrap;}
+  .duty-clear:hover{color:#a92e2e;}
+  tr.duty-today td{background:#FDF3E3;}
+  @media(max-width:700px){
+    table.duty-table{min-width:560px;}
+    table.duty-table td{min-width:130px;}
+  }
+
   .readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-bottom:18px;}
   .digit-box{max-width:100%;background:#0B1C1A;border-radius:10px;padding:16px 18px;box-shadow:inset 0 0 12px rgba(0,0,0,.5);border:1px solid #06110f;overflow:hidden;box-sizing:border-box;position:relative;}
   .digit-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
@@ -674,6 +693,7 @@
   <button class="tab-btn active" data-tab="sales" onclick="switchTab('sales')">⛽ Nozzal's Sale Report</button>
   <button class="tab-btn" data-tab="salesreport" onclick="switchTab('salesreport')">📊 Sales Report</button>
   <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
+  <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
   <button class="tab-btn" data-tab="cash" onclick="switchTab('cash')">🧮 Cash Denomination Calculator</button>
   <button class="tab-btn" data-tab="surplus" onclick="switchTab('surplus')">📒 Staff Surplus / Short Data</button>
   <button class="tab-btn" data-tab="notestock" onclick="switchTab('notestock')">💵 Note Stock</button>
@@ -823,6 +843,37 @@
         <button class="btn amber" onclick="addStaff()">Add Staff</button>
       </div>
       <div class="hint">Renaming a staff member updates their name everywhere. Deleting removes them from future entry lists — historical records are kept.</div>
+    </div>
+  </section>
+
+  <!-- ===================== DUTY ROSTER TAB ===================== -->
+  <section id="tab-duty" class="tab">
+    <div class="card">
+      <h2>🗓️ Weekly Duty Roster <span class="tag">Plan staff shifts a week ahead — tap a name to assign/unassign</span></h2>
+
+      <div class="row" style="align-items:end;">
+        <button class="btn ghost small" onclick="changeDutyWeek(-1)">← Prev Week</button>
+        <button class="btn ghost small" onclick="jumpDutyWeek('this')">This Week</button>
+        <button class="btn amber small" onclick="jumpDutyWeek('next')">Plan Next Week</button>
+        <button class="btn ghost small" onclick="changeDutyWeek(1)">Next Week →</button>
+        <div class="field">
+          <label>Week Starting (Mon)</label>
+          <input type="date" id="dutyWeekStart" onchange="onDutyWeekPick()">
+        </div>
+        <button class="btn ghost small" onclick="copyPrevWeekDuty()" title="Copy last week's roster into this week, so you only need to edit the changes">⧉ Copy Previous Week</button>
+        <button class="btn amber small" id="dutyPdfBtn" onclick="downloadDutyRosterPDF()">⬇ Download PDF</button>
+      </div>
+
+      <div class="hint" id="dutyWeekLabel" style="margin-bottom:14px;font-weight:600;color:var(--navy);font-size:14px;"></div>
+
+      <div class="duty-table-wrap">
+      <table class="duty-table">
+        <thead><tr><th>Day</th><th>Morning</th><th>Afternoon</th><th>Night</th></tr></thead>
+        <tbody id="dutyBody"></tbody>
+      </table>
+      </div>
+
+      <div class="hint" style="margin-top:12px;">Tap a staff name to add or remove them from that shift — any number of staff can be on a single shift. Changes save automatically, same as the rest of the app.</div>
     </div>
   </section>
 
@@ -1703,7 +1754,8 @@ let state = {
   sales: {},   
   rates: {},   
   cash: {},    
-  noteGivenOut: [] 
+  noteGivenOut: [],
+  duty: {}
 };
 const NOTES = [500,200,100,50,20,10];
 const NOZZLES = [
@@ -1858,6 +1910,7 @@ function initServerSync(retryCount){
     if(!state.sales) state.sales = {};
     if(!state.staff) state.staff = [];
     if(!state.noteGivenOut) state.noteGivenOut = [];
+    if(!state.duty) state.duty = {};
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
@@ -1899,6 +1952,7 @@ async function loadFromServer(){
       if(!state.sales) state.sales = {};
       if(!state.staff) state.staff = [];
       if(!state.noteGivenOut) state.noteGivenOut = [];
+      if(!state.duty) state.duty = {};
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
@@ -2090,6 +2144,7 @@ function loadAutosave(){
         if(!state.sales) state.sales = {};
         if(!state.staff) state.staff = [];
         if(!state.noteGivenOut) state.noteGivenOut = [];
+        if(!state.duty) state.duty = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         setAutosaveStatus('Restored from autosave');
@@ -2106,6 +2161,7 @@ function switchTab(name){
   if(name==='sales') renderSalesTab();
   if(name==='salesreport') renderSalesReportTab();
   if(name==='staff') renderStaffTab();
+  if(name==='duty') renderDutyTab();
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
   if(name==='notestock') renderNoteStockTab();
@@ -2151,6 +2207,191 @@ function deleteStaff(id){
 }
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============== DUTY ROSTER TAB ============== */
+// Lets staff duty be planned a week ahead: a Mon–Sun grid of Morning/
+// Afternoon/Night shifts, any number of staff per shift, stored in
+// state.duty[date][shiftId] = [staffId, ...] so it autosaves/syncs the same
+// way as every other tab.
+let dutyWeekStart = null;
+const DUTY_DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function addDaysStr(dateStr, n){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+function mondayOf(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const diffToMon = (day === 0) ? -6 : (1 - day);
+  d.setDate(d.getDate() + diffToMon);
+  return d.toISOString().slice(0,10);
+}
+function fmtDutyDate(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+}
+function ensureDuty(date){
+  if(!state.duty) state.duty = {};
+  if(!state.duty[date]) state.duty[date] = {};
+  const d = state.duty[date];
+  SHIFTS.forEach(sh=>{ if(!Array.isArray(d[sh.id])) d[sh.id] = []; });
+  return d;
+}
+function toggleDutyStaff(date, shift, staffId){
+  const d = ensureDuty(date);
+  const idx = d[shift].indexOf(staffId);
+  if(idx >= 0) d[shift].splice(idx, 1); else d[shift].push(staffId);
+  scheduleAutosave();
+  renderDutyTab();
+}
+function clearDutyCell(date, shift){
+  const d = ensureDuty(date);
+  d[shift] = [];
+  scheduleAutosave();
+  renderDutyTab();
+}
+function changeDutyWeek(deltaWeeks){
+  if(!dutyWeekStart) dutyWeekStart = mondayOf(todayStr());
+  dutyWeekStart = addDaysStr(dutyWeekStart, deltaWeeks * 7);
+  renderDutyTab();
+}
+function jumpDutyWeek(which){
+  const base = mondayOf(todayStr());
+  dutyWeekStart = (which === 'next') ? addDaysStr(base, 7) : base;
+  renderDutyTab();
+}
+function onDutyWeekPick(){
+  const v = document.getElementById('dutyWeekStart').value;
+  if(!v) return;
+  dutyWeekStart = mondayOf(v);
+  renderDutyTab();
+}
+function copyPrevWeekDuty(){
+  if(!dutyWeekStart) dutyWeekStart = mondayOf(todayStr());
+  const prevStart = addDaysStr(dutyWeekStart, -7);
+  if(!confirm('Copy last week\'s roster into this week? Any duty already set for this week will be overwritten.')) return;
+  for(let i=0; i<7; i++){
+    const src = addDaysStr(prevStart, i);
+    const dst = addDaysStr(dutyWeekStart, i);
+    const srcDuty = state.duty && state.duty[src];
+    const dstDuty = ensureDuty(dst);
+    SHIFTS.forEach(sh=>{
+      dstDuty[sh.id] = (srcDuty && Array.isArray(srcDuty[sh.id])) ? srcDuty[sh.id].slice() : [];
+    });
+  }
+  scheduleAutosave();
+  renderDutyTab();
+}
+function dutyCellHtml(date, shift, assignedIds){
+  if(!state.staff.length) return '<span class="empty">No staff added yet</span>';
+  const chips = state.staff.map(s=>{
+    const on = assignedIds.indexOf(s.id) >= 0;
+    return `<button type="button" class="duty-chip${on ? ' on' : ''}" onclick="toggleDutyStaff('${date}','${shift}','${s.id}')">${escapeHtml(s.name)}</button>`;
+  }).join('');
+  const clearBtn = assignedIds.length ? `<button type="button" class="duty-clear" onclick="clearDutyCell('${date}','${shift}')">Clear</button>` : '';
+  return `<div class="duty-cell">${chips}${clearBtn}</div>`;
+}
+function renderDutyTab(){
+  if(!dutyWeekStart) dutyWeekStart = mondayOf(todayStr());
+  const wsInp = document.getElementById('dutyWeekStart');
+  if(wsInp) wsInp.value = dutyWeekStart;
+
+  const weekEnd = addDaysStr(dutyWeekStart, 6);
+  const lbl = document.getElementById('dutyWeekLabel');
+  if(lbl) lbl.textContent = `Week of ${fmtDutyDate(dutyWeekStart)} – ${fmtDutyDate(weekEnd)}`;
+
+  const today = todayStr();
+  let rows = '';
+  for(let i=0; i<7; i++){
+    const date = addDaysStr(dutyWeekStart, i);
+    const d = ensureDuty(date);
+    rows += `<tr class="${date===today ? 'duty-today' : ''}">
+      <td class="duty-daycell"><strong>${DUTY_DAY_LABELS[i]}</strong><br><span class="mono d">${date}</span></td>
+      ${SHIFTS.map(sh=>`<td>${dutyCellHtml(date, sh.id, d[sh.id])}</td>`).join('')}
+    </tr>`;
+  }
+  document.getElementById('dutyBody').innerHTML = rows;
+}
+
+/* --- PDF export: loads jsPDF + autotable from CDN on first use (mirrors --- */
+/* the resilient multi-CDN loader used for socket.io at the top of the file) */
+function loadScriptOnce(src){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = ()=>resolve();
+    s.onerror = ()=>reject(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
+async function loadFirstWorking(sources){
+  let lastErr;
+  for(const src of sources){
+    try{ await loadScriptOnce(src); return; }catch(e){ lastErr = e; }
+  }
+  throw lastErr || new Error('All sources failed');
+}
+async function ensurePdfLibs(){
+  if(!(window.jspdf && window.jspdf.jsPDF)){
+    await loadFirstWorking([
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
+    ]);
+  }
+  if(!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && typeof window.jspdf.jsPDF.API.autoTable === 'function')){
+    await loadFirstWorking([
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
+      'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js'
+    ]);
+  }
+}
+async function downloadDutyRosterPDF(){
+  if(!dutyWeekStart) dutyWeekStart = mondayOf(todayStr());
+  const btn = document.getElementById('dutyPdfBtn');
+  const originalText = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
+  try{
+    await ensurePdfLibs();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({orientation:'landscape', unit:'pt', format:'a4'});
+    const weekEnd = addDaysStr(dutyWeekStart, 6);
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(15);
+    doc.text('Maa Fuel Station — Weekly Duty Roster', 40, 40);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    doc.text(`Week of ${fmtDutyDate(dutyWeekStart)} – ${fmtDutyDate(weekEnd)}`, 40, 58);
+
+    const cellFor = (d, shift)=>{
+      const ids = d[shift];
+      return ids.length ? ids.map(id=>staffNameById(id)).join(', ') : '—';
+    };
+    const body = [];
+    for(let i=0; i<7; i++){
+      const date = addDaysStr(dutyWeekStart, i);
+      const d = ensureDuty(date);
+      body.push([`${DUTY_DAY_LABELS[i]}\n${date}`, cellFor(d,'morning'), cellFor(d,'afternoon'), cellFor(d,'night')]);
+    }
+
+    doc.autoTable({
+      head: [['Day','Morning','Afternoon','Night']],
+      body,
+      startY: 74,
+      styles:{font:'helvetica', fontSize:10, cellPadding:7, valign:'middle'},
+      headStyles:{fillColor:[15,42,61], textColor:255},
+      columnStyles:{0:{cellWidth:95, fontStyle:'bold'}},
+      alternateRowStyles:{fillColor:[251,246,236]}
+    });
+
+    doc.save(`Duty-Roster_${dutyWeekStart}_to_${weekEnd}.pdf`);
+  }catch(e){
+    alert('Could not generate the PDF — check your internet connection and try again.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = originalText; }
+  }
 }
 
 /* ============== RATES ============== */
@@ -3243,6 +3484,7 @@ function importData(file){
         state = parsed.state;
         if(!state.rates) state.rates = {};
         if(!state.noteGivenOut) state.noteGivenOut = [];
+        if(!state.duty) state.duty = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         alert('Data restored successfully.');
