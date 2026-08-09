@@ -11,7 +11,7 @@
 (function(){
   try{
     var t = window.localStorage.getItem('maaFuelStationTheme_v1');
-    if(t === 'neon') document.documentElement.setAttribute('data-theme', 'neon');
+    if(t === 'neon' || t === 'cyan') document.documentElement.setAttribute('data-theme', t);
   }catch(e){}
 })();
 </script>
@@ -91,6 +91,8 @@
   .autosave-indicator{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9FD6C4;background:var(--navy2);padding:7px 12px;border-radius:6px;border:1px solid #2a4d68;white-space:nowrap;}
   .iobtns button{background:transparent;border:1px solid #3a5b74;color:#dfe8ee;padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:6px;font-family:'Inter',sans-serif;}
   .iobtns button:hover{background:var(--navy2);}
+  #themeSelect{background:transparent;border:1px solid #3a5b74;color:#dfe8ee;padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:6px;font-family:'Inter',sans-serif;}
+  #themeSelect option{color:#1C2733;}
 
   nav.tabs{display:flex;background:var(--navy2);padding:0 20px;overflow-x:auto;}
   nav.tabs button{background:none;border:none;color:#B9C9D6;padding:14px 18px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:3px solid transparent;white-space:nowrap;font-family:'Inter',sans-serif;}
@@ -730,7 +732,7 @@
 
   /* ================================================================
      DARK NEON THEME
-     Toggled by setting data-theme="neon" on <html> (see toggleTheme()).
+     Toggled by setting data-theme="neon" on <html> (see setTheme()).
      Redefines the base palette variables — which most of the app's
      styling already reads from — then patches the handful of places
      that use hardcoded light colors instead of a variable, plus adds
@@ -743,148 +745,168 @@
     --petrol:#FF3EA8; --petrol-dark:#C71C82; --petrol-glow:#FF9AD6;
     --morning:#FFC75F; --afternoon:#FF6F91; --night:#8C7CFF;
     --surplus:#33F0A8; --shortfall:#FF4D6D;
-    --neon-glow-pink:rgba(255,62,168,.4); --neon-glow-cyan:rgba(52,211,255,.32);
-    --neon-panel-border:rgba(255,255,255,.10);
+    --theme-glow-a:color-mix(in srgb, var(--petrol) 40%, transparent); --theme-glow-b:color-mix(in srgb, var(--diesel) 32%, transparent);
+    --theme-border:rgba(255,255,255,.10);
+    --theme-bg-tint-1:color-mix(in srgb, var(--petrol) 10%, transparent); --theme-bg-tint-2:color-mix(in srgb, var(--diesel) 9%, transparent);
   }
-  [data-theme="neon"] body{
+  /* ================================================================
+     DARK CYAN "CONTROL ROOM" THEME
+     Toggled by setting data-theme="cyan" on <html>. Shares every
+     structural override rule with the neon theme below (both themes
+     use the same [data-theme="neon"], [data-theme="cyan"] selectors) —
+     only the palette variables here differ, giving a cyan/teal
+     control-room look instead of a pink/magenta one.
+     ================================================================ */
+  [data-theme="cyan"]{
+    --navy:#0A1424; --navy2:#0F2138; --cream:#050B14; --paper:#0E1D30;
+    --ink:#E4F3FF; --muted:#7FA3C4; --line:rgba(120,200,255,.14);
+    --diesel:#22D3EE; --diesel-dark:#0E9FBF; --diesel-glow:#7EEBFF;
+    --petrol:#2DD4BF; --petrol-dark:#17A38F; --petrol-glow:#7FFFD4;
+    --morning:#FFB84D; --afternoon:#FF6B6B; --night:#6C7FFF;
+    --surplus:#34E7B0; --shortfall:#FF5C7A;
+    --theme-glow-a:rgba(34,211,238,.38); --theme-glow-b:rgba(45,212,191,.30);
+    --theme-border:rgba(120,200,255,.14);
+    --theme-bg-tint-1:rgba(34,211,238,.09); --theme-bg-tint-2:rgba(45,212,191,.08);
+  }
+  [data-theme="neon"], [data-theme="cyan"] body{
     background:
-      radial-gradient(1200px 700px at 8% -8%, rgba(255,62,168,.10), transparent 55%),
-      radial-gradient(1000px 650px at 105% 0%, rgba(52,211,255,.09), transparent 55%),
+      radial-gradient(1200px 700px at 8% -8%, var(--theme-bg-tint-1), transparent 55%),
+      radial-gradient(1000px 650px at 105% 0%, var(--theme-bg-tint-2), transparent 55%),
       var(--cream);
     color:var(--ink);
   }
-  [data-theme="neon"] h1,[data-theme="neon"] h2,[data-theme="neon"] h3{color:var(--ink);}
-  [data-theme="neon"] header.top{box-shadow:0 2px 24px rgba(255,62,168,.18);}
-  [data-theme="neon"] header.top .date-live,[data-theme="neon"] .autosave-indicator{border-color:var(--neon-panel-border);}
-  [data-theme="neon"] nav.tabs button.active{text-shadow:0 0 12px var(--neon-glow-pink);}
-  [data-theme="neon"] #themeToggleBtn{background:rgba(255,62,168,.15);border-color:var(--petrol);}
+  [data-theme="neon"] h1, [data-theme="cyan"] h1, [data-theme="neon"] h2, [data-theme="cyan"] h2, [data-theme="neon"] h3, [data-theme="cyan"] h3{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] header.top{box-shadow:0 2px 24px color-mix(in srgb, var(--petrol) 18%, transparent);}
+  [data-theme="neon"] header.top .date-live, [data-theme="cyan"] header.top .date-live, [data-theme="neon"] .autosave-indicator, [data-theme="cyan"] .autosave-indicator{border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] nav.tabs button.active{text-shadow:0 0 12px var(--theme-glow-a);}
+  [data-theme="neon"], [data-theme="cyan"] #themeSelect{background:color-mix(in srgb, var(--petrol) 15%, transparent);border-color:var(--petrol);}
+  [data-theme="neon"], [data-theme="cyan"] #themeSelect option{color:var(--ink);background:var(--paper);}
 
-  [data-theme="neon"] .card{background:var(--paper);border-color:var(--neon-panel-border);box-shadow:0 4px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);}
-  [data-theme="neon"] .card h2{color:var(--ink);}
-  [data-theme="neon"] th{color:var(--ink);}
-  [data-theme="neon"] tfoot td{background:rgba(255,255,255,.045);color:var(--ink);}
-  [data-theme="neon"] tr.duty-today td{background:rgba(255,199,95,.09);}
+  [data-theme="neon"], [data-theme="cyan"] .card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);}
+  [data-theme="neon"], [data-theme="cyan"] .card h2{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] th{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] tfoot td{background:rgba(255,255,255,.045);color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] tr.duty-today td{background:rgba(255,199,95,.09);}
 
-  [data-theme="neon"] .field input,[data-theme="neon"] .field select,[data-theme="neon"] td input,
-  [data-theme="neon"] .staff-row input,[data-theme="neon"] .nozzle-row select{
-    background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--neon-panel-border);
+  [data-theme="neon"] .field input, [data-theme="cyan"] .field input, [data-theme="neon"] .field select, [data-theme="cyan"] .field select, [data-theme="neon"] td input, [data-theme="cyan"] td input, [data-theme="neon"] .staff-row input, [data-theme="cyan"] .staff-row input, [data-theme="neon"] .nozzle-row select, [data-theme="cyan"] .nozzle-row select{
+    background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);
   }
-  [data-theme="neon"] .field input:focus,[data-theme="neon"] .field select:focus{outline-color:var(--petrol);box-shadow:0 0 0 3px var(--neon-glow-pink);}
-  [data-theme="neon"] ::placeholder{color:rgba(236,233,251,.35);}
+  [data-theme="neon"] .field input:focus, [data-theme="cyan"] .field input:focus, [data-theme="neon"] .field select:focus, [data-theme="cyan"] .field select:focus{outline-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
+  [data-theme="neon"], [data-theme="cyan"] ::placeholder{color:rgba(236,233,251,.35);}
 
-  [data-theme="neon"] button.btn.amber{color:#fff;box-shadow:0 0 18px var(--neon-glow-pink);}
-  [data-theme="neon"] button.btn.amber:hover{box-shadow:0 0 26px var(--neon-glow-pink);}
-  [data-theme="neon"] button.btn.ghost{border-color:var(--neon-panel-border);}
-  [data-theme="neon"] button.btn.ghost:hover{border-color:var(--petrol);}
-  [data-theme="neon"] button.btn:not(.amber):not(.ghost):not(.danger){box-shadow:0 0 14px var(--neon-glow-cyan);}
+  [data-theme="neon"], [data-theme="cyan"] button.btn.amber{color:#fff;box-shadow:0 0 18px var(--theme-glow-a);}
+  [data-theme="neon"], [data-theme="cyan"] button.btn.amber:hover{box-shadow:0 0 26px var(--theme-glow-a);}
+  [data-theme="neon"], [data-theme="cyan"] button.btn.ghost{border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] button.btn.ghost:hover{border-color:var(--petrol);}
+  [data-theme="neon"], [data-theme="cyan"] button.btn:not(.amber):not(.ghost):not(.danger){box-shadow:0 0 14px var(--theme-glow-b);}
 
-  [data-theme="neon"] .duty-chip{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] .duty-chip.manual{color:#fff;}
-  [data-theme="neon"] .duty-add{color:var(--muted);}
+  [data-theme="neon"], [data-theme="cyan"] .duty-chip{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] .duty-chip.manual{color:#fff;}
+  [data-theme="neon"], [data-theme="cyan"] .duty-add{color:var(--muted);}
 
-  [data-theme="neon"] .digit-box{background:#0A0716;border-color:rgba(255,62,168,.22);box-shadow:inset 0 0 14px rgba(0,0,0,.65),0 0 16px rgba(255,62,168,.10);}
+  [data-theme="neon"], [data-theme="cyan"] .digit-box{background:#0A0716;border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.65),0 0 16px color-mix(in srgb, var(--petrol) 10%, transparent);}
 
-  [data-theme="neon"] .stat-card{background:var(--paper);border-color:var(--neon-panel-border);box-shadow:0 2px 10px rgba(0,0,0,.4);}
-  [data-theme="neon"] .stat-card .val{color:var(--ink);}
-  [data-theme="neon"] .stat-card.diesel{background:rgba(52,211,255,.07);}
-  [data-theme="neon"] .stat-card.petrol{background:rgba(255,62,168,.07);}
-  [data-theme="neon"] .stat-card.total{background:rgba(140,124,255,.09);}
-  [data-theme="neon"] .stat-card.total .val{color:var(--ink);}
-  [data-theme="neon"] .stat-card.shortfall{background:rgba(255,77,109,.08);}
+  [data-theme="neon"], [data-theme="cyan"] .stat-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 2px 10px rgba(0,0,0,.4);}
+  [data-theme="neon"], [data-theme="cyan"] .stat-card .val{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .stat-card.diesel{background:color-mix(in srgb, var(--diesel) 7%, transparent);}
+  [data-theme="neon"], [data-theme="cyan"] .stat-card.petrol{background:color-mix(in srgb, var(--petrol) 7%, transparent);}
+  [data-theme="neon"], [data-theme="cyan"] .stat-card.total{background:rgba(140,124,255,.09);}
+  [data-theme="neon"], [data-theme="cyan"] .stat-card.total .val{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .stat-card.shortfall{background:rgba(255,77,109,.08);}
 
-  [data-theme="neon"] #tab-sales .card{background:var(--paper);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-sales .card > h2{color:var(--ink);}
-  [data-theme="neon"] #tab-sales .divider{background:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-sales .rate-card{background:linear-gradient(155deg,rgba(52,211,255,.07) 0%,rgba(255,62,168,.06) 100%);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-sales .rate-card::before{color:var(--muted);}
-  [data-theme="neon"] #tab-sales .rate-card .field input{border-bottom-color:rgba(255,255,255,.25);}
-  [data-theme="neon"] #tab-sales nav.shift-tabs{background:rgba(255,255,255,.04);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-sales .shift-btn::before{background:rgba(255,255,255,.25);}
-  [data-theme="neon"] #tab-sales .shift-btn:hover:not(.active){background:rgba(255,255,255,.06);color:var(--ink);}
-  [data-theme="neon"] #tab-sales .readouts{background:linear-gradient(155deg,rgba(52,211,255,.06) 0%,rgba(255,62,168,.05) 100%);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-sales .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-sales .readouts .digit-box .val{color:var(--ink);}
-  [data-theme="neon"] #tab-sales .readouts .digit-box.shortfall{background:rgba(255,77,109,.08);}
-  [data-theme="neon"] #tab-sales .readouts .digit-box.total{background:linear-gradient(120deg,rgba(52,211,255,.10),rgba(255,62,168,.10));}
-  [data-theme="neon"] #tab-sales .readouts .digit-box.total .val{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .card{background:var(--paper);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .card > h2{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .divider{background:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .rate-card{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 7%, transparent) 0%,color-mix(in srgb, var(--petrol) 6%, transparent) 100%);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .rate-card::before{color:var(--muted);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .rate-card .field input{border-bottom-color:rgba(255,255,255,.25);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales nav.shift-tabs{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .shift-btn::before{background:rgba(255,255,255,.25);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .shift-btn:hover:not(.active){background:rgba(255,255,255,.06);color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .readouts .digit-box .val{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .readouts .digit-box.shortfall{background:rgba(255,77,109,.08);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .readouts .digit-box.total .val{color:var(--ink);}
 
-  [data-theme="neon"] #tab-dipchart .readouts{background:linear-gradient(155deg,rgba(52,211,255,.06) 0%,rgba(255,62,168,.05) 100%);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-dipchart .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-dipchart .readouts .digit-box .val{color:var(--ink);}
-  [data-theme="neon"] #tab-dipchart .readouts .digit-box.total{background:linear-gradient(120deg,rgba(52,211,255,.10),rgba(255,62,168,.10));}
-  [data-theme="neon"] #tab-dipchart .readouts .digit-box.total .val{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-dipchart .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-dipchart .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-dipchart .readouts .digit-box .val{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-dipchart .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
+  [data-theme="neon"], [data-theme="cyan"] #tab-dipchart .readouts .digit-box.total .val{color:var(--ink);}
 
-  [data-theme="neon"] .unit-panel{background:var(--paper);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] .unit-head{border-bottom-color:var(--neon-panel-border);}
-  [data-theme="neon"] .unit-head .unit-machine{color:var(--ink);}
-  [data-theme="neon"] .fuel-group.diesel{background:rgba(52,211,255,.08);}
-  [data-theme="neon"] .fuel-group.petrol{background:rgba(255,62,168,.08);}
-  [data-theme="neon"] .nozzle-row .meter-input:disabled{background:rgba(255,255,255,.03);}
-  [data-theme="neon"] .nz-chip{background:rgba(255,255,255,.04);}
-  [data-theme="neon"] .fuel-group.diesel .nz-chip.litres{background:rgba(52,211,255,.12);border-color:rgba(52,211,255,.25);}
-  [data-theme="neon"] .fuel-group.petrol .nz-chip.litres{background:rgba(255,62,168,.12);border-color:rgba(255,62,168,.25);}
-  [data-theme="neon"] .nz-chip.amount{color:var(--ink);background:rgba(255,255,255,.05);border-color:var(--neon-panel-border);}
+  [data-theme="neon"], [data-theme="cyan"] .unit-panel{background:var(--paper);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] .unit-head{border-bottom-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] .unit-head .unit-machine{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .fuel-group.diesel{background:color-mix(in srgb, var(--diesel) 8%, transparent);}
+  [data-theme="neon"], [data-theme="cyan"] .fuel-group.petrol{background:color-mix(in srgb, var(--petrol) 8%, transparent);}
+  [data-theme="neon"], [data-theme="cyan"] .nozzle-row .meter-input:disabled{background:rgba(255,255,255,.03);}
+  [data-theme="neon"], [data-theme="cyan"] .nz-chip{background:rgba(255,255,255,.04);}
+  [data-theme="neon"], [data-theme="cyan"] .fuel-group.diesel .nz-chip.litres{background:color-mix(in srgb, var(--diesel) 12%, transparent);border-color:color-mix(in srgb, var(--diesel) 25%, transparent);}
+  [data-theme="neon"], [data-theme="cyan"] .fuel-group.petrol .nz-chip.litres{background:color-mix(in srgb, var(--petrol) 12%, transparent);border-color:color-mix(in srgb, var(--petrol) 25%, transparent);}
+  [data-theme="neon"], [data-theme="cyan"] .nz-chip.amount{color:var(--ink);background:rgba(255,255,255,.05);border-color:var(--theme-border);}
 
-  [data-theme="neon"] #tab-sales #testingBlock{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.25);}
-  [data-theme="neon"] #tab-sales .fds-testing-row{background:linear-gradient(120deg,rgba(52,211,255,.06) 0%,rgba(255,199,95,.06) 100%);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] .rate-card,[data-theme="neon"] .fds-testing-row{background:rgba(255,199,95,.06);border-color:var(--neon-panel-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales #testingBlock{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.25);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .fds-testing-row{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,rgba(255,199,95,.06) 100%);border-color:var(--theme-border);}
+  [data-theme="neon"] .rate-card, [data-theme="cyan"] .rate-card, [data-theme="neon"] .fds-testing-row, [data-theme="cyan"] .fds-testing-row{background:rgba(255,199,95,.06);border-color:var(--theme-border);}
 
-  [data-theme="neon"] #tab-sales .ledger-wrap{background:var(--paper);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-sales .ledger-wrap th{color:#fff;}
-  [data-theme="neon"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td{background:rgba(255,255,255,.025);}
-  [data-theme="neon"] #tab-sales .ledger-wrap tbody tr:hover td{background:rgba(52,211,255,.06);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .ledger-wrap{background:var(--paper);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .ledger-wrap th{color:#fff;}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td{background:rgba(255,255,255,.025);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-sales .ledger-wrap tbody tr:hover td{background:color-mix(in srgb, var(--diesel) 6%, transparent);}
 
-  [data-theme="neon"] .badge.surplus{background:rgba(51,240,168,.12);}
-  [data-theme="neon"] .badge.shortfall{background:rgba(255,77,109,.14);}
-  [data-theme="neon"] .badge.matched{background:rgba(255,255,255,.06);}
+  [data-theme="neon"], [data-theme="cyan"] .badge.surplus{background:rgba(51,240,168,.12);}
+  [data-theme="neon"], [data-theme="cyan"] .badge.shortfall{background:rgba(255,77,109,.14);}
+  [data-theme="neon"], [data-theme="cyan"] .badge.matched{background:rgba(255,255,255,.06);}
 
-  [data-theme="neon"] .denom-cell{background:rgba(255,255,255,.04);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] .denom-cell:focus-within{border-color:var(--petrol);box-shadow:0 0 0 3px var(--neon-glow-pink);}
-  [data-theme="neon"] .cc-ico{background:rgba(255,255,255,.06);}
-  [data-theme="neon"] .cc-block-title{color:var(--ink);}
-  [data-theme="neon"] .cc-receipt{background:linear-gradient(150deg,#1B1745 0%,#0A0818 100%);box-shadow:0 10px 30px rgba(255,62,168,.15);}
-  [data-theme="neon"] .staff-fuel-item{background:rgba(255,255,255,.05);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-cash .cc-header-card{background:linear-gradient(118deg,rgba(255,62,168,.08) 0%,rgba(52,211,255,.06) 100%);}
-  [data-theme="neon"] #tab-cash .cc-header-card h2{color:var(--ink);}
-  [data-theme="neon"] #tab-cash .cc-header-card .tag{background:rgba(255,199,95,.14);color:#FFC75F;}
-  [data-theme="neon"] #tab-cash .cc-block{background:var(--paper);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-cash .cc-block-title{border-bottom-color:var(--neon-panel-border);}
-  [data-theme="neon"] #tab-cash .cc-block-title .tag{background:rgba(255,255,255,.06);}
-  [data-theme="neon"] #tab-cash .denom-cell{background:rgba(255,255,255,.04);}
-  [data-theme="neon"] #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 3px var(--neon-glow-pink);}
-  [data-theme="neon"] #tab-cash .cash-counted-coins{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.22);}
-  [data-theme="neon"] #tab-cash .cc-receipt{background:linear-gradient(150deg,#1B1745 0%,#0A0818 100%);}
-  [data-theme="neon"] #tab-cash .cc-receipt-subtitle{color:var(--muted);}
+  [data-theme="neon"], [data-theme="cyan"] .denom-cell{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] .denom-cell:focus-within{border-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
+  [data-theme="neon"], [data-theme="cyan"] .cc-ico{background:rgba(255,255,255,.06);}
+  [data-theme="neon"], [data-theme="cyan"] .cc-block-title{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);box-shadow:0 10px 30px color-mix(in srgb, var(--petrol) 15%, transparent);}
+  [data-theme="neon"], [data-theme="cyan"] .staff-fuel-item{background:rgba(255,255,255,.05);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-header-card{background:linear-gradient(118deg,color-mix(in srgb, var(--petrol) 8%, transparent) 0%,color-mix(in srgb, var(--diesel) 6%, transparent) 100%);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-header-card h2{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-header-card .tag{background:rgba(255,199,95,.14);color:#FFC75F;}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-block{background:var(--paper);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-block-title{border-bottom-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-block-title .tag{background:rgba(255,255,255,.06);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .denom-cell{background:rgba(255,255,255,.04);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 3px var(--theme-glow-a);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cash-counted-coins{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.22);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);}
+  [data-theme="neon"], [data-theme="cyan"] #tab-cash .cc-receipt-subtitle{color:var(--muted);}
 
-  [data-theme="neon"] .fds-net-tile{background:var(--paper);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] .fds-net-tile.diesel{background:linear-gradient(180deg,rgba(52,211,255,.10) 0%,var(--paper) 65%);}
-  [data-theme="neon"] .fds-net-tile.petrol{background:linear-gradient(180deg,rgba(255,62,168,.10) 0%,var(--paper) 65%);}
-  [data-theme="neon"] .fds-net-tile.total{background:linear-gradient(180deg,rgba(140,124,255,.12) 0%,var(--paper) 65%);}
-  [data-theme="neon"] .fds-net-tile.total .amount{color:var(--ink);}
-  [data-theme="neon"] .shift-btn{background:rgba(255,255,255,.05);color:var(--ink);}
-  [data-theme="neon"] .ssc-head h3,[data-theme="neon"] .ssc-head .ssc-total{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .fds-net-tile{background:var(--paper);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] .fds-net-tile.diesel{background:linear-gradient(180deg,color-mix(in srgb, var(--diesel) 10%, transparent) 0%,var(--paper) 65%);}
+  [data-theme="neon"], [data-theme="cyan"] .fds-net-tile.petrol{background:linear-gradient(180deg,color-mix(in srgb, var(--petrol) 10%, transparent) 0%,var(--paper) 65%);}
+  [data-theme="neon"], [data-theme="cyan"] .fds-net-tile.total{background:linear-gradient(180deg,rgba(140,124,255,.12) 0%,var(--paper) 65%);}
+  [data-theme="neon"], [data-theme="cyan"] .fds-net-tile.total .amount{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .shift-btn{background:rgba(255,255,255,.05);color:var(--ink);}
+  [data-theme="neon"] .ssc-head h3, [data-theme="cyan"] .ssc-head h3, [data-theme="neon"] .ssc-head .ssc-total, [data-theme="cyan"] .ssc-head .ssc-total{color:var(--ink);}
 
-  [data-theme="neon"] #loginGate{
+  [data-theme="neon"], [data-theme="cyan"] #loginGate{
     background:
-      radial-gradient(1100px 600px at 15% -10%, rgba(255,62,168,.18), transparent 60%),
-      radial-gradient(900px 700px at 110% 110%, rgba(52,211,255,.18), transparent 55%),
+      radial-gradient(1100px 600px at 15% -10%, color-mix(in srgb, var(--petrol) 18%, transparent), transparent 60%),
+      radial-gradient(900px 700px at 110% 110%, color-mix(in srgb, var(--diesel) 18%, transparent), transparent 55%),
       linear-gradient(160deg, var(--navy) 0%, #08061a 60%, #05040f 100%);
   }
-  [data-theme="neon"] .login-card{background:rgba(20,17,44,.96);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] .login-card h2{color:var(--ink);}
-  [data-theme="neon"] .login-field input{background:rgba(255,255,255,.05);color:var(--ink);border-color:var(--neon-panel-border);}
-  [data-theme="neon"] .login-field .toggle-eye:hover{color:var(--ink);}
-  [data-theme="neon"] button.btn.login-submit{color:#fff;box-shadow:0 0 20px var(--neon-glow-pink);}
-  [data-theme="neon"] .login-error{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3);}
+  [data-theme="neon"], [data-theme="cyan"] .login-card{background:rgba(20,17,44,.96);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] .login-card h2{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .login-field input{background:rgba(255,255,255,.05);color:var(--ink);border-color:var(--theme-border);}
+  [data-theme="neon"], [data-theme="cyan"] .login-field .toggle-eye:hover{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] button.btn.login-submit{color:#fff;box-shadow:0 0 20px var(--theme-glow-a);}
+  [data-theme="neon"], [data-theme="cyan"] .login-error{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3);}
 
-  [data-theme="neon"] #idleCountdown{border-color:var(--neon-panel-border);box-shadow:0 4px 20px rgba(255,62,168,.2);}
+  [data-theme="neon"], [data-theme="cyan"] #idleCountdown{border-color:var(--theme-border);box-shadow:0 4px 20px color-mix(in srgb, var(--petrol) 20%, transparent);}
 
-  [data-theme="neon"] .tank-status-card{background:var(--paper);border-color:var(--neon-panel-border);box-shadow:0 4px 20px rgba(0,0,0,.4);}
-  [data-theme="neon"] .tank-status-card.urgent{background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.35);}
-  [data-theme="neon"] .tank-title,[data-theme="neon"] .tank-left{color:var(--ink);}
-  [data-theme="neon"] .tank-meter{background:rgba(255,255,255,.08);}
-  [data-theme="neon"] .tank-forecast{background:rgba(140,124,255,.14);color:var(--ink);}
-  [data-theme="neon"] .tank-status-card.urgent .tank-forecast{background:rgba(255,77,109,.18);color:#FF9AB3;}
+  [data-theme="neon"], [data-theme="cyan"] .tank-status-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 20px rgba(0,0,0,.4);}
+  [data-theme="neon"], [data-theme="cyan"] .tank-status-card.urgent{background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.35);}
+  [data-theme="neon"] .tank-title, [data-theme="cyan"] .tank-title, [data-theme="neon"] .tank-left, [data-theme="cyan"] .tank-left{color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .tank-meter{background:rgba(255,255,255,.08);}
+  [data-theme="neon"], [data-theme="cyan"] .tank-forecast{background:rgba(140,124,255,.14);color:var(--ink);}
+  [data-theme="neon"], [data-theme="cyan"] .tank-status-card.urgent .tank-forecast{background:rgba(255,77,109,.18);color:#FF9AB3;}
 </style>
 </head>
 <body class="app-locked">
@@ -949,7 +971,11 @@
     <div class="date-live" id="liveDate"></div>
     <div class="autosave-indicator" id="autosaveStatus">Autosave: idle</div>
     <div class="iobtns">
-      <button id="themeToggleBtn" onclick="toggleTheme()" title="Switch between Light and Dark Neon interface">🌓 Theme</button>
+      <select id="themeSelect" onchange="setTheme(this.value)" title="Switch the interface theme">
+        <option value="light">☀️ Light</option>
+        <option value="neon">🌓 Neon Pink</option>
+        <option value="cyan">🌊 Cyan Control</option>
+      </select>
       <button onclick="configureServerUrl()" title="Set the backend server URL for live multi-device sync">🔗 Server</button>
       <button onclick="manualFetchFromServer()" title="Force-reload the latest data from the database">⬇️ Fetch from Database</button>
       <button onclick="exportData()" title="Download all data as a backup file">Export Data</button>
@@ -4153,22 +4179,25 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 });
 
-/* ============== THEME TOGGLE ============== */
+/* ============== THEME SWITCHER ============== */
+// Three interfaces: 'light' (default), 'neon' (pink/magenta dark), 'cyan' (blue/teal
+// "control room" dark). Selecting one sets data-theme on <html>, which the CSS above
+// reads via [data-theme="neon"]/[data-theme="cyan"] selectors.
 var THEME_STORAGE_KEY = 'maaFuelStationTheme_v1';
+var VALID_THEMES = ['light','neon','cyan'];
 function applyTheme(theme){
-  if(theme === 'neon'){
-    document.documentElement.setAttribute('data-theme', 'neon');
-  } else {
+  if(VALID_THEMES.indexOf(theme) === -1) theme = 'light';
+  if(theme === 'light'){
     document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', theme);
   }
-  var btn = document.getElementById('themeToggleBtn');
-  if(btn) btn.textContent = theme === 'neon' ? '☀️ Light' : '🌓 Neon';
+  var sel = document.getElementById('themeSelect');
+  if(sel) sel.value = theme;
 }
-function toggleTheme(){
-  var current = document.documentElement.getAttribute('data-theme') === 'neon' ? 'neon' : 'light';
-  var next = current === 'neon' ? 'light' : 'neon';
-  try{ window.localStorage.setItem(THEME_STORAGE_KEY, next); }catch(e){}
-  applyTheme(next);
+function setTheme(theme){
+  try{ window.localStorage.setItem(THEME_STORAGE_KEY, theme); }catch(e){}
+  applyTheme(theme);
 }
 (function(){
   var saved = 'light';
