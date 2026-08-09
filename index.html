@@ -413,6 +413,28 @@
   .staff-fuel-item.diesel{border-left:4px solid var(--diesel-glow);}
   .staff-fuel-item.petrol{border-left:4px solid var(--petrol-glow);}
   @media(max-width:520px){#tab-cash .card h2{font-size:20px;}#tab-cash .denom-grid{grid-template-columns:repeat(2,1fr);}.staff-fuel-card{grid-template-columns:1fr;}}
+  /* Cash calculator: a calm, clear counter layout with fuel-colour accents. */
+  #tab-cash .cc-header-card{background:linear-gradient(118deg,#FFFFFF 0%,#F8F3E7 100%);border-top:5px solid var(--petrol);box-shadow:0 5px 18px rgba(15,42,61,.07);}
+  #tab-cash .cc-header-card h2{display:flex;align-items:center;gap:9px;color:var(--navy);}
+  #tab-cash .cc-header-card .tag{background:#FFF0D9;color:#87511A;border-radius:999px;padding:5px 9px;letter-spacing:.6px;}
+  #tab-cash .cc-block{border-radius:14px;border:1px solid #E5DDCA;box-shadow:0 3px 12px rgba(15,42,61,.05);padding:20px;}
+  #tab-cash .cc-block-title{padding-bottom:11px;border-bottom:1px solid #E8E0CC;margin-bottom:16px;}
+  #tab-cash .cc-block-title .tag{margin-left:auto;background:#F2F4F8;border-radius:999px;padding:5px 8px;font-size:10px;}
+  #tab-cash .cc-entry > .cc-block:first-child{border-top:4px solid var(--petrol);}
+  #tab-cash .cc-entry > .cc-block:nth-child(2){border-top:4px solid var(--diesel);}
+  #tab-cash .cc-entry > .cc-block:nth-child(3){border-top:4px solid #7C67B8;}
+  #tab-cash .cc-entry > .cc-block:nth-child(4){border-top:4px solid #3F92A1;}
+  #tab-cash .cc-entry > .cc-block:nth-child(5){border-top:4px solid #1E8E5A;}
+  #tab-cash .denom-cell{background:linear-gradient(145deg,#fff 0%,#FCFAF5 100%);border-radius:10px;}
+  #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 4px rgba(224,138,43,.16);border-color:var(--petrol);}
+  #tab-cash .cash-counted-coins{background:#FFF8EC;border:1px solid #F1D7AE;border-radius:10px;padding:13px 14px;margin-bottom:0;}
+  #tab-cash .cc-receipt{border-radius:15px;background:linear-gradient(145deg,#10354E 0%,#0A2030 100%);box-shadow:0 10px 24px rgba(15,42,61,.22);}
+  #tab-cash .cc-receipt .cc-block-title{font-size:20px;}
+  #tab-cash .cc-receipt-subtitle{color:#BFD0DC;font-size:13px;line-height:1.45;margin:-5px 0 12px;}
+  #tab-cash .cc-receipt .calc-line.total:first-of-type{margin-top:12px;background:rgba(255,255,255,.10);border-radius:9px;padding:12px 10px;}
+  #tab-cash .cc-receipt .calc-line.total:last-of-type{margin-top:8px;background:rgba(255,255,255,.07);border-radius:9px;padding:12px 10px;}
+  #tab-cash .cc-save-btn{border-radius:9px;font-size:16px;box-shadow:0 3px 0 rgba(0,0,0,.22);}
+  #tab-cash #diffBox{border-radius:10px;}
   footer.note{max-width:1220px;margin:0 auto;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6;}
 
   .rate-card{display:flex;gap:16px;flex-wrap:wrap;align-items:end;background:#F4EEDD;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
@@ -994,10 +1016,11 @@
       <div class="cc-summary">
         <div class="card cc-receipt">
           <h2 class="cc-block-title">🧾 Reconciliation Summary</h2>
+          <div class="cc-receipt-subtitle">Fuel sales for the selected staff and date</div>
           <div class="calc-line total"><span>Cash Counted (Notes + Coins)</span><span class="mono" id="calcCounted">₹0.00</span></div>
           <div class="staff-fuel-card" aria-label="Selected staff fuel sold">
-            <div class="staff-fuel-item diesel"><span class="label">This staff's diesel</span><span class="value" id="staffDieselLitres">0.00 L</span></div>
-            <div class="staff-fuel-item petrol"><span class="label">This staff's petrol</span><span class="value" id="staffPetrolLitres">0.00 L</span></div>
+            <div class="staff-fuel-item diesel"><span class="label">Diesel sold</span><span class="value" id="staffDieselLitres">0.00 L</span></div>
+            <div class="staff-fuel-item petrol"><span class="label">Petrol sold</span><span class="value" id="staffPetrolLitres">0.00 L</span></div>
           </div>
           <div class="calc-line"><span>+ Online / UPI</span><span class="mono" id="calcOnline">₹0.00</span></div>
           <div class="calc-line"><span>+ Card / POS</span><span class="mono" id="calcCard">₹0.00</span></div>
