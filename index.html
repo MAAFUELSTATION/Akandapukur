@@ -392,6 +392,27 @@
   .cc-saved-hint{display:block;margin-top:8px;color:#9FD6C4;text-align:center;}
   .calc-line{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px;}
   .calc-line.total{font-weight:700;border-bottom:none;padding-top:10px;font-size:15.5px;}
+  /* Larger, high-contrast controls make the cash screen comfortable to read at the counter. */
+  #tab-cash{font-size:16px;}
+  #tab-cash .card h2{font-size:22px;}
+  #tab-cash .cc-block-title{font-size:18px;}
+  #tab-cash .field label{font-size:13px;}
+  #tab-cash .field input,#tab-cash .field select{font-size:17px;padding:11px 12px;min-height:46px;}
+  #tab-cash .denom-grid{grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;}
+  #tab-cash .denom-cell{padding:12px;}
+  #tab-cash .denom-cell .note{font-size:18px;}
+  #tab-cash .denom-cell .sub{font-size:13px;}
+  #tab-cash .calc-line{font-size:16px;padding:10px 0;}
+  #tab-cash .calc-line.total{font-size:18px;}
+  #tab-cash .cc-receipt .calc-line{font-size:16px;}
+  .cash-counted-coins{max-width:310px;margin-top:16px;padding-top:14px;border-top:2px solid var(--line);}
+  .staff-fuel-card{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 4px;}
+  .staff-fuel-item{border-radius:8px;padding:11px 12px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);}
+  .staff-fuel-item .label{display:block;color:#DCE6EC;font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;margin-bottom:5px;}
+  .staff-fuel-item .value{font-family:'JetBrains Mono',monospace;color:#fff;font-size:20px;font-weight:700;}
+  .staff-fuel-item.diesel{border-left:4px solid var(--diesel-glow);}
+  .staff-fuel-item.petrol{border-left:4px solid var(--petrol-glow);}
+  @media(max-width:520px){#tab-cash .card h2{font-size:20px;}#tab-cash .denom-grid{grid-template-columns:repeat(2,1fr);}.staff-fuel-card{grid-template-columns:1fr;}}
   footer.note{max-width:1220px;margin:0 auto;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6;}
 
   .rate-card{display:flex;gap:16px;flex-wrap:wrap;align-items:end;background:#F4EEDD;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
@@ -902,14 +923,10 @@
       <div class="cc-entry">
 
         <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">💵</span> Notes</h2>
+          <h2 class="cc-block-title"><span class="cc-ico">💵</span> Cash Counted <span class="tag">Notes and coins together</span></h2>
           <div class="denom-grid" id="denomGrid"></div>
-        </div>
-
-        <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">🪙</span> Coins</h2>
-          <div class="field" style="max-width:220px;">
-            <label>Total Coins ₹</label>
+          <div class="field cash-counted-coins">
+            <label>Coins total ₹</label>
             <input type="number" id="coinsTotal" min="0" step="0.01" value="0" oninput="calcCash()">
           </div>
         </div>
@@ -977,8 +994,11 @@
       <div class="cc-summary">
         <div class="card cc-receipt">
           <h2 class="cc-block-title">🧾 Reconciliation Summary</h2>
-          <div class="calc-line"><span>Cash Counted — Notes</span><span class="mono" id="calcNotes">₹0.00</span></div>
-          <div class="calc-line"><span>Cash Counted — Coins</span><span class="mono" id="calcCoins">₹0.00</span></div>
+          <div class="calc-line total"><span>Cash Counted (Notes + Coins)</span><span class="mono" id="calcCounted">₹0.00</span></div>
+          <div class="staff-fuel-card" aria-label="Selected staff fuel sold">
+            <div class="staff-fuel-item diesel"><span class="label">This staff's diesel</span><span class="value" id="staffDieselLitres">0.00 L</span></div>
+            <div class="staff-fuel-item petrol"><span class="label">This staff's petrol</span><span class="value" id="staffPetrolLitres">0.00 L</span></div>
+          </div>
           <div class="calc-line"><span>+ Online / UPI</span><span class="mono" id="calcOnline">₹0.00</span></div>
           <div class="calc-line"><span>+ Card / POS</span><span class="mono" id="calcCard">₹0.00</span></div>
           <div class="calc-line"><span>+ Deposit</span><span class="mono" id="calcDeposit">₹0.00</span></div>
@@ -3175,11 +3195,13 @@ function calcCash(){
   const finalValue = counted + onlineAmt + cardAmt + deposit + loanTotal + testingHSD + testingMS;
 
   const staffId = document.getElementById('cashStaff').value;
-  const salesAmount = getSalesAmountFor(date, staffId);
+  const staffTotals = computeStaffDayTotals(date, staffId);
+  const salesAmount = staffTotals.da + staffTotals.pa;
   const diff = finalValue - salesAmount;
 
-  document.getElementById('calcNotes').textContent = fmt(notesTotal);
-  document.getElementById('calcCoins').textContent = fmt(coinsTotal);
+  document.getElementById('calcCounted').textContent = fmt(counted);
+  document.getElementById('staffDieselLitres').textContent = staffTotals.dl.toFixed(2) + ' L';
+  document.getElementById('staffPetrolLitres').textContent = staffTotals.pl.toFixed(2) + ' L';
   document.getElementById('calcOnline').textContent = fmt(onlineAmt);
   document.getElementById('calcCard').textContent = fmt(cardAmt);
   document.getElementById('calcDeposit').textContent = fmt(deposit);
