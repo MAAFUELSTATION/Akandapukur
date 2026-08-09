@@ -662,6 +662,50 @@
     font-size:16px; font-weight:700; color:#FF9B9B; min-width:44px; text-align:right;
   }
   @keyframes idleFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+  /* ===== Station-wide readable text mode =====
+     Used across every tab so staff can read entries comfortably from the counter. */
+  body{font-size:16px;line-height:1.5;}
+  header.top h1{font-size:30px;}
+  header.top .sub{font-size:13px;}
+  header.top .date-live{font-size:15px;padding:10px 15px;}
+  .autosave-indicator{font-size:13px;padding:9px 13px;}
+  .iobtns button{font-size:14px;padding:9px 14px;}
+  nav.tabs button{font-size:16px;padding:16px 20px;}
+  .card{padding:22px;}
+  .card h2{font-size:23px;margin-bottom:16px;}
+  .card h2 .tag{font-size:12px;}
+  .field label{font-size:14px;margin-bottom:7px;letter-spacing:.5px;}
+  .field input,.field select{font-size:16px;padding:11px 12px;min-height:46px;}
+  button.btn{font-size:15px;padding:12px 18px;min-height:46px;}
+  button.btn.small{font-size:14px;padding:9px 13px;min-height:38px;}
+  button.btn.danger{font-size:13px;min-height:34px;}
+  table{font-size:15px;}
+  th{font-size:12px;padding:11px 12px;}
+  td{padding:11px 12px;}
+  td input{font-size:15px;padding:9px 10px;min-height:39px;}
+  .hint,.empty{font-size:14px;}
+  .digit-box .lbl,.stat-card .lbl{font-size:12px;}
+  .digit-box .val,.stat-card .val{font-size:20px;}
+  .duty-chip,.duty-add{font-size:14px;padding:7px 12px;}
+  .shift-btn{font-size:15px;padding:11px 18px;}
+  .fuel-group-head,.fuel-label{font-size:13px;}
+  .nozzle-row select,.nozzle-row .meter-input{font-size:15px;padding:10px;min-height:42px;}
+  .nz-name{font-size:14px;}
+  .loan-row input,.loan-row select{font-size:15px;padding:10px;min-height:42px;}
+  .loan-note-row input{font-size:14px;padding:9px 10px;min-height:40px;}
+  .loan-total-line{font-size:16px;}
+  .denom-cell .note{font-size:16px;}
+  .denom-cell .sub{font-size:12px;}
+  .badge{font-size:13px;}
+  @media(max-width:700px){
+    body{font-size:15px;}
+    header.top h1{font-size:24px;}
+    nav.tabs button{font-size:15px;padding:14px 15px;}
+    .card{padding:18px;}
+    .card h2{font-size:20px;}
+    .field input,.field select{font-size:16px;}
+    table{font-size:14px;}
+  }
 </style>
 </head>
 <body class="app-locked">
