@@ -706,6 +706,16 @@
     .field input,.field select{font-size:16px;}
     table{font-size:14px;}
   }
+  /* Tank monitor */
+  .tank-status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-bottom:20px;}
+  .tank-status-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:0 4px 16px rgba(15,42,61,.07);}
+  .tank-status-card.diesel{border-top:5px solid var(--diesel);}.tank-status-card.petrol{border-top:5px solid var(--petrol);}
+  .tank-status-card.urgent{background:#FFF4F2;border-color:#E8AAA3;}
+  .tank-title{font-size:17px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.8px;}
+  .tank-left{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;color:var(--navy);margin:9px 0;}.tank-left small{font-family:'Inter',sans-serif;font-size:16px;color:var(--muted);}
+  .tank-meter{height:14px;background:#E9E5DB;border-radius:999px;overflow:hidden;margin:12px 0 14px;}.tank-meter span{display:block;height:100%;border-radius:999px;background:var(--diesel);}.tank-status-card.petrol .tank-meter span{background:var(--petrol);}.tank-status-card.urgent .tank-meter span{background:var(--shortfall);}
+  .tank-meta{font-size:14px;color:var(--muted);margin-top:5px;}.tank-forecast{margin-top:15px;padding:10px 12px;border-radius:8px;background:#F2F4F8;color:var(--navy);font-size:16px;font-weight:700;}.tank-status-card.urgent .tank-forecast{background:#FCE0DD;color:#992D2D;}
+  @media(max-width:760px){.tank-status-grid{grid-template-columns:1fr;}.tank-left{font-size:28px;}}
 </style>
 </head>
 <body class="app-locked">
@@ -783,6 +793,7 @@
 <nav class="tabs">
   <button class="tab-btn active" data-tab="sales" onclick="switchTab('sales')">⛽ Nozzal's Sale Report</button>
   <button class="tab-btn" data-tab="salesreport" onclick="switchTab('salesreport')">📊 Sales Report</button>
+  <button class="tab-btn" data-tab="tanks" onclick="switchTab('tanks')">⛽ Tank Monitor</button>
   <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
   <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
   <button class="tab-btn" data-tab="cash" onclick="switchTab('cash')">🧮 Cash Denomination Calculator</button>
@@ -917,6 +928,52 @@
         <tbody id="monthlyStaffBody"></tbody>
         <tfoot id="monthlyStaffFoot"></tfoot>
       </table>
+    </div>
+  </section>
+
+  <!-- ===================== TANK MONITOR TAB ===================== -->
+  <section id="tab-tanks" class="tab">
+    <div class="card tank-header-card">
+      <h2>⛽ Tank Monitor <span class="tag">20,000 L capacity each · top-up cut-off 3,500 L</span></h2>
+      <div class="row" style="margin-bottom:0;">
+        <div class="field">
+          <label>Calculate stock up to date</label>
+          <input type="date" id="tankAsOfDate" onchange="renderTankTab()">
+        </div>
+      </div>
+      <div class="hint">Each tank starts at 20,000 L unless you set a manual volume. Net sales exclude the daily testing quantity. Add each received-oil delivery as a Tank Top so balances and forecasts stay accurate.</div>
+    </div>
+
+    <div class="card">
+      <h2>Tank Stock Updates <span class="tag">Manual reading or received oil</span></h2>
+      <div class="row">
+        <div class="field"><label>Effective date</label><input type="date" id="tankUpdateDate"></div>
+        <div class="field"><label>Fuel</label><select id="tankUpdateFuel"><option value="diesel">Diesel</option><option value="petrol">Petrol</option></select></div>
+        <div class="field"><label>Volume (L)</label><input type="number" id="tankUpdateVolume" min="0" step="0.01" placeholder="e.g. 5000"></div>
+        <button class="btn" onclick="saveManualTankVolume()">Set Tank Volume</button>
+        <button class="btn amber" onclick="addTankTop()">Add Tank Top</button>
+      </div>
+      <div class="hint" id="tankUpdateHint">Set Tank Volume records the actual measured stock for the selected date. Add Tank Top adds received oil to that tank.</div>
+      <div style="overflow-x:auto;margin-top:14px;">
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th>Fuel</th><th class="num">Volume</th><th></th></tr></thead>
+          <tbody id="tankUpdateBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="tankUpdateEmpty">No manual tank volumes or Tank Top deliveries recorded.</div>
+    </div>
+
+    <div class="tank-status-grid" id="tankStatusGrid"></div>
+
+    <div class="card">
+      <h2>Daily Net Tank Usage <span class="tag">Used to calculate remaining stock and the forecast</span></h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Date</th><th class="num">Diesel Net Sale</th><th class="num">Diesel Left</th><th class="num">Petrol Net Sale</th><th class="num">Petrol Left</th></tr></thead>
+          <tbody id="tankUsageBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="tankUsageEmpty" style="display:none;">No recorded sales are available up to this date.</div>
     </div>
   </section>
 
@@ -1872,7 +1929,8 @@ let state = {
   rates: {},   
   cash: {},    
   noteGivenOut: [],
-  duty: {}
+  duty: {},
+  tankUpdates: []
 };
 const NOTES = [500,200,100,50,20,10];
 const NOZZLES = [
@@ -2262,6 +2320,7 @@ function loadAutosave(){
         if(!state.staff) state.staff = [];
         if(!state.noteGivenOut) state.noteGivenOut = [];
         if(!state.duty) state.duty = {};
+        if(!state.tankUpdates) state.tankUpdates = [];
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         setAutosaveStatus('Restored from autosave');
@@ -2277,6 +2336,7 @@ function switchTab(name){
   if(name!=='devices') stopDevicesAutoRefresh();
   if(name==='sales') renderSalesTab();
   if(name==='salesreport') renderSalesReportTab();
+  if(name==='tanks') renderTankTab();
   if(name==='staff') renderStaffTab();
   if(name==='duty') renderDutyTab();
   if(name==='cash') renderCashTab();
@@ -3035,6 +3095,129 @@ function renderSalesReportTab(){
   renderMonthlyTab();
 }
 
+/* ============== TANK MONITOR TAB ============== */
+const TANK_CAPACITY_L = 20000;
+const TANK_TOPUP_CUTOFF_L = 3500;
+function getTankNetSalesForDate(date){
+  const day = state.sales[date];
+  if(!day) return {diesel:0, petrol:0};
+  let diesel = 0, petrol = 0;
+  SHIFTS.forEach(shift=>{
+    NOZZLES.forEach(nz=>{
+      const litres = nozzleLitres(date, shift.id, nz.id);
+      if(nz.fuel==='diesel') diesel += litres;
+      else petrol += litres;
+    });
+  });
+  const testing = day.dayTesting || {};
+  return {
+    diesel: Math.max(0, diesel - (Number(testing.hsdL)||0)),
+    petrol: Math.max(0, petrol - (Number(testing.msL)||0))
+  };
+}
+function addDaysToDate(date, days){
+  const d = new Date(date + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+function tankForecastText(remaining, average, asOf){
+  if(remaining <= TANK_TOPUP_CUTOFF_L) return 'TOP UP NOW';
+  if(average <= 0) return 'Awaiting sales data';
+  const days = Math.ceil((remaining - TANK_TOPUP_CUTOFF_L) / average);
+  return 'Top-up by ' + addDaysToDate(asOf, days) + ' (' + days + ' days)';
+}
+function getTankUpdatesForDate(date){
+  const updates = (state.tankUpdates || []).filter(u=>u.date===date);
+  const result = {diesel:{manual:null, top:0}, petrol:{manual:null, top:0}};
+  updates.forEach(u=>{
+    if(!result[u.fuel]) return;
+    if(u.type==='manual') result[u.fuel].manual = Number(u.volume)||0;
+    if(u.type==='top') result[u.fuel].top += Number(u.volume)||0;
+  });
+  return result;
+}
+function renderTankUpdates(){
+  const rows = [...(state.tankUpdates || [])].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('tankUpdateBody').innerHTML = rows.map(u=>`<tr>
+    <td>${u.date}</td><td>${u.type==='manual'?'Manual Volume':'Tank Top'}</td><td>${u.fuel==='diesel'?'Diesel':'Petrol'}</td>
+    <td class="num">${fmtNum(u.volume)} L</td><td><button class="btn danger" onclick="deleteTankUpdate('${u.id}')">Delete</button></td>
+  </tr>`).join('');
+  document.getElementById('tankUpdateEmpty').style.display = rows.length ? 'none' : 'block';
+}
+function saveTankUpdate(type){
+  const date = document.getElementById('tankUpdateDate').value || todayStr();
+  const fuel = document.getElementById('tankUpdateFuel').value;
+  const volume = Number(document.getElementById('tankUpdateVolume').value);
+  const hint = document.getElementById('tankUpdateHint');
+  if(!Number.isFinite(volume) || volume < 0){
+    hint.textContent = 'Enter a valid volume of 0 L or more.';
+    return;
+  }
+  if(type==='manual' && volume > TANK_CAPACITY_L){
+    hint.textContent = 'Manual tank volume cannot exceed the 20,000 L tank capacity.';
+    return;
+  }
+  state.tankUpdates = state.tankUpdates || [];
+  state.tankUpdates.push({id:'tank-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), date, fuel, volume, type});
+  document.getElementById('tankUpdateVolume').value = '';
+  hint.textContent = type==='manual' ? 'Manual tank volume saved.' : 'Tank Top delivery added.';
+  renderTankTab();
+  scheduleAutosave();
+}
+function saveManualTankVolume(){ saveTankUpdate('manual'); }
+function addTankTop(){ saveTankUpdate('top'); }
+function deleteTankUpdate(id){
+  if(!confirm('Delete this tank stock update?')) return;
+  state.tankUpdates = (state.tankUpdates || []).filter(u=>u.id!==id);
+  renderTankTab();
+  scheduleAutosave();
+}
+function renderTankTab(){
+  const asOfInput = document.getElementById('tankAsOfDate');
+  if(!asOfInput.value) asOfInput.value = todayStr();
+  const asOf = asOfInput.value;
+  const dates = [...new Set([...Object.keys(state.sales), ...(state.tankUpdates || []).map(u=>u.date)])].filter(d=>d<=asOf).sort();
+  let dieselLeft = TANK_CAPACITY_L, petrolLeft = TANK_CAPACITY_L;
+  let dieselUsed = 0, petrolUsed = 0, activeDays = 0;
+  const rows = dates.map(date=>{
+    const sale = getTankNetSalesForDate(date);
+    if(sale.diesel>0 || sale.petrol>0) activeDays++;
+    dieselUsed += sale.diesel; petrolUsed += sale.petrol;
+    dieselLeft = Math.max(0, dieselLeft - sale.diesel);
+    petrolLeft = Math.max(0, petrolLeft - sale.petrol);
+    const update = getTankUpdatesForDate(date);
+    if(update.diesel.manual!==null) dieselLeft = update.diesel.manual;
+    if(update.petrol.manual!==null) petrolLeft = update.petrol.manual;
+    dieselLeft = Math.min(TANK_CAPACITY_L, dieselLeft + update.diesel.top);
+    petrolLeft = Math.min(TANK_CAPACITY_L, petrolLeft + update.petrol.top);
+    return `<tr><td>${date}</td><td class="num">${fmtNum(sale.diesel)} L</td><td class="num">${fmtNum(dieselLeft)} L</td><td class="num">${fmtNum(sale.petrol)} L</td><td class="num">${fmtNum(petrolLeft)} L</td></tr>`;
+  });
+  const dieselAvg = activeDays ? dieselUsed / activeDays : 0;
+  const petrolAvg = activeDays ? petrolUsed / activeDays : 0;
+  const dieselUrgent = dieselLeft <= TANK_TOPUP_CUTOFF_L;
+  const petrolUrgent = petrolLeft <= TANK_TOPUP_CUTOFF_L;
+  document.getElementById('tankStatusGrid').innerHTML = `
+    <div class="tank-status-card diesel ${dieselUrgent?'urgent':''}">
+      <div class="tank-title">Diesel Tank</div><div class="tank-left">${fmtNum(dieselLeft)} <small>L left</small></div>
+      <div class="tank-meter"><span style="width:${Math.max(0,Math.min(100,dieselLeft/TANK_CAPACITY_L*100))}%"></span></div>
+      <div class="tank-meta">Capacity: 20,000 L · Cut-off: 3,500 L</div>
+      <div class="tank-meta">Average net sale: ${fmtNum(dieselAvg)} L/day</div>
+      <div class="tank-forecast">${tankForecastText(dieselLeft,dieselAvg,asOf)}</div>
+    </div>
+    <div class="tank-status-card petrol ${petrolUrgent?'urgent':''}">
+      <div class="tank-title">Petrol Tank</div><div class="tank-left">${fmtNum(petrolLeft)} <small>L left</small></div>
+      <div class="tank-meter"><span style="width:${Math.max(0,Math.min(100,petrolLeft/TANK_CAPACITY_L*100))}%"></span></div>
+      <div class="tank-meta">Capacity: 20,000 L · Cut-off: 3,500 L</div>
+      <div class="tank-meta">Average net sale: ${fmtNum(petrolAvg)} L/day</div>
+      <div class="tank-forecast">${tankForecastText(petrolLeft,petrolAvg,asOf)}</div>
+    </div>`;
+  document.getElementById('tankUsageBody').innerHTML = rows.join('');
+  document.getElementById('tankUsageEmpty').style.display = rows.length ? 'none' : 'block';
+  const updateDate = document.getElementById('tankUpdateDate');
+  if(!updateDate.value) updateDate.value = asOf;
+  renderTankUpdates();
+}
+
 /* ============== MONTHLY SUMMARY TAB ============== */
 function renderMonthlyTab(){
   const mInp = document.getElementById('monthPicker');
@@ -3651,6 +3834,7 @@ function importData(file){
         if(!state.rates) state.rates = {};
         if(!state.noteGivenOut) state.noteGivenOut = [];
         if(!state.duty) state.duty = {};
+        if(!state.tankUpdates) state.tankUpdates = [];
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         alert('Data restored successfully.');
