@@ -787,10 +787,10 @@
       </div>
       <div class="readouts" id="monthlyReadouts"></div>
 
-      <h2 style="font-size:15px;margin:20px 0 10px;">Date-wise Breakdown</h2>
+      <h2 style="font-size:15px;margin:20px 0 10px;">Date-wise Breakdown <span class="tag">Net of Testing</span></h2>
       <table>
         <thead>
-          <tr><th>Date</th><th class="num">Diesel Litres</th><th class="num">Diesel ₹</th><th class="num">Petrol Litres</th><th class="num">Petrol ₹</th><th class="num">Day Total ₹</th></tr>
+          <tr><th>Date</th><th class="num">Diesel Litres (Net)</th><th class="num">Diesel ₹ (Net)</th><th class="num">Petrol Litres (Net)</th><th class="num">Petrol ₹ (Net)</th><th class="num">Day Total ₹ (Net)</th></tr>
         </thead>
         <tbody id="monthlyDateBody"></tbody>
         <tfoot id="monthlyDateFoot"></tfoot>
@@ -2199,6 +2199,13 @@ function ensureShiftData(date, shift){
   if(shift==='night'){
     sd.testing.hsd = 0;
     sd.testing.ms = 0;
+  } else if(shift==='afternoon'){
+    // Afternoon testing is fed in manually (litres worked out by hand), so
+    // it starts blank/0 instead of auto-filling the 20 L default the way
+    // Morning does.
+    if(hsdInvalid) sd.testing.hsd = 0;
+    if(msInvalid) sd.testing.ms = 0;
+    if(hsdInvalid || msInvalid) scheduleAutosave();
   } else if(hsdInvalid || msInvalid){
     const r = getRateForDate(date);
     if(hsdInvalid) sd.testing.hsd = 20*(Number(r.diesel)||0);
@@ -2237,9 +2244,12 @@ function getShiftTesting(date, shift){
 function syncDefaultShiftTestingPrices(date, previousRate, newRate){
   // Shift testing is stored in rupees. Keep an untouched 20 L default tied to
   // the current price while leaving any manually entered testing amount intact.
+  // Afternoon no longer has a 20L auto-default (it's fed in manually), so it's
+  // excluded here — otherwise a manually entered afternoon value that happened
+  // to equal 20L at the old rate would get silently overwritten on a rate change.
   const sales = state.sales[date];
   if(!sales) return;
-  ['morning','afternoon'].forEach(shift=>{
+  ['morning'].forEach(shift=>{
     const sd = sales[shift];
     if(!sd || !sd.testing) return;
     const hsdWasDefault = Math.abs((Number(sd.testing.hsd)||0) - 20*(Number(previousRate.diesel)||0)) < 0.01;
@@ -2641,18 +2651,34 @@ function renderMonthlyTab(){
       staffTotals[sid].da += t.da;
       staffTotals[sid].pa += t.pa;
     });
-    mDL+=dl; mDA+=da; mPL+=pl; mPA+=pa;
-    dateRows += `<tr><td>${date}</td><td class="num">${fmtNum(dl)}</td><td class="num">${fmtNum(da)}</td><td class="num">${fmtNum(pl)}</td><td class="num">${fmtNum(pa)}</td><td class="num">${fmtNum(da+pa)}</td></tr>`;
+    // Show the date-wise breakdown net of that day's testing/nozzle-adjustment
+    // fuel, so this table matches the "Exact Sale (Net of Testing)" figures
+    // on the Daily Sale Report above rather than gross litres/₹.
+    const dayTesting = getDayTesting(date);
+    const dlNet = dl - dayTesting.hsdL;
+    const daNet = da - dayTesting.hsd;
+    const plNet = pl - dayTesting.msL;
+    const paNet = pa - dayTesting.ms;
+    // Staff-wise totals stay gross (testing isn't attributed to a single
+    // staff member), so subtract the day's testing only from the station-wide
+    // month totals used in the readouts/footer.
+    mDL+=dlNet; mDA+=daNet; mPL+=plNet; mPA+=paNet;
+    dateRows += `<tr><td>${date}</td><td class="num">${fmtNum(dlNet)}</td><td class="num">${fmtNum(daNet)}</td><td class="num">${fmtNum(plNet)}</td><td class="num">${fmtNum(paNet)}</td><td class="num">${fmtNum(daNet+paNet)}</td></tr>`;
   });
   document.getElementById('monthlyDateBody').innerHTML = dateRows || '<tr><td colspan="6" class="empty">No sales recorded for this month yet.</td></tr>';
   document.getElementById('monthlyDateFoot').innerHTML = dates.length ? `<tr><td>Month Total</td><td class="num">${fmtNum(mDL)}</td><td class="num">${fmtNum(mDA)}</td><td class="num">${fmtNum(mPL)}</td><td class="num">${fmtNum(mPA)}</td><td class="num">${fmtNum(mDA+mPA)}</td></tr>` : '';
 
   document.getElementById('monthlyReadouts').innerHTML = `
-    <div class="digit-box diesel"><div class="lbl">Monthly Diesel (HSD)</div><div class="val">${fmtNum(mDL)} L / ${fmt(mDA)}</div></div>
-    <div class="digit-box petrol"><div class="lbl">Monthly Petrol (MS)</div><div class="val">${fmtNum(mPL)} L / ${fmt(mPA)}</div></div>
-    <div class="digit-box total"><div class="lbl">Monthly Grand Total</div><div class="val">${fmt(mDA+mPA)}</div></div>`;
+    <div class="digit-box diesel"><div class="lbl">Monthly Diesel (HSD) — Net of Testing</div><div class="val">${fmtNum(mDL)} L / ${fmt(mDA)}</div></div>
+    <div class="digit-box petrol"><div class="lbl">Monthly Petrol (MS) — Net of Testing</div><div class="val">${fmtNum(mPL)} L / ${fmt(mPA)}</div></div>
+    <div class="digit-box total"><div class="lbl">Monthly Grand Total — Net of Testing</div><div class="val">${fmt(mDA+mPA)}</div></div>`;
 
-  const grand = mDA+mPA;
+  // Staff-wise % of station sales still compares against gross station sales
+  // (staff totals above are gross too — testing isn't attributed to a staff
+  // member), so this must NOT use the net mDA/mPA computed above, or every
+  // staff member's % would be inflated by however much testing fuel reduced
+  // the (now net) denominator.
+  const grand = Object.values(staffTotals).reduce((s,st)=> s + st.da + st.pa, 0);
   let staffRows = Object.values(staffTotals).map(st=>{
     const tot = st.da+st.pa;
     const pct = grand>0 ? (tot/grand*100).toFixed(1) : '0.0';
