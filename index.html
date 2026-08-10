@@ -366,6 +366,31 @@
   .badge.surplus{background:#E4F5EC;color:var(--surplus);}
   .badge.shortfall{background:#FBE7E7;color:var(--shortfall);}
   .badge.matched{background:#EEF0F2;color:var(--muted);}
+  .badge.edited{background:#FFF1D6;color:#8A5A00;margin-left:6px;}
+
+  /* ---- Cash record lock / correction flow ---- */
+  #cashLockBanner{display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    background:#FFF6E6;border:1px solid #F0D9A8;border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  #cashLockBanner .lock-msg{font-size:13.5px;font-weight:700;color:#8A5A00;display:flex;align-items:center;gap:8px;}
+  #cashLockBanner .lock-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .cc-entry.cc-view-only{position:relative;}
+  .cc-entry.cc-view-only input,
+  .cc-entry.cc-view-only select,
+  .cc-entry.cc-view-only button:not(.cc-unlock-allow){pointer-events:none;opacity:.65;}
+  .cc-entry.cc-view-only .cc-save-btn{display:none;}
+  .correction-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,30,.55);z-index:500;align-items:center;justify-content:center;padding:16px;}
+  .correction-modal-backdrop.show{display:flex;}
+  .correction-modal{background:var(--paper,#fff);border-radius:14px;padding:22px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3);}
+  .correction-modal h3{margin:0 0 6px;font-size:16px;}
+  .correction-modal p.hint{margin:0 0 16px;}
+  .correction-modal .field{margin-bottom:12px;}
+  .correction-modal .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
+  .correction-modal .modal-error{color:var(--shortfall);font-size:12.5px;margin-top:6px;display:none;}
+  .correction-modal .modal-error.show{display:block;}
+  .correction-history{margin-top:10px;font-size:12.5px;background:#FAFAF8;border:1px dashed #DDD5C2;border-radius:10px;padding:10px 12px;}
+  .correction-history summary{cursor:pointer;font-weight:700;color:var(--navy);}
+  .correction-history .corr-entry{margin-top:8px;padding-top:8px;border-top:1px solid #E8E0CC;}
+  .correction-history .corr-entry:first-of-type{border-top:none;padding-top:0;}
 
 
   .staff-list{display:flex;flex-direction:column;gap:8px;}
@@ -1262,9 +1287,17 @@
       </div>
     </div>
 
+    <div id="cashLockBanner">
+      <div class="lock-msg">🔒 <span id="cashLockBannerText">Viewing a saved record — read only.</span></div>
+      <div class="lock-actions">
+        <button class="btn ghost small cc-unlock-allow" onclick="startNewCashEntry()">➕ Start a fresh entry</button>
+        <button class="btn amber small cc-unlock-allow" onclick="openCorrectionModal()">✏️ Request Correction</button>
+      </div>
+    </div>
+
     <div class="cc-layout">
       <!-- ENTRY COLUMN -->
-      <div class="cc-entry">
+      <div class="cc-entry" id="cashEntryCard">
 
         <div class="card cc-block">
           <h2 class="cc-block-title"><span class="cc-ico">💵</span> Cash Counted <span class="tag">Notes and coins together</span></h2>
@@ -1362,6 +1395,7 @@
 
           <button class="btn amber cc-save-btn" onclick="saveCash()">Save to Staff Surplus / Short Data</button>
           <span class="hint cc-saved-hint" id="cashSavedHint"></span>
+          <div id="cashCorrectionHistory"></div>
         </div>
       </div>
     </div>
@@ -1620,6 +1654,12 @@
 const AUTH_STORAGE_KEY = 'maaFuelStationAuth_v1';
 const VALID_USERNAME = 'maafuelstation@2025';
 const VALID_PASSWORD = 'Jc730927h';
+// Separate manager-only PIN required to unlock an already-saved cash
+// denomination record for correction (see openCorrectionModal / 
+// submitCorrectionUnlock below). Kept apart from the console login so
+// any staff member can log in and view records, but only someone who
+// knows this PIN can alter a record that's already been saved.
+const CASH_EDIT_PIN = '2468';
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;   // auto-logout after 5 minutes of inactivity
 const IDLE_WARN_MS = 1 * 60 * 1000;      // start showing the countdown after 1 minute idle
 let idleTickInterval = null;
@@ -3526,6 +3566,16 @@ function onTestingOptionChange(){
   calcCash();
 }
 
+// Tracks, per date+staff key, whether a saved cash record has been
+// explicitly unlocked for correction this session (see openCorrectionModal /
+// submitCorrectionUnlock). A record with no key here — i.e. every record
+// the very first time it's viewed — renders read-only if it has a savedAt.
+// This is intentionally in-memory only (not persisted): re-loading the app
+// or switching away and back should require unlocking again, so an
+// unlocked-but-forgotten record doesn't stay editable indefinitely.
+let unlockedCashKeys = {};
+function cashRecordKey(date, staffId){ return date + '::' + staffId; }
+
 function renderCashTab(){
   populateCashStaffSelect();
   const dateInp = document.getElementById('cashDate');
@@ -3535,6 +3585,14 @@ function renderCashTab(){
 
   const existing = (state.cash[date] && state.cash[date][staffId]) || null;
   const denoms = existing ? existing.denoms : {};
+
+  // A record that's been explicitly saved (has savedAt) is read-only
+  // until unlocked via the "Request Correction" flow (manager PIN +
+  // reason). Records that only exist from live-typing (no savedAt yet)
+  // are always freely editable — they haven't been committed to the
+  // Staff Surplus / Short log yet.
+  const isLockedRecord = !!(existing && existing.savedAt) && !unlockedCashKeys[cashRecordKey(date, staffId)];
+  applyCashLockState(isLockedRecord, existing);
 
   document.getElementById('denomGrid').innerHTML = NOTES.map(d=>`
     <div class="denom-cell ${d>=100?'tier-high':'tier-low'}">
@@ -3580,14 +3638,109 @@ function renderCashTab(){
   document.getElementById('onlineAmt').value = existing ? (existing.onlineAmt||0) : 0;
   document.getElementById('cardAmt').value = existing ? (existing.cardAmt||0) : 0;
   document.getElementById('depositAmt').value = existing ? existing.deposit : 0;
-  document.getElementById('cashSavedHint').textContent = existing ? 'A saved record exists for this staff/date — editing will update it.' : '';
+  document.getElementById('cashSavedHint').textContent = existing && existing.savedAt && !isLockedRecord ? 'Unlocked for correction — Save to record the change.' : '';
+  renderCashCorrectionHistory(existing);
 
   loanRows = existing && existing.loans && existing.loans.length ? existing.loans.map(l=>({name:l.name, amount:l.amount, type:l.type||'loan', checked:!!l.checked, note:l.note||''})) : [];
   if(loanRows.length===0) loanRows.push({name:'', amount:0, type:'loan', checked:false, note:''});
   renderLoanRows();
+  // renderLoanRows() and the denom grid above both rebuild fresh HTML
+  // (without a disabled attribute) after applyCashLockState's disable
+  // pass ran, so re-apply it once more here to actually catch those.
+  if(isLockedRecord){
+    document.getElementById('cashEntryCard').querySelectorAll('input, select').forEach(el=>{ el.disabled = true; });
+  }
 
   calcCash();
   renderCashHistory();
+}
+
+/* ---- Read-only lock for already-saved cash records ---- */
+function applyCashLockState(isLocked, existing){
+  const card = document.getElementById('cashEntryCard');
+  const banner = document.getElementById('cashLockBanner');
+  const bannerText = document.getElementById('cashLockBannerText');
+  card.classList.toggle('cc-view-only', isLocked);
+  // Disable (not just visually dim) every real input/select inside the
+  // entry card so keyboard/mobile users can't type into a "locked" field
+  // either — CSS pointer-events alone isn't enough for accessibility.
+  card.querySelectorAll('input, select').forEach(el=>{ el.disabled = isLocked; });
+  if(isLocked && existing){
+    banner.style.display = 'flex';
+    const when = existing.savedAt ? new Date(existing.savedAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    bannerText.textContent = 'Viewing a saved record' + (when ? ' (saved ' + when + ')' : '') + ' — read only.';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// Shows a collapsible log of every correction made to this record (if
+// any) — reason, when, and what the values were before the change —
+// right underneath the Save button, so the history is visible without
+// digging into browser storage.
+function renderCashCorrectionHistory(existing){
+  const el = document.getElementById('cashCorrectionHistory');
+  if(!existing || !existing.corrections || !existing.corrections.length){
+    el.innerHTML = '';
+    return;
+  }
+  const items = existing.corrections.slice().reverse().map(c=>{
+    const when = c.correctedAt ? new Date(c.correctedAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+    const prevVal = c.previous ? fmtNum(c.previous.finalValue) : '—';
+    return `<div class="corr-entry">
+      <div><strong>${when}</strong> — ${escapeHtml(c.reason || '(no reason given)')}</div>
+      <div class="hint">Previous Final Value: ₹${prevVal}, Status: ${c.previous ? c.previous.status : '—'}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<details class="correction-history">
+    <summary>✏️ ${existing.corrections.length} correction(s) made to this record</summary>
+    ${items}
+  </details>`;
+}
+
+// "Load" from Past Cash Denomination Records always opens the record
+// read-only — this is the whole point of the fix: looking a record up
+// must never silently put it into an editable state that a stray
+// keystroke or the autosave could overwrite.
+function loadCashRecordReadOnly(date, sid){
+  delete unlockedCashKeys[cashRecordKey(date, sid)];
+  document.getElementById('cashDate').value = date;
+  document.getElementById('cashStaff').value = sid;
+  renderCashTab();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Clears the date/staff selection back to a blank/fresh entry so a
+// manager can start a brand-new record without needing to touch a PIN.
+function startNewCashEntry(){
+  document.getElementById('cashDate').value = todayStr();
+  renderCashTab();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function openCorrectionModal(){
+  document.getElementById('correctionPin').value = '';
+  document.getElementById('correctionReason').value = '';
+  document.getElementById('correctionModalError').classList.remove('show');
+  document.getElementById('correctionModalBackdrop').classList.add('show');
+  document.getElementById('correctionPin').focus();
+}
+function closeCorrectionModal(){
+  document.getElementById('correctionModalBackdrop').classList.remove('show');
+}
+function submitCorrectionUnlock(){
+  const pin = document.getElementById('correctionPin').value.trim();
+  const reason = document.getElementById('correctionReason').value.trim();
+  const errEl = document.getElementById('correctionModalError');
+  if(pin !== CASH_EDIT_PIN || !reason){
+    errEl.classList.add('show');
+    return;
+  }
+  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('cashStaff').value;
+  unlockedCashKeys[cashRecordKey(date, staffId)] = { reason, at: new Date().toISOString() };
+  closeCorrectionModal();
+  renderCashTab();
 }
 
 function renderLoanRows(){
@@ -3708,7 +3861,15 @@ function calcCash(){
   const hasData = notesTotal>0 || coinsTotal>0 || testingHSD>0 || testingMS>0 ||
     onlineAmt>0 || cardAmt>0 || loanTotal>0 || deposit>0 ||
     (state.cash[date] && state.cash[date][staffId]);
-  if(hasData){
+  // Never let this live-sync path touch a record that's currently locked
+  // (a saved record being viewed read-only, not yet unlocked via Request
+  // Correction). The fields are disabled so a person can't type into them,
+  // but calcCash() still re-runs on every renderCashTab() call, and without
+  // this guard it would just re-save the same values right back — which
+  // defeats the point of a distinct, logged correction step.
+  const existingRec = state.cash[date] && state.cash[date][staffId];
+  const isLockedForSync = !!(existingRec && existingRec.savedAt) && !unlockedCashKeys[cashRecordKey(date, staffId)];
+  if(hasData && !isLockedForSync){
     if(!state.cash[date]) state.cash[date] = {};
     // Preserve the existing savedAt timestamp (set only by the explicit
     // Save button, see saveCash()) so live-sync writes on every keystroke
@@ -3752,6 +3913,10 @@ function buildCashRecord(c){
 function saveCash(){
   const date = document.getElementById('cashDate').value;
   const staffId = document.getElementById('cashStaff').value;
+  const key = cashRecordKey(date, staffId);
+  const priorRec = state.cash[date] && state.cash[date][staffId];
+  const wasCorrection = !!(priorRec && priorRec.savedAt) && !!unlockedCashKeys[key];
+
   const c = calcCash();
   // calcCash() above already writes the live entry into state.cash; this
   // forces it in unconditionally (covers the all-zero case, e.g. someone
@@ -3759,15 +3924,44 @@ function saveCash(){
   // confirmation feedback.
   if(!state.cash[date]) state.cash[date] = {};
   const rec = buildCashRecord(c);
-  // Capture the moment this Save button was actually clicked (not just
-  // when the form was live-synced on every keystroke) so the Past Cash
-  // Denomination Records table can show exactly when each entry was saved.
-  rec.savedAt = new Date().toISOString();
+
+  // If this save is a correction to an already-saved record (unlocked via
+  // the manager-PIN "Request Correction" flow), keep the record's original
+  // savedAt and carry forward its correction history, appending a new
+  // entry with the old values, the reason given, and when the correction
+  // was made — rather than silently discarding what it used to say.
+  if(wasCorrection){
+    const corrInfo = unlockedCashKeys[key];
+    rec.savedAt = priorRec.savedAt;
+    rec.corrections = (priorRec.corrections || []).concat([{
+      reason: corrInfo.reason,
+      correctedAt: new Date().toISOString(),
+      previous: {
+        denoms: priorRec.denoms, coinsTotal: priorRec.coinsTotal,
+        testingHSDQty: priorRec.testingHSDQty, testingMSQty: priorRec.testingMSQty,
+        onlineAmt: priorRec.onlineAmt, cardAmt: priorRec.cardAmt,
+        loans: priorRec.loans, deposit: priorRec.deposit,
+        finalValue: priorRec.finalValue, difference: priorRec.difference, status: priorRec.status
+      }
+    }]);
+  } else {
+    // Capture the moment this Save button was actually clicked (not just
+    // when the form was live-synced on every keystroke) so the Past Cash
+    // Denomination Records table can show exactly when each entry was saved.
+    rec.savedAt = new Date().toISOString();
+  }
+
   state.cash[date][staffId] = rec;
-  const savedTimeStr = new Date(rec.savedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  document.getElementById('cashSavedHint').textContent = 'Saved to Staff Surplus / Short Data for ' + date + ' at ' + savedTimeStr + '.';
+  // Saving re-locks the record — a correction is a one-time, logged
+  // action, not a standing "editable" state to leave open.
+  delete unlockedCashKeys[key];
+
+  const savedTimeStr = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('cashSavedHint').textContent = wasCorrection
+    ? 'Correction saved at ' + savedTimeStr + '. Record is locked again.'
+    : 'Saved to Staff Surplus / Short Data for ' + date + ' at ' + savedTimeStr + '.';
   scheduleAutosave();
-  renderCashHistory();
+  renderCashTab();
 }
 
 /* ---- Past cash denomination records (history) ---- */
@@ -3813,16 +4007,10 @@ function renderCashHistory(){
       <td class="num">${(r.denoms&&r.denoms[10])||0}</td>
       <td class="num">${fmtNum(r.coinsTotal||0)}</td>
       <td class="num">${fmtNum(r.finalValue)}</td>
-      <td><span class="badge ${r.status.toLowerCase()}">${r.status}</span></td>
+      <td><span class="badge ${r.status.toLowerCase()}">${r.status}</span>${r.corrections && r.corrections.length ? '<span class="badge edited" title="Corrected '+r.corrections.length+' time(s)">✏️ Edited</span>' : ''}</td>
       <td class="mono">${r.savedAt ? new Date(r.savedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—'}</td>
-      <td><button class="btn ghost small" onclick="loadCashRecord('${r.date}','${r.sid}')">Load</button></td>
+      <td><button class="btn ghost small" onclick="loadCashRecordReadOnly('${r.date}','${r.sid}')">View</button></td>
     </tr>`).join('');
-}
-function loadCashRecord(date, sid){
-  document.getElementById('cashDate').value = date;
-  document.getElementById('cashStaff').value = sid;
-  renderCashTab();
-  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 /* ============== STAFF SURPLUS / SHORT DATA TAB ============== */
@@ -4275,5 +4463,26 @@ setInterval(function(){
   fetch(base + '/api/health', { cache: 'no-store' }).catch(()=>{ /* best-effort only */ });
 }, 4 * 60 * 1000);
 </script>
+  <!-- ===================== CASH RECORD CORRECTION MODAL ===================== -->
+  <div class="correction-modal-backdrop" id="correctionModalBackdrop">
+    <div class="correction-modal">
+      <h3>✏️ Request Correction</h3>
+      <p class="hint">This record is saved and locked. Enter the manager edit PIN and a reason to unlock it for editing. The original values and this reason will be kept in the record's history.</p>
+      <div class="field">
+        <label>Edit PIN</label>
+        <input type="password" id="correctionPin" autocomplete="off" placeholder="Enter manager PIN">
+      </div>
+      <div class="field">
+        <label>Reason for correction</label>
+        <input type="text" id="correctionReason" autocomplete="off" placeholder="e.g. counting error, wrong staff selected">
+      </div>
+      <div class="modal-error" id="correctionModalError">Incorrect PIN or missing reason. Please try again.</div>
+      <div class="modal-actions">
+        <button class="btn ghost small" onclick="closeCorrectionModal()">Cancel</button>
+        <button class="btn amber small" onclick="submitCorrectionUnlock()">Unlock for Editing</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
