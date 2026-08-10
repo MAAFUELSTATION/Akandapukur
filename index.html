@@ -3591,7 +3591,13 @@ function renderCashTab(){
   // reason). Records that only exist from live-typing (no savedAt yet)
   // are always freely editable — they haven't been committed to the
   // Staff Surplus / Short log yet.
-  const isLockedRecord = !!(existing && existing.savedAt) && !unlockedCashKeys[cashRecordKey(date, staffId)];
+  // A record is treated as locked if either (a) it was explicitly saved
+  // (has savedAt), or (b) its date is in the past — a past date should
+  // never still be "in progress" and editable-by-default just because
+  // someone typed into it once and never hit Save. Only today's date
+  // stays freely editable while it's actively being entered.
+  const isPastDate = date < todayStr();
+  const isLockedRecord = !!(existing && (existing.savedAt || isPastDate)) && !unlockedCashKeys[cashRecordKey(date, staffId)];
   applyCashLockState(isLockedRecord, existing);
 
   document.getElementById('denomGrid').innerHTML = NOTES.map(d=>`
@@ -3868,7 +3874,7 @@ function calcCash(){
   // this guard it would just re-save the same values right back — which
   // defeats the point of a distinct, logged correction step.
   const existingRec = state.cash[date] && state.cash[date][staffId];
-  const isLockedForSync = !!(existingRec && existingRec.savedAt) && !unlockedCashKeys[cashRecordKey(date, staffId)];
+  const isLockedForSync = !!(existingRec && (existingRec.savedAt || date < todayStr())) && !unlockedCashKeys[cashRecordKey(date, staffId)];
   if(hasData && !isLockedForSync){
     if(!state.cash[date]) state.cash[date] = {};
     // Preserve the existing savedAt timestamp (set only by the explicit
