@@ -1836,7 +1836,7 @@ function stopLocationWatch(){
 }
 
 function handleDeviceBlocked(){
-  try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
   lockApp();
   const errEl = document.getElementById('loginError');
   if(errEl){
@@ -2054,7 +2054,7 @@ function playLoginSuccessSound(){
 
 function idleLogout(){
   if(!isAppUnlocked()) return;
-  try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
   lockApp();
 }
 
@@ -2138,13 +2138,19 @@ function lockApp(){
 
 function logoutApp(){
   if(!confirm('Lock the console? You will need the password to open it again on this device.')) return;
-  try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
   lockApp();
 }
 
 (function initLoginGate(){
   try{
-    if(localStorage.getItem(AUTH_STORAGE_KEY) === 'granted'){
+    // sessionStorage (not localStorage): the whole point is that closing
+    // the browser/tab, or shutting the device down, ends the session — the
+    // browser clears sessionStorage on its own when that happens, so simply
+    // storing the "logged in" flag here is enough to require the password
+    // again next time the app is opened. A page reload/refresh within the
+    // same open tab keeps the session, same as before.
+    if(sessionStorage.getItem(AUTH_STORAGE_KEY) === 'granted'){
       unlockApp();
     } else {
       lockApp();
@@ -2164,7 +2170,7 @@ function logoutApp(){
     const p = passInp.value;
     if(u === VALID_USERNAME && p === VALID_PASSWORD){
       errEl.classList.remove('show');
-      try{ localStorage.setItem(AUTH_STORAGE_KEY, 'granted'); }catch(e){}
+      try{ sessionStorage.setItem(AUTH_STORAGE_KEY, 'granted'); }catch(e){}
       playLoginSuccessSound();
       unlockApp();
       registerDeviceWithServer();
