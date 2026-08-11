@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maa Fuel Station</title>
+<!-- SheetJS (xlsx) — used only by "Backup to Excel" to build a downloadable .xlsx snapshot of the current data. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 // Apply the saved interface theme (Light, Graphite, or Cyan) as early as possible,
 // before the page paints, so switching themes never causes a flash of the
@@ -90,6 +92,11 @@
   header.top .right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   header.top .date-live{font-family:'JetBrains Mono',monospace;background:var(--navy2);padding:8px 14px;border-radius:6px;font-size:13px;border:1px solid #2a4d68;}
   .autosave-indicator{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9FD6C4;background:var(--navy2);padding:7px 12px;border-radius:6px;border:1px solid #2a4d68;white-space:nowrap;}
+  /* ---- Server status badge (Active / Sleeping / Waking / Unreachable) ---- */
+  .autosave-indicator.server-status-active{color:#8FE3B0;}
+  .autosave-indicator.server-status-waking{color:#FFD98A;}
+  .autosave-indicator.server-status-sleeping{color:#FFB4A8;}
+  .autosave-indicator.server-status-idle{color:#B8C4CF;}
   .iobtns button{background:transparent;border:1px solid #3a5b74;color:#dfe8ee;padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:6px;font-family:'Inter',sans-serif;}
   .iobtns button:hover{background:var(--navy2);}
   #themeSelect{background:transparent;border:1px solid #3a5b74;color:#dfe8ee;padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:6px;font-family:'Inter',sans-serif;}
@@ -388,6 +395,17 @@
   .correction-modal .modal-error{color:var(--shortfall);font-size:12.5px;margin-top:6px;display:none;}
   .correction-modal .modal-error.show{display:block;}
   .correction-history{margin-top:10px;font-size:12.5px;background:#FAFAF8;border:1px dashed #DDD5C2;border-radius:10px;padding:10px 12px;}
+
+  /* ---- Audit log (history) modal ---- */
+  .audit-modal{max-width:640px;max-height:82vh;display:flex;flex-direction:column;}
+  .audit-modal .audit-controls{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  .audit-modal .audit-controls input[type="date"]{padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;}
+  .audit-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px;padding-right:4px;}
+  .audit-entry{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#FAFAF8;}
+  .audit-entry .audit-meta{font-size:11.5px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .audit-entry .audit-lines{font-size:12.5px;line-height:1.6;}
+  .audit-entry .audit-lines div{padding:2px 0;}
+  .audit-entry .audit-lines .removed{color:var(--shortfall);font-weight:600;}
   .correction-history summary{cursor:pointer;font-weight:700;color:var(--navy);}
   .correction-history .corr-entry{margin-top:8px;padding-top:8px;border-top:1px solid #E8E0CC;}
   .correction-history .corr-entry:first-of-type{border-top:none;padding-top:0;}
@@ -1018,6 +1036,7 @@
   </div>
   <div class="right">
     <div class="date-live" id="liveDate"></div>
+    <div class="autosave-indicator server-status-idle" id="serverStatusIndicator" title="Whether the backend that stores your data is awake right now">⚪ Server: Checking…</div>
     <div class="autosave-indicator" id="autosaveStatus">Autosave: idle</div>
     <div class="iobtns">
       <select id="themeSelect" onchange="setTheme(this.value)" title="Switch the interface theme">
@@ -1028,7 +1047,9 @@
       </select>
       <button onclick="configureServerUrl()" title="Set the backend server URL for live multi-device sync">🔗 Server</button>
       <button onclick="manualFetchFromServer()" title="Force-reload the latest data from the database">⬇️ Fetch from Database</button>
+      <button onclick="openAuditLogModal()" title="See a history of every change synced to the server, and which device made it">📜 History</button>
       <button onclick="exportData()" title="Download all data as a backup file">Export Data</button>
+      <button onclick="exportDataExcel()" title="Download all data as an Excel workbook (read-only backup)">⬇ Backup to Excel</button>
       <button onclick="document.getElementById('importFile').click()" title="Restore from a backup file">Import Data</button>
       <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this.files[0])">
       <button class="logout-btn" onclick="logoutApp()" title="Lock the console">🔒 Logout</button>
@@ -2266,6 +2287,56 @@ function getApiBase(){
   return (raw ? raw.trim() : DEFAULT_API_BASE).replace(/\/$/, '');
 }
 
+/* ============== SERVER STATUS (Active / Sleeping) ============== */
+// Free-tier hosts (Render etc.) spin the backend down after ~15 min idle.
+// This badge tells the person, before they start entering a shift's data,
+// whether the backend is actually up and able to sync right now — instead
+// of only finding out after "Saving…" hangs.
+function setServerStatus(kind, text){
+  const el = document.getElementById('serverStatusIndicator');
+  if(!el) return;
+  el.classList.remove('server-status-active','server-status-waking','server-status-sleeping','server-status-idle');
+  el.classList.add('server-status-' + kind);
+  el.textContent = text;
+}
+let serverStatusPingInFlight = false;
+async function pingServerStatus(){
+  const base = getApiBase();
+  if(!base){
+    setServerStatus('idle', '⚪ Server: Not configured');
+    return;
+  }
+  if(serverStatusPingInFlight) return;
+  serverStatusPingInFlight = true;
+  setServerStatus('idle', '⚪ Server: Checking…');
+  const start = Date.now();
+  const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  // Generous timeout — a free-tier cold start can take 30-60s, and that's
+  // exactly the "waking up" case this is meant to surface, not time out on.
+  const timeoutId = controller ? setTimeout(()=>controller.abort(), 45000) : null;
+  try{
+    const res = await fetch(base + '/api/health', { cache:'no-store', signal: controller ? controller.signal : undefined });
+    if(timeoutId) clearTimeout(timeoutId);
+    const elapsed = Date.now() - start;
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json().catch(()=>({}));
+    if(data && data.dbConnected === false){
+      setServerStatus('waking', '🟡 Server: Starting up (database connecting…)');
+    } else if(elapsed > 3000){
+      // Slow response = it just had to wake from sleep to answer this ping.
+      setServerStatus('active', '🟢 Server: Active (just woke up)');
+    } else {
+      setServerStatus('active', '🟢 Server: Active');
+    }
+  }catch(e){
+    if(timeoutId) clearTimeout(timeoutId);
+    const timedOut = e && e.name === 'AbortError';
+    setServerStatus('sleeping', timedOut ? '🔴 Server: Sleeping (waking up — retry shortly)' : '🔴 Server: Unreachable');
+  }finally{
+    serverStatusPingInFlight = false;
+  }
+}
+
 function configureServerUrl(){
   const current = getApiBase();
   const input = prompt(
@@ -2288,6 +2359,7 @@ function initServerSync(retryCount){
   if(!base){
     serverSyncEnabled = false;
     setAutosaveStatus('Local autosave only — tap 🔗 Server to enable sync');
+    setServerStatus('idle', '⚪ Server: Not configured');
     return;
   }
   if(typeof io === 'undefined'){
@@ -2305,6 +2377,7 @@ function initServerSync(retryCount){
     return;
   }
   serverSyncEnabled = true;
+  pingServerStatus();
   // Fire the initial load from here, not from the bottom of the page. The
   // Socket.IO client loads asynchronously (see the loader at the top of
   // <head>), so by the time the page-bottom init code runs, `io` often
@@ -2327,10 +2400,20 @@ function initServerSync(retryCount){
   socket = io(base, { transports: ['websocket','polling'], query: { deviceId: getDeviceId() } });
   socket.on('connect', ()=>{
     setAutosaveStatus('Connected — live sync active');
+    setServerStatus('active', '🟢 Server: Active (live)');
     if(isAppUnlocked()) registerDeviceWithServer();
   });
-  socket.on('disconnect', ()=> setAutosaveStatus('Offline — changes saved locally, will sync on reconnect', true));
-  socket.on('connect_error', ()=> setAutosaveStatus('Cannot reach server — check the URL (🔗 Server)', true));
+  socket.on('disconnect', ()=>{
+    setAutosaveStatus('Offline — changes saved locally, will sync on reconnect', true);
+    // The socket dropping doesn't necessarily mean the backend went to
+    // sleep (could be this device's own network) — re-ping to find out
+    // which it actually is, rather than guessing from the disconnect alone.
+    pingServerStatus();
+  });
+  socket.on('connect_error', ()=>{
+    setAutosaveStatus('Cannot reach server — check the URL (🔗 Server)', true);
+    pingServerStatus();
+  });
   socket.on('device:blocked', ()=> handleDeviceBlocked());
   socket.on('devices:changed', ()=>{
     // Only bother re-rendering if the Devices tab is actually open right now.
@@ -4251,6 +4334,222 @@ function exportData(){
   a.click();
   URL.revokeObjectURL(url);
 }
+// Read-only Excel backup: a human-readable snapshot of everything currently
+// held in `state`, laid out as one row per staff/shift/date instead of the
+// nested JSON that exportData() produces. This is for safekeeping/inspection
+// (e.g. open it in Excel and see exactly what the app has for a given
+// evening) — restoring data still goes through Export/Import Data (JSON),
+// not this file.
+function exportDataExcel(){
+  if(typeof XLSX === 'undefined'){
+    alert('The Excel library did not load (no internet connection?). Use "Export Data" for a JSON backup instead.');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  // --- Staff ---
+  const staffRows = state.staff.map(s=>({ID:s.id, Name:s.name}));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(staffRows), 'Staff');
+
+  // --- Shift-wise nozzle readings & assignment (one row per date/shift/nozzle) ---
+  const salesRows = [];
+  // --- Staff totals per shift (Diesel/Petrol litres & amount — this is the
+  // "who sold what, which shift" view, including the Night/evening shift) ---
+  const staffShiftRows = [];
+  Object.keys(state.sales).sort().forEach(date=>{
+    SHIFTS.forEach(sh=>{
+      const sd = state.sales[date][sh.id];
+      if(!sd) return;
+      NOZZLES.forEach(nz=>{
+        const assignedId = sd.assign[nz.id];
+        if(!assignedId && !sd.closing[nz.id]) return; // skip fully-empty rows
+        salesRows.push({
+          Date: date,
+          Shift: sh.label,
+          Nozzle: nz.label,
+          Unit: nz.unit,
+          Fuel: nz.fuel,
+          'Assigned Staff': assignedId ? staffNameById(assignedId) : '',
+          'Opening Reading': getOpeningReading(date, sh.id, nz.id),
+          'Closing Reading': getClosingReading(date, sh.id, nz.id),
+          'Litres Sold': nozzleLitres(date, sh.id, nz.id)
+        });
+      });
+      staffIdsForDate(date).forEach(sid=>{
+        // Only include this staff member on shifts they were actually
+        // assigned a nozzle in, so the sheet doesn't pad every shift row
+        // with every staff member who worked elsewhere that day.
+        const worked = Object.values(sd.assign).includes(sid);
+        if(!worked) return;
+        const t = computeStaffShiftTotals(date, sh.id, sid);
+        staffShiftRows.push({
+          Date: date,
+          Shift: sh.label,
+          Staff: staffNameById(sid),
+          'Diesel Litres': Number(t.dl.toFixed(2)),
+          'Diesel Amount': Number(t.da.toFixed(2)),
+          'Petrol Litres': Number(t.pl.toFixed(2)),
+          'Petrol Amount': Number(t.pa.toFixed(2)),
+          'Shift Total Amount': Number((t.da+t.pa).toFixed(2))
+        });
+      });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(salesRows), 'Nozzle Readings');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(staffShiftRows), 'Staff Shift Totals');
+
+  // --- Cash reconciliation (one row per date/staff) ---
+  const cashRows = [];
+  Object.keys(state.cash).sort().forEach(date=>{
+    Object.keys(state.cash[date]).forEach(sid=>{
+      const rec = state.cash[date][sid];
+      cashRows.push({
+        Date: date,
+        Staff: staffNameById(sid),
+        'Cash Counted': rec.cashCounted,
+        'Online Amount': rec.onlineAmt,
+        'Card Amount': rec.cardAmt,
+        'Loan/Deposit Net': (Number(rec.loan)||0) - (Number(rec.deposit)||0),
+        'Sales Amount': rec.salesAmount,
+        'Final Value': rec.finalValue,
+        Difference: rec.difference,
+        Status: rec.status,
+        'Saved At': rec.savedAt || ''
+      });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cashRows), 'Cash Reconciliation');
+
+  // --- Fuel rates ---
+  const rateRows = Object.keys(state.rates).sort().map(date=>({
+    Date: date,
+    'Diesel Rate': state.rates[date].diesel,
+    'Petrol Rate': state.rates[date].petrol
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rateRows), 'Fuel Rates');
+
+  // --- Duty roster ---
+  const dutyRows = [];
+  Object.keys(state.duty).sort().forEach(date=>{
+    const d = state.duty[date];
+    SHIFTS.forEach(sh=>{
+      const cell = d[sh.id];
+      if(!cell) return;
+      const names = (cell.staff||[]).map(id=>staffNameById(id)).concat((cell.manual||[]).map(m=>m.text));
+      if(!names.length) return;
+      dutyRows.push({ Date: date, Shift: sh.label, 'Staff On Duty': names.join(', ') });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dutyRows), 'Duty Roster');
+
+  XLSX.writeFile(wb, 'maa-fuel-station-backup-' + todayStr() + '.xlsx');
+}
+
+/* ============== AUDIT LOG / HISTORY ============== */
+function openAuditLogModal(){
+  document.getElementById('auditModalBackdrop').classList.add('show');
+  loadAuditLog();
+}
+function closeAuditLogModal(){
+  document.getElementById('auditModalBackdrop').classList.remove('show');
+}
+async function loadAuditLog(){
+  const listEl = document.getElementById('auditList');
+  const base = getApiBase();
+  if(!base){
+    listEl.innerHTML = '<div class="empty">No backend URL configured — tap 🔗 Server first.</div>';
+    return;
+  }
+  listEl.innerHTML = '<div class="empty">Loading…</div>';
+  const date = document.getElementById('auditDateFilter').value;
+  const url = base + '/api/audit-log' + (date ? ('?date=' + encodeURIComponent(date)) : '');
+  try{
+    const res = await fetch(url, { headers: { 'X-Device-Id': getDeviceId() } });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const entries = await res.json();
+    renderAuditLog(entries);
+  }catch(e){
+    listEl.innerHTML = '<div class="empty">Could not load history: ' + escapeHtml(e.message || 'unknown error') + '</div>';
+  }
+}
+function auditNozzleLabel(nzId){
+  const nz = NOZZLES.find(n=>n.id===nzId);
+  return nz ? nz.label + (nz.unit ? (' (Unit ' + nz.unit + ')') : '') : nzId;
+}
+function auditStaffLabel(sid){
+  if(!sid) return 'Unassigned';
+  const s = state.staff.find(x=>x.id===sid);
+  return s ? s.name : ('Removed staff (' + sid + ')');
+}
+// Turns one {date, shift, before, after} sales change into readable lines.
+function describeSalesChange(c){
+  const lines = [];
+  const shiftLabel = (SHIFTS.find(s=>s.id===c.shift) || {label:c.shift}).label;
+  if(!c.before && c.after){
+    lines.push(`<div>${shiftLabel} shift data was created.</div>`);
+  } else if(c.before && !c.after){
+    lines.push(`<div class="removed">⚠ ${shiftLabel} shift data was entirely removed.</div>`);
+  } else if(c.before && c.after){
+    const nzIds = new Set([...Object.keys(c.before.closing||{}), ...Object.keys(c.after.closing||{}), ...Object.keys(c.before.assign||{}), ...Object.keys(c.after.assign||{})]);
+    nzIds.forEach(nzId=>{
+      const oc = (c.before.closing||{})[nzId], nc = (c.after.closing||{})[nzId];
+      const oa = (c.before.assign||{})[nzId], na = (c.after.assign||{})[nzId];
+      if(String(oc??'') !== String(nc??'')){
+        const cleared = (Number(nc)||0)===0 && (Number(oc)||0)!==0;
+        lines.push(`<div${cleared?' class="removed"':''}>${cleared?'⚠ ':''}${auditNozzleLabel(nzId)}: closing reading ${fmtNum(oc||0)} → ${fmtNum(nc||0)}</div>`);
+      }
+      if(String(oa??'') !== String(na??'')){
+        lines.push(`<div>${auditNozzleLabel(nzId)}: assigned staff ${auditStaffLabel(oa)} → ${auditStaffLabel(na)}</div>`);
+      }
+    });
+    const ot=c.before.testing||{}, nt=c.after.testing||{};
+    if((Number(ot.hsd)||0)!==(Number(nt.hsd)||0)) lines.push(`<div>Testing (Diesel ₹): ${fmtNum(ot.hsd||0)} → ${fmtNum(nt.hsd||0)}</div>`);
+    if((Number(ot.ms)||0)!==(Number(nt.ms)||0)) lines.push(`<div>Testing (Petrol ₹): ${fmtNum(ot.ms||0)} → ${fmtNum(nt.ms||0)}</div>`);
+  }
+  return lines.length ? lines : [`<div>${shiftLabel} shift data changed.</div>`];
+}
+function describeCashChange(c){
+  const before = c.before || {}, after = c.after || {};
+  const staffIds = new Set([...Object.keys(before), ...Object.keys(after)]);
+  const lines = [];
+  staffIds.forEach(sid=>{
+    const name = auditStaffLabel(sid);
+    if(before[sid] && !after[sid]) lines.push(`<div class="removed">⚠ Cash record for ${name} removed.</div>`);
+    else if(!before[sid] && after[sid]) lines.push(`<div>Cash record for ${name} added.</div>`);
+    else if(JSON.stringify(before[sid])!==JSON.stringify(after[sid])) lines.push(`<div>Cash record for ${name} edited.</div>`);
+  });
+  return lines;
+}
+function describeRateChange(c){
+  const b = c.before || {}, a = c.after || {};
+  return [`<div>Fuel rate: Diesel ₹${fmtNum(b.diesel||0)} → ₹${fmtNum(a.diesel||0)}, Petrol ₹${fmtNum(b.petrol||0)} → ₹${fmtNum(a.petrol||0)}</div>`];
+}
+function renderAuditLog(entries){
+  const listEl = document.getElementById('auditList');
+  if(!entries || !entries.length){
+    listEl.innerHTML = '<div class="empty">No changes recorded for this filter yet.</div>';
+    return;
+  }
+  listEl.innerHTML = entries.map(e=>{
+    const when = new Date(e.at).toLocaleString('en-IN', {dateStyle:'medium', timeStyle:'medium'});
+    let lines = [];
+    (e.changes.sales||[]).forEach(c=> lines.push(...describeSalesChange(c).map(l=> l.replace('<div', `<div data-date="${escapeHtml(c.date)}"`))));
+    (e.changes.cash||[]).forEach(c=> lines.push(...describeCashChange(c)));
+    (e.changes.rates||[]).forEach(c=> lines.push(...describeRateChange(c)));
+    (e.changes.duty||[]).forEach(c=> lines.push(`<div>Duty roster for ${escapeHtml(c.date)} changed.</div>`));
+    if(e.changes.staff){
+      const beforeIds = new Set((e.changes.staff.before||[]).map(s=>s.id));
+      const afterIds = new Set((e.changes.staff.after||[]).map(s=>s.id));
+      (e.changes.staff.after||[]).forEach(s=>{ if(!beforeIds.has(s.id)) lines.push(`<div>Staff added: ${escapeHtml(s.name)}</div>`); });
+      (e.changes.staff.before||[]).forEach(s=>{ if(!afterIds.has(s.id)) lines.push(`<div class="removed">⚠ Staff removed: ${escapeHtml(s.name)}</div>`); });
+    }
+    if(!lines.length) lines = ['<div>Data changed (no readable summary).</div>'];
+    return `<div class="audit-entry">
+      <div class="audit-meta"><span>${when}</span><span>${escapeHtml(e.deviceLabel || 'Unknown device')}</span></div>
+      <div class="audit-lines">${lines.join('')}</div>
+    </div>`;
+  }).join('');
+}
 function importData(file){
   if(!file) return;
   const reader = new FileReader();
@@ -4458,17 +4757,34 @@ if(isAppUnlocked()) registerDeviceWithServer();
 
 // Free-tier backends (Render etc.) spin down after ~15 min idle, and the
 // next request then has to wait 30-60s for it to wake back up — that's
-// what causes "Saving…" to hang. Pinging a lightweight endpoint every few
-// minutes while this tab is open keeps the backend from going to sleep
-// during an active session, so saves stay fast. This can't prevent the
-// very first cold start of a session, only ones after that.
+// what causes "Saving…" to hang. Pinging a lightweight endpoint every
+// minute while this tab is open keeps the backend from going to sleep
+// during an active session (so saves stay fast) and keeps the Server
+// status badge up to date. This can't prevent the very first cold start
+// of a session, only ones after that.
 setInterval(function(){
   if(!serverSyncEnabled) return;
-  const base = getApiBase();
-  if(!base) return;
-  fetch(base + '/api/health', { cache: 'no-store' }).catch(()=>{ /* best-effort only */ });
-}, 4 * 60 * 1000);
+  pingServerStatus();
+}, 60 * 1000);
 </script>
+  <!-- ===================== AUDIT LOG / HISTORY MODAL ===================== -->
+  <div class="correction-modal-backdrop" id="auditModalBackdrop">
+    <div class="correction-modal audit-modal">
+      <h3>📜 Change History</h3>
+      <p class="hint">Every save that reached the server, what changed, and which device made it — use this to trace when data for a shift changed or went missing.</p>
+      <div class="audit-controls">
+        <label style="font-size:12.5px;font-weight:600;">Filter by date:</label>
+        <input type="date" id="auditDateFilter" onchange="loadAuditLog()">
+        <button class="btn ghost small" onclick="document.getElementById('auditDateFilter').value='';loadAuditLog();">Clear filter</button>
+        <button class="btn ghost small" onclick="loadAuditLog()">↻ Refresh</button>
+      </div>
+      <div class="audit-list" id="auditList"><div class="empty">Loading…</div></div>
+      <div class="modal-actions">
+        <button class="btn ghost small" onclick="closeAuditLogModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===================== CASH RECORD CORRECTION MODAL ===================== -->
   <div class="correction-modal-backdrop" id="correctionModalBackdrop">
     <div class="correction-modal">
