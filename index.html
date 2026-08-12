@@ -436,9 +436,14 @@
   .cc-header-card{margin-bottom:16px;}
   .cc-layout{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;align-items:start;}
   @media(max-width:900px){.cc-layout{grid-template-columns:1fr;}}
-  .cc-entry{display:flex;flex-direction:column;gap:16px;min-width:0;}
+  .cc-entry{display:flex;flex-direction:column;gap:12px;min-width:0;}
   .cc-block{margin-bottom:0;}
-  .cc-block-title{font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--navy);}
+  .cc-block-title{font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--navy);cursor:pointer;user-select:none;}
+  .cc-block-title .cc-chev{margin-left:8px;font-size:11px;color:var(--muted);transition:transform .18s ease;flex-shrink:0;}
+  .cc-block.collapsed .cc-block-title{margin-bottom:0;}
+  .cc-block.collapsed .cc-block-title .cc-chev{transform:rotate(-90deg);}
+  .cc-block-body{overflow:hidden;}
+  .cc-block.collapsed .cc-block-body{display:none;}
   .cc-ico{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--cream);font-size:15px;flex-shrink:0;}
   .cc-summary{position:sticky;top:16px;}
   .cc-receipt{background:var(--navy);color:#fff;border:none;padding:22px 20px;}
@@ -478,14 +483,12 @@
   #tab-cash .cc-header-card{background:linear-gradient(118deg,#FFFFFF 0%,#F8F3E7 100%);border-top:5px solid var(--petrol);box-shadow:0 5px 18px rgba(15,42,61,.07);}
   #tab-cash .cc-header-card h2{display:flex;align-items:center;gap:9px;color:var(--navy);}
   #tab-cash .cc-header-card .tag{background:#FFF0D9;color:#87511A;border-radius:999px;padding:5px 9px;letter-spacing:.6px;}
-  #tab-cash .cc-block{border-radius:14px;border:1px solid #E5DDCA;box-shadow:0 3px 12px rgba(15,42,61,.05);padding:20px;}
+  #tab-cash .cc-block{border-radius:14px;border:1px solid #E5DDCA;box-shadow:0 3px 12px rgba(15,42,61,.05);padding:20px;transition:padding .18s ease;}
+  #tab-cash .cc-block.collapsed{padding:14px 20px;box-shadow:0 1px 5px rgba(15,42,61,.04);}
   #tab-cash .cc-block-title{padding-bottom:11px;border-bottom:1px solid #E8E0CC;margin-bottom:16px;}
+  #tab-cash .cc-block.collapsed .cc-block-title{padding-bottom:0;border-bottom:none;}
   #tab-cash .cc-block-title .tag{margin-left:auto;background:#F2F4F8;border-radius:999px;padding:5px 8px;font-size:10px;}
-  #tab-cash .cc-entry > .cc-block:first-child{border-top:4px solid var(--petrol);}
-  #tab-cash .cc-entry > .cc-block:nth-child(2){border-top:4px solid var(--diesel);}
-  #tab-cash .cc-entry > .cc-block:nth-child(3){border-top:4px solid #7C67B8;}
-  #tab-cash .cc-entry > .cc-block:nth-child(4){border-top:4px solid #3F92A1;}
-  #tab-cash .cc-entry > .cc-block:nth-child(5){border-top:4px solid #1E8E5A;}
+  #tab-cash .cc-entry > .cc-block{border-top:4px solid var(--petrol);}
   #tab-cash .denom-cell{background:linear-gradient(145deg,#fff 0%,#FCFAF5 100%);border-radius:10px;}
   #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 4px rgba(224,138,43,.16);border-color:var(--petrol);}
   #tab-cash .cash-counted-coins{background:#FFF8EC;border:1px solid #F1D7AE;border-radius:10px;padding:13px 14px;margin-bottom:0;}
@@ -1328,16 +1331,19 @@
       <div class="cc-entry" id="cashEntryCard">
 
         <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">💵</span> Cash Counted <span class="tag">Notes and coins together</span></h2>
+          <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">💵</span> Cash Counted <span class="tag">Notes and coins together</span><span class="cc-chev">▼</span></h2>
+          <div class="cc-block-body">
           <div class="denom-grid" id="denomGrid"></div>
           <div class="field cash-counted-coins">
             <label>Coins total ₹</label>
             <input type="number" id="coinsTotal" min="0" step="0.01" value="0" oninput="calcCash()">
           </div>
+          </div>
         </div>
 
-        <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">⛽</span> Testing Fuel <span class="tag">Added to Final Cash Value</span></h2>
+        <div class="card cc-block collapsed">
+          <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">⛽</span> Testing Fuel <span class="tag">Added to Final Cash Value</span><span class="cc-chev">▼</span></h2>
+          <div class="cc-block-body">
           <div class="grid2">
             <div class="field">
               <label>Testing HSD (Diesel) Quantity</label>
@@ -1362,10 +1368,12 @@
               <div class="hint" id="testingMSValDisplay" style="font-weight:600; color:var(--navy); margin-top:4px;">Calculated: ₹0.00</div>
             </div>
           </div>
+          </div>
         </div>
 
-        <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">💳</span> Online &amp; Card Payments <span class="tag">Added to Final Cash Value</span></h2>
+        <div class="card cc-block collapsed">
+          <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">💳</span> Online &amp; Card Payments <span class="tag">Added to Final Cash Value</span><span class="cc-chev">▼</span></h2>
+          <div class="cc-block-body">
           <div class="grid2">
             <div class="field">
               <label>Online / UPI ₹</label>
@@ -1376,25 +1384,31 @@
               <input type="number" id="cardAmt" min="0" step="0.01" value="0" oninput="calcCash()">
             </div>
           </div>
+          </div>
         </div>
 
-        <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">🤝</span> Loan Given <span class="tag">Up to 10 people</span></h2>
+        <div class="card cc-block collapsed">
+          <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🤝</span> Loan Given <span class="tag">Up to 10 people</span><span class="cc-chev">▼</span></h2>
+          <div class="cc-block-body">
           <div id="loanRows"></div>
           <button class="btn ghost small" id="addLoanBtn" onclick="addLoanRow()">+ Add Person</button>
           <div class="loan-total-line"><span>Total Loan</span><span class="mono" id="loanTotalDisplay">₹0.00</span></div>
+          </div>
         </div>
 
-        <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">🏦</span> Deposit</h2>
+        <div class="card cc-block collapsed">
+          <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🏦</span> Deposit<span class="cc-chev">▼</span></h2>
+          <div class="cc-block-body">
           <div class="field" style="max-width:260px;">
             <label>Deposit ₹ — banked / deposited amount</label>
             <input type="number" id="depositAmt" min="0" step="0.01" value="0" oninput="calcCash()">
           </div>
+          </div>
         </div>
 
-        <div class="card cc-block">
-          <h2 class="cc-block-title"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹25 same-day · ₹10 within 2 days</span></h2>
+        <div class="card cc-block collapsed">
+          <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹25 same-day · ₹10 within 2 days</span><span class="cc-chev">▼</span></h2>
+          <div class="cc-block-body">
           <div class="hint" style="margin-bottom:10px;">Tracked per staff member. A box issued at/after 11:00 AM has its incentive clock start the next day.</div>
 
           <button class="btn ghost small" onclick="issuePouchBox(document.getElementById('cashStaff').value)">📦 Issue New Box (50 pcs) to selected staff</button>
@@ -1412,6 +1426,7 @@
 
           <div class="hint" style="margin-top:14px; margin-bottom:4px; font-weight:600;">Recently closed boxes</div>
           <div id="addonClosedBoxes"></div>
+          </div>
         </div>
 
       </div>
@@ -1449,8 +1464,12 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Past Cash Denomination Records <span class="tag">Every saved entry</span></h2>
+    <div class="divider" style="margin-top:4px;"></div>
+    <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 12px;">📊 Reports &amp; Monthly Incentives <span style="font-weight:400;text-transform:none;letter-spacing:0;">— tap a heading to expand</span></h3>
+
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Past Cash Denomination Records <span class="tag">Every saved entry</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
       <div class="row">
         <div class="field">
           <label>Filter by Month</label>
@@ -1470,10 +1489,12 @@
       </table>
       </div>
       <div class="empty" id="cashHistoryEmpty" style="display:none;">No saved denomination records yet for this filter.</div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Add-on Pouch Incentive — Month End <span class="tag">Total incentive paid per staff</span></h2>
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Add-on Pouch Incentive — Month End <span class="tag">Total incentive paid per staff</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
       <div class="row">
         <div class="field">
           <label>Month</label>
@@ -1490,15 +1511,21 @@
       </div>
       <div class="empty" id="addonSummaryEmpty" style="display:none;">No boxes closed this month yet.</div>
       <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="addonSummaryTotal">₹0</span></div>
+      </div>
     </div>
 
     <!-- ===================== EOD SHIFT PAYOUT ===================== -->
-    <div class="card" id="eodPayoutCard">
-      <h2>🧾 EOD Shift Payout <span class="tag">Lube / Water QR incentive + breakfast, for the Staff &amp; Date selected above</span></h2>
+    <div class="card cc-block" id="eodPayoutCard">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">🧾 EOD Shift Payout <span class="tag">Lube / Water QR incentive + breakfast</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
       <div class="hint" style="margin-bottom:14px;">Uses the same Staff and Date fields at the top of this tab.</div>
 
-      <div class="card cc-block" style="margin-bottom:16px;">
-        <h2 class="cc-block-title"><span class="cc-ico">📷</span> QR Code Scanner <span class="tag">Scan the serial QR printed on each Lube / Water unit</span></h2>
+      <div style="margin-bottom:18px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span class="cc-ico" style="width:24px;height:24px;font-size:13px;">📷</span>
+          <strong style="font-size:14px;color:var(--navy);">QR Code Scanner</strong>
+          <span class="tag" style="font-size:10px;color:var(--muted);">scan the serial printed on each unit</span>
+        </div>
 
         <div class="field" style="max-width:320px;margin-bottom:12px;">
           <label>Scanning For</label>
@@ -1518,6 +1545,8 @@
         <div class="hint" id="qrScanStatus" style="margin-top:10px;"></div>
         <div class="hint" style="margin-top:6px;">Pick Lube or Water above, then scan the serial-number QR printed on each unit (like <span class="mono">251402793</span>) — every scan of a new serial logs one sale for the selected staff. Scanning the same serial twice is ignored so a bottle can't be counted twice. No camera? Use the +/- counters below instead — those don't need a QR at all.</div>
       </div>
+
+      <div class="divider"></div>
 
       <div class="grid2" style="margin-bottom:16px;">
         <div class="field">
@@ -1553,10 +1582,12 @@
         <div class="calc-line"><span>Add-on Pouch Incentive (today, closed boxes)</span><span class="mono" id="eodAddonToday">₹0.00</span></div>
         <div class="calc-line total"><span>Total EOD Payout</span><span class="mono" id="eodTotalPayout">₹0.00</span></div>
       </div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Lube &amp; Water Sale Incentive — Month End <span class="tag">Total scanned/logged per staff</span></h2>
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Lube &amp; Water Sale Incentive — Month End <span class="tag">Total scanned/logged per staff</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
       <div class="row">
         <div class="field">
           <label>Month</label>
@@ -1573,6 +1604,7 @@
       </div>
       <div class="empty" id="lubeWaterSummaryEmpty" style="display:none;">No lube or water sales logged this month yet.</div>
       <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="lubeWaterSummaryTotal">₹0.00</span></div>
+      </div>
     </div>
   </section>
 
@@ -2831,6 +2863,10 @@ function loadAutosave(){
 }
 
 /* ============== TABS ============== */
+function toggleCcBlock(headerEl){
+  const block = headerEl.closest('.cc-block');
+  if(block) block.classList.toggle('collapsed');
+}
 function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active', s.id==='tab-'+name));
