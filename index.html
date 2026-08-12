@@ -1386,6 +1386,27 @@
           </div>
         </div>
 
+        <div class="card cc-block">
+          <h2 class="cc-block-title"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹25 same-day · ₹10 within 2 days</span></h2>
+          <div class="hint" style="margin-bottom:10px;">Tracked per staff member. A box issued at/after 11:00 AM has its incentive clock start the next day.</div>
+
+          <button class="btn ghost small" onclick="issuePouchBox(document.getElementById('cashStaff').value)">📦 Issue New Box (50 pcs) to selected staff</button>
+
+          <div class="hint" style="margin-top:14px; margin-bottom:4px; font-weight:600;">Open boxes</div>
+          <div id="addonOpenBoxes"></div>
+
+          <div class="grid2" style="margin-top:14px; align-items:end;">
+            <div class="field">
+              <label>Pouches sold on this date</label>
+              <input type="number" id="addonSoldQty" min="0" step="1" value="">
+            </div>
+            <button class="btn amber small" onclick="recordPouchSale(document.getElementById('cashStaff').value, document.getElementById('cashDate').value, document.getElementById('addonSoldQty').value); document.getElementById('addonSoldQty').value='';">Record Sale</button>
+          </div>
+
+          <div class="hint" style="margin-top:14px; margin-bottom:4px; font-weight:600;">Recently closed boxes</div>
+          <div id="addonClosedBoxes"></div>
+        </div>
+
       </div>
 
       <!-- SUMMARY COLUMN -->
@@ -1442,6 +1463,26 @@
       </table>
       </div>
       <div class="empty" id="cashHistoryEmpty" style="display:none;">No saved denomination records yet for this filter.</div>
+    </div>
+
+    <div class="card">
+      <h2>Add-on Pouch Incentive — Month End <span class="tag">Total incentive paid per staff</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="addonSummaryMonth" onchange="renderAddonMonthlySummary()">
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">Boxes closed</th><th class="num">Incentive ₹</th></tr>
+        </thead>
+        <tbody id="addonSummaryBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="addonSummaryEmpty" style="display:none;">No boxes closed this month yet.</div>
+      <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="addonSummaryTotal">₹0</span></div>
     </div>
   </section>
 
@@ -2218,8 +2259,15 @@ let state = {
   cash: {},    
   noteGivenOut: [],
   duty: {},
-  tankUpdates: []
+  tankUpdates: [],
+  pouchBoxes: {}   // { staffId: [ {id, issueDate, issueTime, effectiveIssueDate, remaining, status, closedDate, incentive, soldLog[]} ] }
 };
+const ADDON_BOX_SIZE = 50;
+const ADDON_SAME_DAY_INCENTIVE = 25;
+const ADDON_TWO_DAY_INCENTIVE = 10;
+// A box issued at/after this many minutes past midnight (11:00 AM) has its
+// incentive clock start the NEXT calendar day instead of today.
+const ADDON_CUTOFF_MINUTES = 11 * 60;
 const NOTES = [500,200,100,50,20,10];
 const NOZZLES = [
   {id:'u1-d1', unit:1, fuel:'diesel', label:'Diesel Nozzle 1'},
@@ -2436,6 +2484,7 @@ function initServerSync(retryCount){
     if(!state.staff) state.staff = [];
     if(!state.noteGivenOut) state.noteGivenOut = [];
     if(!state.duty) state.duty = {};
+    if(!state.pouchBoxes) state.pouchBoxes = {};
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
@@ -2478,6 +2527,7 @@ async function loadFromServer(){
       if(!state.staff) state.staff = [];
       if(!state.noteGivenOut) state.noteGivenOut = [];
       if(!state.duty) state.duty = {};
+      if(!state.pouchBoxes) state.pouchBoxes = {};
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
@@ -3748,6 +3798,8 @@ function renderCashTab(){
 
   calcCash();
   renderCashHistory();
+  renderAddonPanel(staffId);
+  renderAddonMonthlySummary();
 }
 
 /* ---- Read-only lock for already-saved cash records ---- */
@@ -4057,6 +4109,155 @@ function saveCash(){
     : 'Saved to Staff Surplus / Short Data for ' + date + ' at ' + savedTimeStr + '.';
   scheduleAutosave();
   renderCashTab();
+}
+
+/* ============== ADD-ON POUCH SALE TRACKING ============== */
+// Each "box" = 50 pouches issued to a staff member. Incentive depends on how
+// fast that specific box is fully sold, tracked per staff (not store-wide).
+//
+// Carry-forward rule: a box issued at/after 11:00 AM has its incentive clock
+// (effectiveIssueDate) shifted to the next calendar day — the morning shift's
+// closing staff effectively "owns" that box's clock from day+1 onward.
+//
+// Payout: box fully sold same day as effectiveIssueDate -> ₹25
+//         box fully sold exactly 1 day after effectiveIssueDate -> ₹10
+//         anything slower -> ₹0 (still recorded, just no incentive)
+
+function pouchBoxesFor(staffId){
+  if(!state.pouchBoxes) state.pouchBoxes = {};
+  if(!state.pouchBoxes[staffId]) state.pouchBoxes[staffId] = [];
+  return state.pouchBoxes[staffId];
+}
+
+function addDaysStr(dateStr, days){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+
+function daysBetweenStr(d1, d2){
+  return Math.round((new Date(d2 + 'T00:00:00') - new Date(d1 + 'T00:00:00')) / 86400000);
+}
+
+function incentiveForDays(diffDays){
+  if(diffDays === 0) return ADDON_SAME_DAY_INCENTIVE;
+  if(diffDays === 1) return ADDON_TWO_DAY_INCENTIVE;
+  return 0;
+}
+
+// Issues a new 50-pouch box to the given staff member, timestamped now.
+function issuePouchBox(staffId){
+  if(!staffId){ alert('Select a staff member first.'); return; }
+  const now = new Date();
+  const issueDate = now.toISOString().slice(0,10);
+  const issueTime = now.toTimeString().slice(0,5); // HH:MM, local time
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const effectiveIssueDate = minutesNow >= ADDON_CUTOFF_MINUTES ? addDaysStr(issueDate, 1) : issueDate;
+
+  const box = {
+    id: 'box_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    issueDate,
+    issueTime,
+    effectiveIssueDate,
+    total: ADDON_BOX_SIZE,
+    remaining: ADDON_BOX_SIZE,
+    status: 'open',
+    closedDate: null,
+    incentive: null,
+    soldLog: []
+  };
+  pouchBoxesFor(staffId).push(box);
+  scheduleAutosave();
+  renderAddonPanel(staffId);
+}
+
+// Records total pouches sold by a staff member on a given date, deducting
+// FIFO (oldest open box first). Any box that hits zero remaining on this
+// call is closed and its incentive is computed immediately.
+function recordPouchSale(staffId, date, qty){
+  qty = Math.floor(Number(qty) || 0);
+  if(!staffId){ alert('Select a staff member first.'); return; }
+  if(qty <= 0){ alert('Enter a pouch count greater than 0.'); return; }
+
+  const boxes = pouchBoxesFor(staffId);
+  const openBoxes = boxes
+    .filter(b => b.status === 'open')
+    .sort((a,b) => (a.issueDate+a.issueTime).localeCompare(b.issueDate+b.issueTime));
+
+  let left = qty;
+  for(const box of openBoxes){
+    if(left <= 0) break;
+    const take = Math.min(box.remaining, left);
+    if(take <= 0) continue;
+    box.remaining -= take;
+    left -= take;
+    box.soldLog.push({date, qty: take});
+    if(box.remaining === 0){
+      box.status = 'closed';
+      box.closedDate = date;
+      box.incentive = incentiveForDays(daysBetweenStr(box.effectiveIssueDate, date));
+    }
+  }
+  if(left > 0){
+    alert(qty + ' pouches entered, but only ' + (qty-left) + ' could be matched to open boxes for this staff member (no more open boxes). The extra ' + left + ' were not tracked against any box.');
+  }
+  scheduleAutosave();
+  renderAddonPanel(staffId);
+}
+
+function renderAddonPanel(staffId){
+  const openWrap = document.getElementById('addonOpenBoxes');
+  const closedWrap = document.getElementById('addonClosedBoxes');
+  if(!openWrap || !closedWrap) return; // panel not on this page render yet
+
+  const boxes = pouchBoxesFor(staffId);
+  const open = boxes.filter(b => b.status === 'open')
+    .sort((a,b) => (a.issueDate+a.issueTime).localeCompare(b.issueDate+b.issueTime));
+  const closed = boxes.filter(b => b.status === 'closed')
+    .sort((a,b) => (b.closedDate||'').localeCompare(a.closedDate||'')).slice(0,10);
+
+  openWrap.innerHTML = open.length ? open.map(b => `
+    <div class="calc-line">
+      <span>Issued ${b.issueDate} ${b.issueTime}${b.effectiveIssueDate !== b.issueDate ? ' → clock starts ' + b.effectiveIssueDate : ''}</span>
+      <span class="mono">${b.remaining}/${b.total} left</span>
+    </div>`).join('') : '<div class="hint">No open boxes for this staff member.</div>';
+
+  closedWrap.innerHTML = closed.length ? closed.map(b => `
+    <div class="calc-line">
+      <span>Closed ${b.closedDate} (issued ${b.effectiveIssueDate})</span>
+      <span class="mono">${b.incentive > 0 ? '₹'+b.incentive : '₹0 (missed window)'}</span>
+    </div>`).join('') : '<div class="hint">No fully-sold boxes yet.</div>';
+}
+
+// Sums incentive earned per staff member for boxes CLOSED within the given
+// month (YYYY-MM), plus a grand total across all staff.
+function computeAddonMonthlySummary(month){
+  const rows = [];
+  let grandTotal = 0;
+  const byStaff = state.pouchBoxes || {};
+  (state.staff||[]).forEach(s=>{
+    const boxes = byStaff[s.id] || [];
+    const closedThisMonth = boxes.filter(b => b.status === 'closed' && b.closedDate && b.closedDate.slice(0,7) === month);
+    const total = closedThisMonth.reduce((sum,b)=> sum + (b.incentive||0), 0);
+    const boxCount = closedThisMonth.length;
+    grandTotal += total;
+    if(boxCount > 0) rows.push({ name: s.name, boxCount, total });
+  });
+  return { rows, grandTotal };
+}
+
+function renderAddonMonthlySummary(){
+  const monthInp = document.getElementById('addonSummaryMonth');
+  const body = document.getElementById('addonSummaryBody');
+  const totalEl = document.getElementById('addonSummaryTotal');
+  const emptyEl = document.getElementById('addonSummaryEmpty');
+  if(!monthInp || !body) return;
+  if(!monthInp.value) monthInp.value = thisMonthStr();
+  const { rows, grandTotal } = computeAddonMonthlySummary(monthInp.value);
+  body.innerHTML = rows.map(r => `
+    <tr><td>${r.name}</td><td class="num">${r.boxCount}</td><td class="num">₹${r.total}</td></tr>`).join('');
+  totalEl.textContent = '₹' + grandTotal;
+  emptyEl.style.display = rows.length ? 'none' : 'block';
 }
 
 /* ---- Past cash denomination records (history) ---- */
