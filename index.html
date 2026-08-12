@@ -448,6 +448,8 @@
   .cc-save-btn{width:100%;margin-top:16px;padding:12px;font-size:14px;}
   .cc-saved-hint{display:block;margin-top:8px;color:#9FD6C4;text-align:center;}
   .calc-line{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+  .addon-box-row{flex-wrap:wrap;gap:6px 10px;}
+  .addon-box-actions{flex-basis:100%;display:flex;gap:8px;justify-content:flex-end;}
   .calc-line.total{font-weight:700;border-bottom:none;padding-top:10px;font-size:15.5px;}
   /* Larger, high-contrast controls make the cash screen comfortable to read at the counter. */
   #tab-cash{font-size:16px;}
@@ -4205,6 +4207,73 @@ function recordPouchSale(staffId, date, qty){
   renderAddonPanel(staffId);
 }
 
+// Deletes a box entirely — for boxes issued or sold by mistake. Works for
+// both open and closed boxes.
+function deletePouchBox(staffId, boxId){
+  const boxes = pouchBoxesFor(staffId);
+  const box = boxes.find(b => b.id === boxId);
+  if(!box) return;
+  const label = box.status === 'closed'
+    ? ('closed box (issued ' + box.effectiveIssueDate + ', ₹' + (box.incentive||0) + ' incentive)')
+    : ('open box (issued ' + box.issueDate + ', ' + box.remaining + '/' + box.total + ' left)');
+  if(!confirm('Delete this ' + label + '? This cannot be undone.')) return;
+  state.pouchBoxes[staffId] = boxes.filter(b => b.id !== boxId);
+  scheduleAutosave();
+  renderAddonPanel(staffId);
+  renderAddonMonthlySummary();
+}
+
+// Undoes the most recent sale entry recorded against a box — e.g. a wrong
+// quantity was typed. Adds the pouches back to remaining, and if that entry
+// was the one that closed the box, reopens it (clears closedDate/incentive).
+function undoLastPouchSale(staffId, boxId){
+  const boxes = pouchBoxesFor(staffId);
+  const box = boxes.find(b => b.id === boxId);
+  if(!box || !box.soldLog.length) return;
+  const last = box.soldLog[box.soldLog.length - 1];
+  if(!confirm('Undo the last sale entry on this box — ' + last.qty + ' pouches sold on ' + last.date + '? This adds them back to remaining stock.')) return;
+  box.soldLog.pop();
+  box.remaining += last.qty;
+  if(box.status === 'closed'){
+    box.status = 'open';
+    box.closedDate = null;
+    box.incentive = null;
+  }
+  scheduleAutosave();
+  renderAddonPanel(staffId);
+  renderAddonMonthlySummary();
+}
+
+// Corrects a box's issue date/time if it was issued incorrectly — e.g. the
+// "Issue New Box" button was clicked at the wrong moment, or for the wrong
+// day. Recomputes the 11 AM carry-forward rule off the corrected time. If
+// the box has already closed, its incentive is also recalculated to reflect
+// the corrected issue point.
+function editPouchBoxIssue(staffId, boxId){
+  const boxes = pouchBoxesFor(staffId);
+  const box = boxes.find(b => b.id === boxId);
+  if(!box) return;
+  const newDate = prompt('Correct issue date (YYYY-MM-DD):', box.issueDate);
+  if(newDate === null) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)){ alert('Enter the date as YYYY-MM-DD.'); return; }
+  const newTime = prompt('Correct issue time, 24-hour (HH:MM):', box.issueTime);
+  if(newTime === null) return;
+  if(!/^\d{2}:\d{2}$/.test(newTime)){ alert('Enter the time as HH:MM (24-hour).'); return; }
+
+  const [hh, mm] = newTime.split(':').map(Number);
+  const minutes = hh * 60 + mm;
+  box.issueDate = newDate;
+  box.issueTime = newTime;
+  box.effectiveIssueDate = minutes >= ADDON_CUTOFF_MINUTES ? addDaysStr(newDate, 1) : newDate;
+
+  if(box.status === 'closed' && box.closedDate){
+    box.incentive = incentiveForDays(daysBetweenStr(box.effectiveIssueDate, box.closedDate));
+  }
+  scheduleAutosave();
+  renderAddonPanel(staffId);
+  renderAddonMonthlySummary();
+}
+
 function renderAddonPanel(staffId){
   const openWrap = document.getElementById('addonOpenBoxes');
   const closedWrap = document.getElementById('addonClosedBoxes');
@@ -4217,15 +4286,25 @@ function renderAddonPanel(staffId){
     .sort((a,b) => (b.closedDate||'').localeCompare(a.closedDate||'')).slice(0,10);
 
   openWrap.innerHTML = open.length ? open.map(b => `
-    <div class="calc-line">
+    <div class="calc-line addon-box-row">
       <span>Issued ${b.issueDate} ${b.issueTime}${b.effectiveIssueDate !== b.issueDate ? ' → clock starts ' + b.effectiveIssueDate : ''}</span>
       <span class="mono">${b.remaining}/${b.total} left</span>
+      <span class="addon-box-actions">
+        ${b.soldLog.length ? `<button class="btn ghost small" onclick="undoLastPouchSale('${staffId}','${b.id}')">↩ Undo last sale</button>` : ''}
+        <button class="btn ghost small" onclick="editPouchBoxIssue('${staffId}','${b.id}')">✏️ Edit</button>
+        <button class="btn ghost small" onclick="deletePouchBox('${staffId}','${b.id}')">🗑 Delete</button>
+      </span>
     </div>`).join('') : '<div class="hint">No open boxes for this staff member.</div>';
 
   closedWrap.innerHTML = closed.length ? closed.map(b => `
-    <div class="calc-line">
+    <div class="calc-line addon-box-row">
       <span>Closed ${b.closedDate} (issued ${b.effectiveIssueDate})</span>
       <span class="mono">${b.incentive > 0 ? '₹'+b.incentive : '₹0 (missed window)'}</span>
+      <span class="addon-box-actions">
+        ${b.soldLog.length ? `<button class="btn ghost small" onclick="undoLastPouchSale('${staffId}','${b.id}')">↩ Undo last sale</button>` : ''}
+        <button class="btn ghost small" onclick="editPouchBoxIssue('${staffId}','${b.id}')">✏️ Edit</button>
+        <button class="btn ghost small" onclick="deletePouchBox('${staffId}','${b.id}')">🗑 Delete</button>
+      </span>
     </div>`).join('') : '<div class="hint">No fully-sold boxes yet.</div>';
 }
 
