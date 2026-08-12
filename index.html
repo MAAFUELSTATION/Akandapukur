@@ -1593,16 +1593,22 @@
           <label>Month</label>
           <input type="month" id="lubeWaterSummaryMonth" onchange="renderLubeWaterMonthlySummary()">
         </div>
+        <div class="field">
+          <label>Litres / Lube Unit</label>
+          <input type="number" id="lubeLitresPerUnitInput" min="0" step="0.01" value="1" style="width:100px;" onchange="setLubeLitresPerUnit(this.value)">
+        </div>
       </div>
+      <div class="hint" style="margin-bottom:10px;">Set how many litres are in one lube unit/bottle sold — used to convert Lube Sold (units) into total litres below.</div>
       <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>Staff</th><th class="num">Lube Sold</th><th class="num">Lube Incentive ₹</th><th class="num">Water Sold</th><th class="num">Water Incentive ₹</th><th class="num">Total ₹</th></tr>
+          <tr><th>Staff</th><th class="num">Lube Sold (units)</th><th class="num">Lube Sold (Litres)</th><th class="num">Lube Incentive ₹</th><th class="num">Water Sold</th><th class="num">Water Incentive ₹</th><th class="num">Total ₹</th></tr>
         </thead>
         <tbody id="lubeWaterSummaryBody"></tbody>
       </table>
       </div>
       <div class="empty" id="lubeWaterSummaryEmpty" style="display:none;">No lube or water sales logged this month yet.</div>
+      <div class="calc-line"><span>Total Lube Sold This Month (Litres)</span><span class="mono" id="lubeWaterSummaryLitresTotal">0.00 L</span></div>
       <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="lubeWaterSummaryTotal">₹0.00</span></div>
       </div>
     </div>
@@ -2384,7 +2390,8 @@ let state = {
   tankUpdates: [],
   pouchBoxes: {},  // { staffId: [ {id, issueDate, issueTime, effectiveIssueDate, remaining, status, closedDate, incentive, soldLog[]} ] }
   shiftPayout: {}, // { staffId: { date: {lube, water, breakfast} } } — EOD Shift Payout tracking
-  qrScanLog: []    // [{code, type, staffId, date, ts}] — every QR serial ever scanned, for dedup
+  qrScanLog: [],   // [{code, type, staffId, date, ts}] — every QR serial ever scanned, for dedup
+  lubeLitresPerUnit: 1 // litres in one lube unit/bottle sold — used to convert Lube Sold (units) into litres
 };
 const ADDON_BOX_SIZE = 50;
 const ADDON_SAME_DAY_INCENTIVE = 25;
@@ -4619,9 +4626,23 @@ function toggleBreakfastEdit(){
 // Sums lube/water QTY logged (via QR scan or manual +/-) for boxes... i.e.
 // for each staff, across every date in the given month (YYYY-MM), plus the
 // incentive that qty earns. state.shiftPayout is keyed shiftPayout[staffId][date].
+function getLubeLitresPerUnit(){
+  const v = parseFloat(state.lubeLitresPerUnit);
+  return (isFinite(v) && v > 0) ? v : 1;
+}
+
+function setLubeLitresPerUnit(val){
+  const v = parseFloat(val);
+  state.lubeLitresPerUnit = (isFinite(v) && v >= 0) ? v : 1;
+  scheduleAutosave();
+  renderLubeWaterMonthlySummary();
+}
+
 function computeLubeWaterMonthlySummary(month){
   const rows = [];
   let grandTotal = 0;
+  let grandLubeLitres = 0;
+  const litresPerUnit = getLubeLitresPerUnit();
   const byStaff = state.shiftPayout || {};
   (state.staff||[]).forEach(s=>{
     const byDate = byStaff[s.id] || {};
@@ -4631,26 +4652,32 @@ function computeLubeWaterMonthlySummary(month){
       lubeQty += byDate[date].lube || 0;
       waterQty += byDate[date].water || 0;
     });
+    const lubeLitres = lubeQty * litresPerUnit;
     const lubeInc = lubeQty * LUBE_SALE_INCENTIVE;
     const waterInc = waterQty * WATER_SALE_INCENTIVE;
     const total = lubeInc + waterInc;
     grandTotal += total;
-    if(lubeQty > 0 || waterQty > 0) rows.push({ name: s.name, lubeQty, lubeInc, waterQty, waterInc, total });
+    grandLubeLitres += lubeLitres;
+    if(lubeQty > 0 || waterQty > 0) rows.push({ name: s.name, lubeQty, lubeLitres, lubeInc, waterQty, waterInc, total });
   });
-  return { rows, grandTotal };
+  return { rows, grandTotal, grandLubeLitres };
 }
 
 function renderLubeWaterMonthlySummary(){
   const monthInp = document.getElementById('lubeWaterSummaryMonth');
   const body = document.getElementById('lubeWaterSummaryBody');
   const totalEl = document.getElementById('lubeWaterSummaryTotal');
+  const litresTotalEl = document.getElementById('lubeWaterSummaryLitresTotal');
+  const litresInp = document.getElementById('lubeLitresPerUnitInput');
   const emptyEl = document.getElementById('lubeWaterSummaryEmpty');
   if(!monthInp || !body) return;
   if(!monthInp.value) monthInp.value = thisMonthStr();
-  const { rows, grandTotal } = computeLubeWaterMonthlySummary(monthInp.value);
+  if(litresInp && document.activeElement !== litresInp) litresInp.value = getLubeLitresPerUnit();
+  const { rows, grandTotal, grandLubeLitres } = computeLubeWaterMonthlySummary(monthInp.value);
   body.innerHTML = rows.map(r => `
-    <tr><td>${escapeHtml(r.name)}</td><td class="num">${r.lubeQty}</td><td class="num">${fmt(r.lubeInc)}</td><td class="num">${r.waterQty}</td><td class="num">${fmt(r.waterInc)}</td><td class="num"><strong>${fmt(r.total)}</strong></td></tr>`).join('');
+    <tr><td>${escapeHtml(r.name)}</td><td class="num">${r.lubeQty}</td><td class="num">${r.lubeLitres.toFixed(2)} L</td><td class="num">${fmt(r.lubeInc)}</td><td class="num">${r.waterQty}</td><td class="num">${fmt(r.waterInc)}</td><td class="num"><strong>${fmt(r.total)}</strong></td></tr>`).join('');
   totalEl.textContent = fmt(grandTotal);
+  if(litresTotalEl) litresTotalEl.textContent = grandLubeLitres.toFixed(2) + ' L';
   emptyEl.style.display = rows.length ? 'none' : 'block';
 }
 
