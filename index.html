@@ -6,6 +6,8 @@
 <title>Maa Fuel Station</title>
 <!-- SheetJS (xlsx) — used only by "Backup to Excel" to build a downloadable .xlsx snapshot of the current data. -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- jsQR — used only by the EOD Shift Payout QR scanner to decode Lube/Water QR tags from the camera feed. -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 // Apply the saved interface theme (Light, Graphite, or Cyan) as early as possible,
 // before the page paints, so switching themes never causes a flash of the
@@ -1489,6 +1491,60 @@
       <div class="empty" id="addonSummaryEmpty" style="display:none;">No boxes closed this month yet.</div>
       <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="addonSummaryTotal">₹0</span></div>
     </div>
+
+    <!-- ===================== EOD SHIFT PAYOUT ===================== -->
+    <div class="card" id="eodPayoutCard">
+      <h2>🧾 EOD Shift Payout <span class="tag">Lube / Water QR incentive + breakfast, for the Staff &amp; Date selected above</span></h2>
+      <div class="hint" style="margin-bottom:14px;">Uses the same Staff and Date fields at the top of this tab.</div>
+
+      <div class="card cc-block" style="margin-bottom:16px;">
+        <h2 class="cc-block-title"><span class="cc-ico">📷</span> QR Code Scanner <span class="tag">Scan a Lube or Distilled Water tag</span></h2>
+        <div id="qrScannerWrap" style="display:none;margin-bottom:10px;">
+          <video id="qrVideo" playsinline muted style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);background:#000;display:block;"></video>
+        </div>
+        <div class="row" style="margin-bottom:0;">
+          <button class="btn amber small" id="qrStartBtn" onclick="startQrScanner()">📷 Start Scanner</button>
+          <button class="btn danger" id="qrStopBtn" onclick="stopQrScanner()" style="display:none;">■ Stop Scanner</button>
+        </div>
+        <div class="hint" id="qrScanStatus" style="margin-top:10px;"></div>
+        <div class="hint" style="margin-top:6px;">Point the camera at a QR tag printed with <strong>LUBE</strong> or <strong>WATER</strong> — each successful scan logs one sale for the selected staff and updates the counts below. No camera? Use the +/- controls instead.</div>
+      </div>
+
+      <div class="grid2" style="margin-bottom:16px;">
+        <div class="field">
+          <label>Lube Sales Today <span class="tag">₹5 each</span></label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn ghost small" onclick="adjustEodCount('lube',-1)">−</button>
+            <input type="number" id="eodLubeCount" min="0" step="1" value="0" style="width:80px;text-align:center;" onchange="setEodCount('lube', this.value)">
+            <button class="btn ghost small" onclick="adjustEodCount('lube',1)">+</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Distilled Water Sales Today <span class="tag">₹2 each</span></label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn ghost small" onclick="adjustEodCount('water',-1)">−</button>
+            <input type="number" id="eodWaterCount" min="0" step="1" value="0" style="width:80px;text-align:center;" onchange="setEodCount('water', this.value)">
+            <button class="btn ghost small" onclick="adjustEodCount('water',1)">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="max-width:340px;margin-bottom:18px;">
+        <label>Breakfast Amount ₹</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="eodBreakfastAmt" min="0" step="0.01" value="0" style="flex:1;" disabled>
+          <button class="btn ghost small" id="eodBreakfastModifyBtn" onclick="toggleBreakfastEdit()">Modify</button>
+        </div>
+      </div>
+
+      <div class="cc-receipt" style="max-width:440px;">
+        <div class="calc-line"><span>Lube Incentive (₹5 × qty)</span><span class="mono" id="eodLubeIncentive">₹0.00</span></div>
+        <div class="calc-line"><span>Distilled Water Incentive (₹2 × qty)</span><span class="mono" id="eodWaterIncentive">₹0.00</span></div>
+        <div class="calc-line"><span>Breakfast Amount</span><span class="mono" id="eodBreakfastDisplay">₹0.00</span></div>
+        <div class="calc-line"><span>Add-on Pouch Incentive (today, closed boxes)</span><span class="mono" id="eodAddonToday">₹0.00</span></div>
+        <div class="calc-line total"><span>Total EOD Payout</span><span class="mono" id="eodTotalPayout">₹0.00</span></div>
+      </div>
+    </div>
   </section>
 
   <!-- ===================== SURPLUS/SHORT TAB ===================== -->
@@ -2265,11 +2321,14 @@ let state = {
   noteGivenOut: [],
   duty: {},
   tankUpdates: [],
-  pouchBoxes: {}   // { staffId: [ {id, issueDate, issueTime, effectiveIssueDate, remaining, status, closedDate, incentive, soldLog[]} ] }
+  pouchBoxes: {},  // { staffId: [ {id, issueDate, issueTime, effectiveIssueDate, remaining, status, closedDate, incentive, soldLog[]} ] }
+  shiftPayout: {}  // { staffId: { date: {lube, water, breakfast} } } — EOD Shift Payout tracking
 };
 const ADDON_BOX_SIZE = 50;
 const ADDON_SAME_DAY_INCENTIVE = 25;
 const ADDON_TWO_DAY_INCENTIVE = 10;
+const LUBE_SALE_INCENTIVE = 5;
+const WATER_SALE_INCENTIVE = 2;
 // A box issued at/after this many minutes past midnight (11:00 AM) has its
 // incentive clock start the NEXT calendar day instead of today.
 const ADDON_CUTOFF_MINUTES = 11 * 60;
@@ -2490,6 +2549,7 @@ function initServerSync(retryCount){
     if(!state.noteGivenOut) state.noteGivenOut = [];
     if(!state.duty) state.duty = {};
     if(!state.pouchBoxes) state.pouchBoxes = {};
+    if(!state.shiftPayout) state.shiftPayout = {};
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
@@ -2533,6 +2593,7 @@ async function loadFromServer(){
       if(!state.noteGivenOut) state.noteGivenOut = [];
       if(!state.duty) state.duty = {};
       if(!state.pouchBoxes) state.pouchBoxes = {};
+      if(!state.shiftPayout) state.shiftPayout = {};
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
@@ -2726,6 +2787,8 @@ function loadAutosave(){
         if(!state.noteGivenOut) state.noteGivenOut = [];
         if(!state.duty) state.duty = {};
         if(!state.tankUpdates) state.tankUpdates = [];
+        if(!state.pouchBoxes) state.pouchBoxes = {};
+        if(!state.shiftPayout) state.shiftPayout = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         setAutosaveStatus('Restored from autosave');
@@ -3830,6 +3893,8 @@ function renderCashTab(){
   renderCashHistory();
   renderAddonPanel(staffId);
   renderAddonMonthlySummary();
+  breakfastEditing = false;
+  renderEodPayout();
 }
 
 /* ---- Read-only lock for already-saved cash records ---- */
@@ -4367,6 +4432,214 @@ function renderAddonMonthlySummary(){
   emptyEl.style.display = rows.length ? 'none' : 'block';
 }
 
+/* ============== EOD SHIFT PAYOUT ============== */
+// Tracks, per staff member per date: lube pouches sold, distilled water
+// bottles sold, and a manually-set breakfast amount. Combined with today's
+// closed Add-on Pouch incentive to give a single "Total EOD Payout" figure
+// for the staff+date currently selected at the top of the Cash Denomination
+// tab. QR scanning (via jsQR + the device camera) is just a fast way to log
+// lube/water sales one at a time — the +/- controls do the same thing
+// manually when no camera is available.
+let breakfastEditing = false;
+
+function getEodRecord(staffId, date){
+  if(!staffId || !date) return null;
+  if(!state.shiftPayout) state.shiftPayout = {};
+  if(!state.shiftPayout[staffId]) state.shiftPayout[staffId] = {};
+  if(!state.shiftPayout[staffId][date]){
+    state.shiftPayout[staffId][date] = { lube: 0, water: 0, breakfast: 0 };
+  }
+  return state.shiftPayout[staffId][date];
+}
+
+// Same-day total incentive from Add-on Pouch boxes closed on this exact
+// date for this staff member — reuses the existing pouchBoxes data, it
+// isn't a separate log.
+function computeTodayAddonIncentive(staffId, date){
+  const boxes = (state.pouchBoxes && state.pouchBoxes[staffId]) || [];
+  return boxes.filter(b => b.status === 'closed' && b.closedDate === date)
+              .reduce((sum,b)=> sum + (b.incentive||0), 0);
+}
+
+function renderEodPayout(){
+  const staffSel = document.getElementById('cashStaff');
+  const dateInp = document.getElementById('cashDate');
+  const lubeEl = document.getElementById('eodLubeCount');
+  if(!staffSel || !dateInp || !lubeEl) return; // tab not in DOM yet
+
+  const staffId = staffSel.value;
+  const date = dateInp.value;
+  const rec = getEodRecord(staffId, date);
+  if(!rec) return;
+
+  lubeEl.value = rec.lube;
+  document.getElementById('eodWaterCount').value = rec.water;
+
+  const breakfastInp = document.getElementById('eodBreakfastAmt');
+  if(!breakfastEditing) breakfastInp.value = (rec.breakfast||0).toFixed(2);
+
+  const lubeInc = rec.lube * LUBE_SALE_INCENTIVE;
+  const waterInc = rec.water * WATER_SALE_INCENTIVE;
+  const addonInc = computeTodayAddonIncentive(staffId, date);
+  const total = lubeInc + waterInc + (rec.breakfast||0) + addonInc;
+
+  document.getElementById('eodLubeIncentive').textContent = fmt(lubeInc);
+  document.getElementById('eodWaterIncentive').textContent = fmt(waterInc);
+  document.getElementById('eodBreakfastDisplay').textContent = fmt(rec.breakfast||0);
+  document.getElementById('eodAddonToday').textContent = fmt(addonInc);
+  document.getElementById('eodTotalPayout').textContent = fmt(total);
+}
+
+function adjustEodCount(type, delta){
+  const staffId = document.getElementById('cashStaff').value;
+  const date = document.getElementById('cashDate').value;
+  const rec = getEodRecord(staffId, date);
+  if(!rec) return;
+  rec[type] = Math.max(0, (rec[type]||0) + delta);
+  renderEodPayout();
+  scheduleAutosave();
+}
+
+function setEodCount(type, value){
+  const staffId = document.getElementById('cashStaff').value;
+  const date = document.getElementById('cashDate').value;
+  const rec = getEodRecord(staffId, date);
+  if(!rec) return;
+  let v = parseInt(value, 10);
+  if(isNaN(v) || v < 0) v = 0;
+  rec[type] = v;
+  renderEodPayout();
+  scheduleAutosave();
+}
+
+// The breakfast field starts disabled (read-only display). "Modify" unlocks
+// it for typing; tapping the same button again (now labelled "Save") commits
+// the value into state and re-locks the field.
+function toggleBreakfastEdit(){
+  const inp = document.getElementById('eodBreakfastAmt');
+  const btn = document.getElementById('eodBreakfastModifyBtn');
+  if(!breakfastEditing){
+    breakfastEditing = true;
+    inp.disabled = false;
+    inp.focus();
+    inp.select();
+    btn.textContent = 'Save';
+  } else {
+    const staffId = document.getElementById('cashStaff').value;
+    const date = document.getElementById('cashDate').value;
+    const rec = getEodRecord(staffId, date);
+    let v = parseFloat(inp.value);
+    if(isNaN(v) || v < 0) v = 0;
+    if(rec) rec.breakfast = v;
+    breakfastEditing = false;
+    inp.disabled = true;
+    btn.textContent = 'Modify';
+    renderEodPayout();
+    scheduleAutosave();
+  }
+}
+
+/* ---- QR Code Scanner (jsQR) ----
+   Recognized QR tag text (case-insensitive): "LUBE" / "LUBE_SALE" for a
+   lube pouch sale, "WATER" / "DISTILLED_WATER" / "DISTILLED WATER" for a
+   distilled water sale. Print/stick these QR tags near the products —
+   staff scan one per sale, no typing required. */
+let qrScanStream = null;
+let qrScanRAF = null;
+let qrScanning = false;
+
+function recordQrSale(type){
+  const staffId = document.getElementById('cashStaff').value;
+  const date = document.getElementById('cashDate').value;
+  const rec = getEodRecord(staffId, date);
+  if(!rec) return;
+  rec[type] = (rec[type]||0) + 1;
+  renderEodPayout();
+  scheduleAutosave();
+  const staffName = ((state.staff||[]).find(s=>s.id===staffId)||{}).name || 'selected staff';
+  const label = type === 'lube' ? 'Lube' : 'Distilled Water';
+  const statusEl = document.getElementById('qrScanStatus');
+  if(statusEl) statusEl.textContent = '✅ ' + label + ' sale recorded for ' + staffName + ' — ' + new Date().toLocaleTimeString('en-IN');
+  if(navigator.vibrate) navigator.vibrate(80);
+}
+
+async function startQrScanner(){
+  const statusEl = document.getElementById('qrScanStatus');
+  if(typeof jsQR === 'undefined'){
+    if(statusEl) statusEl.textContent = '⚠️ QR scanner library failed to load — check your connection and try again.';
+    return;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    if(statusEl) statusEl.textContent = '⚠️ This browser/device does not support camera access. Use the +/- counters instead.';
+    return;
+  }
+  const wrap = document.getElementById('qrScannerWrap');
+  const video = document.getElementById('qrVideo');
+  try{
+    qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+  }catch(e){
+    if(statusEl) statusEl.textContent = '⚠️ Could not access camera: ' + (e && e.message ? e.message : e);
+    return;
+  }
+  video.srcObject = qrScanStream;
+  try{ await video.play(); }catch(e){}
+  wrap.style.display = 'block';
+  document.getElementById('qrStartBtn').style.display = 'none';
+  document.getElementById('qrStopBtn').style.display = '';
+  if(statusEl) statusEl.textContent = 'Scanning… point the camera at a LUBE or WATER QR tag.';
+  qrScanning = true;
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  let lastScanText = '';
+  let lastScanTime = 0;
+
+  function tick(){
+    if(!qrScanning) return;
+    if(video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth){
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if(code && code.data){
+        const text = code.data.trim().toUpperCase();
+        const now = Date.now();
+        // Debounce: ignore the same tag re-read within 2.5s so holding it
+        // steady in frame doesn't log dozens of duplicate sales.
+        if(!(text === lastScanText && now - lastScanTime < 2500)){
+          lastScanText = text; lastScanTime = now;
+          if(text === 'LUBE' || text === 'LUBE_SALE'){
+            recordQrSale('lube');
+          } else if(text === 'WATER' || text === 'DISTILLED_WATER' || text === 'DISTILLED WATER'){
+            recordQrSale('water');
+          } else if(statusEl){
+            statusEl.textContent = '⚠️ Unrecognized QR code: "' + code.data + '"';
+          }
+        }
+      }
+    }
+    qrScanRAF = requestAnimationFrame(tick);
+  }
+  qrScanRAF = requestAnimationFrame(tick);
+}
+
+function stopQrScanner(){
+  qrScanning = false;
+  if(qrScanRAF) cancelAnimationFrame(qrScanRAF);
+  qrScanRAF = null;
+  if(qrScanStream){
+    qrScanStream.getTracks().forEach(t=>t.stop());
+    qrScanStream = null;
+  }
+  const wrap = document.getElementById('qrScannerWrap');
+  if(wrap) wrap.style.display = 'none';
+  document.getElementById('qrStartBtn').style.display = '';
+  document.getElementById('qrStopBtn').style.display = 'none';
+  const statusEl = document.getElementById('qrScanStatus');
+  if(statusEl) statusEl.textContent = '';
+}
+
 /* ---- Past cash denomination records (history) ---- */
 function populateCashHistoryStaffFilter(){
   const sel = document.getElementById('cashHistoryStaffFilter');
@@ -4876,6 +5149,8 @@ function importData(file){
         if(!state.noteGivenOut) state.noteGivenOut = [];
         if(!state.duty) state.duty = {};
         if(!state.tankUpdates) state.tankUpdates = [];
+        if(!state.pouchBoxes) state.pouchBoxes = {};
+        if(!state.shiftPayout) state.shiftPayout = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         alert('Data restored successfully.');
