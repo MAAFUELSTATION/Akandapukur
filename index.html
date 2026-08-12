@@ -1197,6 +1197,9 @@
         <tbody id="monthlyStaffBody"></tbody>
         <tfoot id="monthlyStaffFoot"></tfoot>
       </table>
+
+      <h2 style="font-size:15px;margin:20px 0 10px;">🏆 Petrol Sales Ranking <span class="tag">Highest petrol (litres) sold this month</span></h2>
+      <div id="petrolRankingList"></div>
     </div>
   </section>
 
@@ -3630,16 +3633,17 @@ function renderMonthlyTab(){
   let mDL=0,mDA=0,mPL=0,mPA=0;
   let dateRows='';
   const staffTotals = {};
-  state.staff.forEach(s=> staffTotals[s.id] = {name:s.name, da:0, pa:0});
+  state.staff.forEach(s=> staffTotals[s.id] = {name:s.name, da:0, pa:0, pl:0});
 
   dates.forEach(date=>{
     let dl=0,da=0,pl=0,pa=0;
     staffIdsForDate(date).forEach(sid=>{
       const t = computeStaffDayTotals(date, sid);
       dl+=t.dl; da+=t.da; pl+=t.pl; pa+=t.pa;
-      if(!staffTotals[sid]) staffTotals[sid] = {name: staffNameById(sid), da:0, pa:0};
+      if(!staffTotals[sid]) staffTotals[sid] = {name: staffNameById(sid), da:0, pa:0, pl:0};
       staffTotals[sid].da += t.da;
       staffTotals[sid].pa += t.pa;
+      staffTotals[sid].pl += t.pl;
     });
     // Show the date-wise breakdown net of that day's testing/nozzle-adjustment
     // fuel, so this table matches the "Exact Sale (Net of Testing)" figures
@@ -3676,6 +3680,30 @@ function renderMonthlyTab(){
   }).join('');
   document.getElementById('monthlyStaffBody').innerHTML = staffRows || '<tr><td colspan="5" class="empty">No staff to summarize.</td></tr>';
   document.getElementById('monthlyStaffFoot').innerHTML = `<tr><td>Total</td><td class="num">${fmtNum(mDA)}</td><td class="num">${fmtNum(mPA)}</td><td class="num">${fmtNum(grand)}</td><td class="num">100%</td></tr>`;
+
+  renderPetrolRanking(staffTotals);
+}
+
+// Ranks staff by petrol (MS) litres sold this month, highest first. Medal
+// icons mark the top 3; staff with zero petrol sales this month are left
+// out of the ranking entirely (nothing to rank).
+function renderPetrolRanking(staffTotals){
+  const wrap = document.getElementById('petrolRankingList');
+  if(!wrap) return;
+  const ranked = Object.values(staffTotals)
+    .filter(st => st.pl > 0)
+    .sort((a,b) => b.pl - a.pl);
+
+  if(!ranked.length){
+    wrap.innerHTML = '<div class="empty">No petrol sales recorded for this month yet.</div>';
+    return;
+  }
+  const medals = ['🥇','🥈','🥉'];
+  wrap.innerHTML = ranked.map((st, i) => `
+    <div class="calc-line">
+      <span>${medals[i] || (i+1) + '.'} ${escapeHtml(st.name)}</span>
+      <span class="mono">${fmtNum(st.pl)} L / ${fmt(st.pa)}</span>
+    </div>`).join('');
 }
 
 /* ============== CASH DENOMINATION CALCULATOR TAB ============== */
