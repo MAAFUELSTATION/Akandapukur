@@ -1498,7 +1498,16 @@
       <div class="hint" style="margin-bottom:14px;">Uses the same Staff and Date fields at the top of this tab.</div>
 
       <div class="card cc-block" style="margin-bottom:16px;">
-        <h2 class="cc-block-title"><span class="cc-ico">📷</span> QR Code Scanner <span class="tag">Scan a Lube or Distilled Water tag</span></h2>
+        <h2 class="cc-block-title"><span class="cc-ico">📷</span> QR Code Scanner <span class="tag">Scan the serial QR printed on each Lube / Water unit</span></h2>
+
+        <div class="field" style="max-width:320px;margin-bottom:12px;">
+          <label>Scanning For</label>
+          <div class="row" style="margin-bottom:0;gap:8px;">
+            <button class="btn small" id="qrModeLubeBtn" onclick="setQrScanMode('lube')">🛢 Lube (₹5)</button>
+            <button class="btn ghost small" id="qrModeWaterBtn" onclick="setQrScanMode('water')">💧 Water (₹2)</button>
+          </div>
+        </div>
+
         <div id="qrScannerWrap" style="display:none;margin-bottom:10px;">
           <video id="qrVideo" playsinline muted style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);background:#000;display:block;"></video>
         </div>
@@ -1507,7 +1516,7 @@
           <button class="btn danger" id="qrStopBtn" onclick="stopQrScanner()" style="display:none;">■ Stop Scanner</button>
         </div>
         <div class="hint" id="qrScanStatus" style="margin-top:10px;"></div>
-        <div class="hint" style="margin-top:6px;">Point the camera at a QR tag printed with <strong>LUBE</strong> or <strong>WATER</strong> — each successful scan logs one sale for the selected staff and updates the counts below. No camera? Use the +/- controls instead.</div>
+        <div class="hint" style="margin-top:6px;">Pick Lube or Water above, then scan the serial-number QR printed on each unit (like <span class="mono">251402793</span>) — every scan of a new serial logs one sale for the selected staff. Scanning the same serial twice is ignored so a bottle can't be counted twice. No camera? Use the +/- counters below instead — those don't need a QR at all.</div>
       </div>
 
       <div class="grid2" style="margin-bottom:16px;">
@@ -1544,6 +1553,26 @@
         <div class="calc-line"><span>Add-on Pouch Incentive (today, closed boxes)</span><span class="mono" id="eodAddonToday">₹0.00</span></div>
         <div class="calc-line total"><span>Total EOD Payout</span><span class="mono" id="eodTotalPayout">₹0.00</span></div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Lube &amp; Water Sale Incentive — Month End <span class="tag">Total scanned/logged per staff</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="lubeWaterSummaryMonth" onchange="renderLubeWaterMonthlySummary()">
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">Lube Sold</th><th class="num">Lube Incentive ₹</th><th class="num">Water Sold</th><th class="num">Water Incentive ₹</th><th class="num">Total ₹</th></tr>
+        </thead>
+        <tbody id="lubeWaterSummaryBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="lubeWaterSummaryEmpty" style="display:none;">No lube or water sales logged this month yet.</div>
+      <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="lubeWaterSummaryTotal">₹0.00</span></div>
     </div>
   </section>
 
@@ -2322,7 +2351,8 @@ let state = {
   duty: {},
   tankUpdates: [],
   pouchBoxes: {},  // { staffId: [ {id, issueDate, issueTime, effectiveIssueDate, remaining, status, closedDate, incentive, soldLog[]} ] }
-  shiftPayout: {}  // { staffId: { date: {lube, water, breakfast} } } — EOD Shift Payout tracking
+  shiftPayout: {}, // { staffId: { date: {lube, water, breakfast} } } — EOD Shift Payout tracking
+  qrScanLog: []    // [{code, type, staffId, date, ts}] — every QR serial ever scanned, for dedup
 };
 const ADDON_BOX_SIZE = 50;
 const ADDON_SAME_DAY_INCENTIVE = 25;
@@ -2550,6 +2580,7 @@ function initServerSync(retryCount){
     if(!state.duty) state.duty = {};
     if(!state.pouchBoxes) state.pouchBoxes = {};
     if(!state.shiftPayout) state.shiftPayout = {};
+    if(!state.qrScanLog) state.qrScanLog = [];
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
@@ -2594,6 +2625,7 @@ async function loadFromServer(){
       if(!state.duty) state.duty = {};
       if(!state.pouchBoxes) state.pouchBoxes = {};
       if(!state.shiftPayout) state.shiftPayout = {};
+      if(!state.qrScanLog) state.qrScanLog = [];
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
@@ -2789,6 +2821,7 @@ function loadAutosave(){
         if(!state.tankUpdates) state.tankUpdates = [];
         if(!state.pouchBoxes) state.pouchBoxes = {};
         if(!state.shiftPayout) state.shiftPayout = {};
+        if(!state.qrScanLog) state.qrScanLog = [];
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         setAutosaveStatus('Restored from autosave');
@@ -4433,14 +4466,19 @@ function renderAddonMonthlySummary(){
 }
 
 /* ============== EOD SHIFT PAYOUT ============== */
-// Tracks, per staff member per date: lube pouches sold, distilled water
-// bottles sold, and a manually-set breakfast amount. Combined with today's
-// closed Add-on Pouch incentive to give a single "Total EOD Payout" figure
-// for the staff+date currently selected at the top of the Cash Denomination
-// tab. QR scanning (via jsQR + the device camera) is just a fast way to log
-// lube/water sales one at a time — the +/- controls do the same thing
-// manually when no camera is available.
+// Tracks, per staff member per date: lube units sold, distilled water units
+// sold, and a manually-set breakfast amount. Combined with today's closed
+// Add-on Pouch incentive to give a single "Total EOD Payout" figure for the
+// staff+date currently selected at the top of the Cash Denomination tab.
+//
+// Real product QR tags (like a printed serial "251402793") don't say what
+// product they're on — a bare scan can't tell "lube" from "water" by
+// itself. So scanning works in a MODE: pick "Scanning: Lube" or "Scanning:
+// Water" first, then every scanned serial counts as one sale of that type.
+// Each serial is logged in state.qrScanLog so the same bottle can't be
+// scanned twice (anywhere, any date) and accidentally counted twice.
 let breakfastEditing = false;
+let qrScanMode = 'lube'; // 'lube' | 'water' — which product the scanner is currently logging
 
 function getEodRecord(staffId, date){
   if(!staffId || !date) return null;
@@ -4488,6 +4526,8 @@ function renderEodPayout(){
   document.getElementById('eodBreakfastDisplay').textContent = fmt(rec.breakfast||0);
   document.getElementById('eodAddonToday').textContent = fmt(addonInc);
   document.getElementById('eodTotalPayout').textContent = fmt(total);
+
+  renderLubeWaterMonthlySummary();
 }
 
 function adjustEodCount(type, delta){
@@ -4539,27 +4579,98 @@ function toggleBreakfastEdit(){
   }
 }
 
+/* ---- Lube & Water — Month End summary ---- */
+// Sums lube/water QTY logged (via QR scan or manual +/-) for boxes... i.e.
+// for each staff, across every date in the given month (YYYY-MM), plus the
+// incentive that qty earns. state.shiftPayout is keyed shiftPayout[staffId][date].
+function computeLubeWaterMonthlySummary(month){
+  const rows = [];
+  let grandTotal = 0;
+  const byStaff = state.shiftPayout || {};
+  (state.staff||[]).forEach(s=>{
+    const byDate = byStaff[s.id] || {};
+    let lubeQty = 0, waterQty = 0;
+    Object.keys(byDate).forEach(date=>{
+      if(date.slice(0,7) !== month) return;
+      lubeQty += byDate[date].lube || 0;
+      waterQty += byDate[date].water || 0;
+    });
+    const lubeInc = lubeQty * LUBE_SALE_INCENTIVE;
+    const waterInc = waterQty * WATER_SALE_INCENTIVE;
+    const total = lubeInc + waterInc;
+    grandTotal += total;
+    if(lubeQty > 0 || waterQty > 0) rows.push({ name: s.name, lubeQty, lubeInc, waterQty, waterInc, total });
+  });
+  return { rows, grandTotal };
+}
+
+function renderLubeWaterMonthlySummary(){
+  const monthInp = document.getElementById('lubeWaterSummaryMonth');
+  const body = document.getElementById('lubeWaterSummaryBody');
+  const totalEl = document.getElementById('lubeWaterSummaryTotal');
+  const emptyEl = document.getElementById('lubeWaterSummaryEmpty');
+  if(!monthInp || !body) return;
+  if(!monthInp.value) monthInp.value = thisMonthStr();
+  const { rows, grandTotal } = computeLubeWaterMonthlySummary(monthInp.value);
+  body.innerHTML = rows.map(r => `
+    <tr><td>${escapeHtml(r.name)}</td><td class="num">${r.lubeQty}</td><td class="num">${fmt(r.lubeInc)}</td><td class="num">${r.waterQty}</td><td class="num">${fmt(r.waterInc)}</td><td class="num"><strong>${fmt(r.total)}</strong></td></tr>`).join('');
+  totalEl.textContent = fmt(grandTotal);
+  emptyEl.style.display = rows.length ? 'none' : 'block';
+}
+
 /* ---- QR Code Scanner (jsQR) ----
-   Recognized QR tag text (case-insensitive): "LUBE" / "LUBE_SALE" for a
-   lube pouch sale, "WATER" / "DISTILLED_WATER" / "DISTILLED WATER" for a
-   distilled water sale. Print/stick these QR tags near the products —
-   staff scan one per sale, no typing required. */
+   Works with real per-unit product QR tags (a unique printed serial number,
+   not a text label). You choose the mode — Lube or Water — with the toggle
+   buttons, then every scanned serial counts as one sale of that type for
+   the selected staff+date. state.qrScanLog keeps every serial ever scanned
+   (with type, staff, date) so re-scanning the same unit is caught and
+   ignored instead of being counted again. */
 let qrScanStream = null;
 let qrScanRAF = null;
 let qrScanning = false;
 
-function recordQrSale(type){
+function setQrScanMode(mode){
+  qrScanMode = (mode === 'water') ? 'water' : 'lube';
+  const lubeBtn = document.getElementById('qrModeLubeBtn');
+  const waterBtn = document.getElementById('qrModeWaterBtn');
+  if(lubeBtn) lubeBtn.className = 'btn small' + (qrScanMode === 'lube' ? ' amber' : ' ghost');
+  if(waterBtn) waterBtn.className = 'btn small' + (qrScanMode === 'water' ? ' amber' : ' ghost');
+}
+
+// Returns true and logs the scan if this serial hasn't been seen before;
+// returns false (already-used) otherwise.
+function tryLogQrSerial(code, type, staffId, date){
+  if(!state.qrScanLog) state.qrScanLog = [];
+  const already = state.qrScanLog.find(e => e.code === code);
+  if(already) return { ok: false, entry: already };
+  const entry = { code, type, staffId, date, ts: new Date().toISOString() };
+  state.qrScanLog.push(entry);
+  return { ok: true, entry };
+}
+
+function recordQrSale(code, type){
   const staffId = document.getElementById('cashStaff').value;
   const date = document.getElementById('cashDate').value;
+  const staffName = ((state.staff||[]).find(s=>s.id===staffId)||{}).name || 'selected staff';
+  const label = type === 'lube' ? 'Lube' : 'Distilled Water';
+  const statusEl = document.getElementById('qrScanStatus');
+
+  const result = tryLogQrSerial(code, type, staffId, date);
+  if(!result.ok){
+    if(statusEl){
+      const prevStaff = ((state.staff||[]).find(s=>s.id===result.entry.staffId)||{}).name || 'another entry';
+      statusEl.textContent = '⚠️ Serial "' + code + '" was already scanned (' + result.entry.date + ', ' + prevStaff + '). Not counted again.';
+    }
+    if(navigator.vibrate) navigator.vibrate([40,60,40]);
+    return;
+  }
+
   const rec = getEodRecord(staffId, date);
   if(!rec) return;
   rec[type] = (rec[type]||0) + 1;
   renderEodPayout();
   scheduleAutosave();
-  const staffName = ((state.staff||[]).find(s=>s.id===staffId)||{}).name || 'selected staff';
-  const label = type === 'lube' ? 'Lube' : 'Distilled Water';
-  const statusEl = document.getElementById('qrScanStatus');
-  if(statusEl) statusEl.textContent = '✅ ' + label + ' sale recorded for ' + staffName + ' — ' + new Date().toLocaleTimeString('en-IN');
+  if(statusEl) statusEl.textContent = '✅ ' + label + ' sale recorded for ' + staffName + ' — serial ' + code + ' — ' + new Date().toLocaleTimeString('en-IN');
   if(navigator.vibrate) navigator.vibrate(80);
 }
 
@@ -4573,6 +4684,7 @@ async function startQrScanner(){
     if(statusEl) statusEl.textContent = '⚠️ This browser/device does not support camera access. Use the +/- counters instead.';
     return;
   }
+  setQrScanMode(qrScanMode); // sync button highlight
   const wrap = document.getElementById('qrScannerWrap');
   const video = document.getElementById('qrVideo');
   try{
@@ -4586,7 +4698,7 @@ async function startQrScanner(){
   wrap.style.display = 'block';
   document.getElementById('qrStartBtn').style.display = 'none';
   document.getElementById('qrStopBtn').style.display = '';
-  if(statusEl) statusEl.textContent = 'Scanning… point the camera at a LUBE or WATER QR tag.';
+  if(statusEl) statusEl.textContent = 'Scanning for ' + (qrScanMode === 'lube' ? 'Lube' : 'Water') + '… point the camera at the unit\'s QR code.';
   qrScanning = true;
 
   const canvas = document.createElement('canvas');
@@ -4603,19 +4715,13 @@ async function startQrScanner(){
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
       if(code && code.data){
-        const text = code.data.trim().toUpperCase();
+        const text = code.data.trim();
         const now = Date.now();
-        // Debounce: ignore the same tag re-read within 2.5s so holding it
-        // steady in frame doesn't log dozens of duplicate sales.
-        if(!(text === lastScanText && now - lastScanTime < 2500)){
+        // Debounce: ignore the same code re-read within 2.5s so holding it
+        // steady in frame doesn't try to log it dozens of times.
+        if(text && !(text === lastScanText && now - lastScanTime < 2500)){
           lastScanText = text; lastScanTime = now;
-          if(text === 'LUBE' || text === 'LUBE_SALE'){
-            recordQrSale('lube');
-          } else if(text === 'WATER' || text === 'DISTILLED_WATER' || text === 'DISTILLED WATER'){
-            recordQrSale('water');
-          } else if(statusEl){
-            statusEl.textContent = '⚠️ Unrecognized QR code: "' + code.data + '"';
-          }
+          recordQrSale(text, qrScanMode);
         }
       }
     }
@@ -5151,6 +5257,7 @@ function importData(file){
         if(!state.tankUpdates) state.tankUpdates = [];
         if(!state.pouchBoxes) state.pouchBoxes = {};
         if(!state.shiftPayout) state.shiftPayout = {};
+        if(!state.qrScanLog) state.qrScanLog = [];
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         alert('Data restored successfully.');
@@ -5332,6 +5439,7 @@ document.getElementById('salesDate').value = todayStr();
 document.getElementById('monthPicker').value = thisMonthStr();
 document.getElementById('cashDate').value = todayStr();
 document.getElementById('surplusMonth').value = thisMonthStr();
+setQrScanMode('lube');
 renderSalesTab();
 
 // The initial loadFromServer() call now happens inside initServerSync(),
