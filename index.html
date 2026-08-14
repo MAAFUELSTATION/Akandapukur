@@ -1567,7 +1567,7 @@
       <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>Staff</th><th class="num">🔥 Current Streak</th><th class="num">🏆 Best Streak</th><th class="num">Boxes Closed</th></tr>
+          <tr><th>Staff</th><th class="num">🔥 Current Streak (Days)</th><th class="num">🏆 Best Streak (Days)</th><th class="num">Boxes Closed</th></tr>
         </thead>
         <tbody id="addonStreakBody"></tbody>
       </table>
@@ -4679,7 +4679,7 @@ function renderAddonPanel(staffId){
   if(streakBadge){
     const st = computeAddonStreak(staffId);
     streakBadge.innerHTML = st.boxesClosed
-      ? `<span>${st.current > 0 ? '🔥 Current streak: ' + st.current + ' box' + (st.current===1?'':'es') + ' same-day' : 'No active streak — last box missed the same-day window'}</span><span class="mono">🏆 Best: ${st.best}</span>`
+      ? `<span>${st.current > 0 ? '🔥 Current streak: ' + st.current + ' day' + (st.current===1?'':'s') + ' in a row (same-day sell-through)' : 'No active streak — no same-day close today, or the streak broke'}</span><span class="mono">🏆 Best: ${st.best} day${st.best===1?'':'s'}</span>`
       : `<span class="hint">No boxes closed yet for this staff member.</span>`;
   }
 
@@ -4708,20 +4708,28 @@ function renderAddonPanel(staffId){
   renderAddonStockCheckHistory(staffId);
 }
 
-// Streak = consecutive most-recently-closed boxes (in chronological closing
-// order) that each earned the ₹25 same-day incentive. It resets to 0 the
-// moment a box closes slower than same-day. "best" is the longest such run
-// this staff member has ever had.
+// Streak = consecutive CALENDAR DAYS on which this staff member closed at
+// least one box the very same day it was issued (the ₹25 incentive) — one
+// day with a qualifying close keeps the streak alive, a day with none (or a
+// gap where no box closed at all) breaks it. "best" is the longest such run
+// of days this staff member has ever had; "current" is the run trailing the
+// most recent qualifying day.
 function computeAddonStreak(staffId){
-  const boxes = pouchBoxesFor(staffId)
-    .filter(b => b.status === 'closed' && b.closedDate)
-    .sort((a,b) => (a.closedDate + a.effectiveIssueDate).localeCompare(b.closedDate + b.effectiveIssueDate));
-  let running = 0, best = 0;
-  boxes.forEach(b=>{
-    running = (b.incentive === ADDON_SAME_DAY_INCENTIVE) ? running + 1 : 0;
-    if(running > best) best = running;
-  });
-  return { current: running, best, boxesClosed: boxes.length };
+  const allClosed = pouchBoxesFor(staffId).filter(b => b.status === 'closed' && b.closedDate);
+  const qualifyingDays = [...new Set(
+    allClosed.filter(b => b.incentive === ADDON_SAME_DAY_INCENTIVE).map(b => b.closedDate)
+  )].sort();
+  let current = 0, best = 0;
+  if(qualifyingDays.length){
+    let running = 1;
+    best = 1;
+    for(let i = 1; i < qualifyingDays.length; i++){
+      running = (daysBetweenStr(qualifyingDays[i-1], qualifyingDays[i]) === 1) ? running + 1 : 1;
+      if(running > best) best = running;
+    }
+    current = running;
+  }
+  return { current, best, boxesClosed: allClosed.length };
 }
 
 function renderAddonStreakLeaderboard(){
@@ -4732,7 +4740,7 @@ function renderAddonStreakLeaderboard(){
     .filter(r => r.boxesClosed > 0)
     .sort((a,b) => b.current - a.current || b.best - a.best);
   body.innerHTML = rows.map(r => `
-    <tr><td class="staff-name-cell">${escapeHtml(r.name)}</td><td class="num">${r.current > 0 ? '🔥 '+r.current : '—'}</td><td class="num">${r.best}</td><td class="num">${r.boxesClosed}</td></tr>`).join('');
+    <tr><td class="staff-name-cell">${escapeHtml(r.name)}</td><td class="num">${r.current > 0 ? '🔥 '+r.current+' day'+(r.current===1?'':'s') : '—'}</td><td class="num">${r.best} day${r.best===1?'':'s'}</td><td class="num">${r.boxesClosed}</td></tr>`).join('');
   if(emptyEl) emptyEl.style.display = rows.length ? 'none' : 'block';
 }
 
