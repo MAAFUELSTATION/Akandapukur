@@ -1441,6 +1441,7 @@
           <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹25 same-day · ₹10 within 2 days</span><span class="cc-chev">▼</span></h2>
           <div class="cc-block-body">
           <div class="hint" style="margin-bottom:10px;">Tracked per staff member. A box issued at/after 11:00 AM has its incentive clock start the next day.</div>
+          <div id="addonStreakBadge" class="calc-line" style="margin-bottom:10px;"></div>
 
           <button class="btn ghost small" onclick="issuePouchBox(document.getElementById('cashStaff').value)">📦 Issue New Box (50 pcs) to selected staff</button>
 
@@ -1556,6 +1557,22 @@
       </div>
       <div class="empty" id="addonSummaryEmpty" style="display:none;">No boxes closed this month yet.</div>
       <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="addonSummaryTotal">₹0</span></div>
+      </div>
+    </div>
+
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">🔥 Add-on Streak Counter <span class="tag">Consecutive same-day box closures, by staff</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <div class="hint" style="margin-bottom:10px;">A streak is consecutive boxes closed the very same day they were issued (₹25 incentive). It resets the moment a box takes longer than that.</div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">🔥 Current Streak</th><th class="num">🏆 Best Streak</th><th class="num">Boxes Closed</th></tr>
+        </thead>
+        <tbody id="addonStreakBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="addonStreakEmpty" style="display:none;">No boxes closed yet.</div>
       </div>
     </div>
 
@@ -4658,6 +4675,14 @@ function renderAddonPanel(staffId){
   const closed = boxes.filter(b => b.status === 'closed')
     .sort((a,b) => (b.closedDate||'').localeCompare(a.closedDate||'')).slice(0,10);
 
+  const streakBadge = document.getElementById('addonStreakBadge');
+  if(streakBadge){
+    const st = computeAddonStreak(staffId);
+    streakBadge.innerHTML = st.boxesClosed
+      ? `<span>${st.current > 0 ? '🔥 Current streak: ' + st.current + ' box' + (st.current===1?'':'es') + ' same-day' : 'No active streak — last box missed the same-day window'}</span><span class="mono">🏆 Best: ${st.best}</span>`
+      : `<span class="hint">No boxes closed yet for this staff member.</span>`;
+  }
+
   openWrap.innerHTML = open.length ? open.map(b => `
     <div class="calc-line addon-box-row">
       <span>Issued ${b.issueDate} ${b.issueTime}${b.effectiveIssueDate !== b.issueDate ? ' → clock starts ' + b.effectiveIssueDate : ''}</span>
@@ -4681,6 +4706,34 @@ function renderAddonPanel(staffId){
     </div>`).join('') : '<div class="hint">No fully-sold boxes yet.</div>';
 
   renderAddonStockCheckHistory(staffId);
+}
+
+// Streak = consecutive most-recently-closed boxes (in chronological closing
+// order) that each earned the ₹25 same-day incentive. It resets to 0 the
+// moment a box closes slower than same-day. "best" is the longest such run
+// this staff member has ever had.
+function computeAddonStreak(staffId){
+  const boxes = pouchBoxesFor(staffId)
+    .filter(b => b.status === 'closed' && b.closedDate)
+    .sort((a,b) => (a.closedDate + a.effectiveIssueDate).localeCompare(b.closedDate + b.effectiveIssueDate));
+  let running = 0, best = 0;
+  boxes.forEach(b=>{
+    running = (b.incentive === ADDON_SAME_DAY_INCENTIVE) ? running + 1 : 0;
+    if(running > best) best = running;
+  });
+  return { current: running, best, boxesClosed: boxes.length };
+}
+
+function renderAddonStreakLeaderboard(){
+  const body = document.getElementById('addonStreakBody');
+  const emptyEl = document.getElementById('addonStreakEmpty');
+  if(!body) return;
+  const rows = (state.staff||[]).map(s => ({ name: s.name, ...computeAddonStreak(s.id) }))
+    .filter(r => r.boxesClosed > 0)
+    .sort((a,b) => b.current - a.current || b.best - a.best);
+  body.innerHTML = rows.map(r => `
+    <tr><td class="staff-name-cell">${escapeHtml(r.name)}</td><td class="num">${r.current > 0 ? '🔥 '+r.current : '—'}</td><td class="num">${r.best}</td><td class="num">${r.boxesClosed}</td></tr>`).join('');
+  if(emptyEl) emptyEl.style.display = rows.length ? 'none' : 'block';
 }
 
 // Sums incentive earned per staff member for boxes CLOSED within the given
@@ -4712,6 +4765,7 @@ function renderAddonMonthlySummary(){
     <tr><td>${r.name}</td><td class="num">${r.boxCount}</td><td class="num">₹${r.total}</td></tr>`).join('');
   totalEl.textContent = '₹' + grandTotal;
   emptyEl.style.display = rows.length ? 'none' : 'block';
+  renderAddonStreakLeaderboard();
 }
 
 /* ============== ADD-ON POUCH STOCK COUNTER CHECK ============== */
