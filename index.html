@@ -3656,12 +3656,34 @@ function escapeOcrHtml(s){
 // rather than matching on "tot:" alone, which would also match "Atot:".
 function parseTotalizerSlipText(text){
   const readings = {}; // nozzleNumber (1-4) -> value
-  const blockRegex = /Nozzle\s*No\.?\s*:?\s*0?([1-4])[\s\S]{0,80}?Atot\s*:?\s*[\d,]+\.?\d*\s+V?tot\s*:?\s*([\d][\d,]*\.?\d*)/gi;
-  let m;
-  while((m = blockRegex.exec(text)) !== null){
-    const nzNum = Number(m[1]);
-    const val = parseFloat(m[2].replace(/,/g,''));
-    if(nzNum >= 1 && nzNum <= 4 && Number.isFinite(val)) readings[nzNum] = val;
+  // Line-based parsing, not a single sprawling regex: totalizer slips are
+  // often hand-annotated (circles/checkmarks drawn over "Vtot"), which
+  // corrupts that word during OCR — sometimes even injecting a stray digit
+  // into it. Anchoring only on the literal "Atot" (which is rarely marked
+  // up) and then taking the LAST well-formed decimal number on that line
+  // (falling back to the next line if only one number is found) sidesteps
+  // that corruption instead of trying to match the "Vtot" label itself.
+  const lines = text.split(/\r?\n/);
+  const decimalRe = /\d[\d,]*\.\d+/g;
+  let pendingNzNum = null;
+  for(let i = 0; i < lines.length; i++){
+    const line = lines[i];
+    const nzMatch = line.match(/Nozzle\s*No\.?\s*:?\s*0?([1-4])\b/i);
+    if(nzMatch){
+      pendingNzNum = Number(nzMatch[1]);
+      continue;
+    }
+    if(pendingNzNum && /Atot/i.test(line)){
+      let nums = line.match(decimalRe) || [];
+      if(nums.length < 2 && lines[i + 1]){
+        nums = nums.concat(lines[i + 1].match(decimalRe) || []);
+      }
+      if(nums.length >= 2){
+        const val = parseFloat(nums[nums.length - 1].replace(/,/g, ''));
+        if(Number.isFinite(val)) readings[pendingNzNum] = val;
+      }
+      pendingNzNum = null;
+    }
   }
   const serialMatch = text.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
   return { readings, serial: serialMatch ? serialMatch[1] : null };
