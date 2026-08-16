@@ -345,6 +345,16 @@
   .ocr-paste-hint{border:1.5px dashed var(--line);border-radius:6px;padding:6px 8px;margin:-6px 0 10px;cursor:text;user-select:none;transition:border-color .15s ease,background .15s ease;}
   .ocr-paste-hint:hover,.ocr-paste-hint:focus{border-color:var(--brass,#a9812f);background:rgba(169,129,47,.06);outline:none;}
   .ocr-paste-hint.paste-active{border-color:var(--brass,#a9812f);background:rgba(169,129,47,.1);}
+  .ocr-confirm-box{border:1px solid var(--line);border-radius:8px;padding:10px;margin:-6px 0 10px;background:#FCFAF2;}
+  .ocr-confirm-box .ocr-confirm-title{font-size:12.5px;font-weight:600;margin-bottom:8px;}
+  .ocr-confirm-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12.5px;border-bottom:1px dashed var(--line);}
+  .ocr-confirm-row:last-of-type{border-bottom:none;}
+  .ocr-confirm-row label{display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;}
+  .ocr-confirm-row .ocr-confirm-val{font-family:'JetBrains Mono',monospace;margin-left:auto;}
+  .ocr-confirm-row.ocr-confirm-skipped{opacity:.55;}
+  .ocr-confirm-actions{display:flex;gap:8px;margin-top:10px;}
+  .ocr-confirm-actions button{flex:1;padding:7px 10px;border-radius:6px;font-size:12.5px;cursor:pointer;border:1px solid var(--line);background:#fff;}
+  .ocr-confirm-actions .ocr-apply-btn{background:var(--brass,#a9812f);color:#fff;border-color:var(--brass,#a9812f);font-weight:600;}
   .nz-result{grid-area:result;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;}
   .nz-chip{border-radius:7px;padding:8px 9px;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35;text-align:center;border:1px solid var(--line);background:#fff;min-width:0;}
   .fuel-group.diesel .nz-chip.litres{color:var(--diesel-dark);background:#EAF2FE;border-color:#D3E4FC;}
@@ -3556,6 +3566,7 @@ function renderNozzleAssignTable(date, shift){
         <input type="file" accept="image/*" capture="environment" id="ocrFile-${unitNum}" style="display:none;" onchange="handleOcrFile(${unitNum}, this)">
       </div>
       <div class="hint" id="ocrStatus-${unitNum}" style="display:none;margin:-6px 0 10px;"></div>
+      <div id="ocrConfirm-${unitNum}" class="ocr-confirm-box" style="display:none;"></div>
       <div class="hint ocr-paste-hint" tabindex="0" id="ocrPasteZone-${unitNum}" title="Click here, then press Ctrl+V (or Cmd+V) to paste a copied totalizer slip image">📋 Or click here and paste (Ctrl+V) a copied slip image</div>
       <div class="fuel-group diesel">
         <div class="fuel-group-head"><span class="dot"></span>Diesel · HSD</div>
@@ -3680,7 +3691,6 @@ async function processOcrImage(unitNum, file){
     const foundCount = Object.keys(readings).length;
     if(foundCount === 0){
       setOcrStatus(unitNum, "⚠️ Couldn't read any Vtot values from that photo — try a clearer, well-lit shot straight-on to the slip.", 'error');
-      inputEl.value = '';
       return;
     }
 
@@ -3690,48 +3700,98 @@ async function processOcrImage(unitNum, file){
       serialWarning = ` ⚠️ Slip's DU Serial No. (${serial}) doesn't match Unit ${unitNum}'s (${expectedSerial}) — double-check you scanned the right unit's slip.`;
     }
 
-    const date = document.getElementById('salesDate').value;
-    const sd = ensureShiftData(date, currentShift);
-    // Nozzle 1 & 2 on the slip = this unit's two Diesel nozzles;
-    // Nozzle 3 & 4 on the slip = this unit's two Petrol nozzles.
-    const nozzleMap = {
-      1: `u${unitNum}-d1`, 2: `u${unitNum}-d2`,
-      3: `u${unitNum}-p1`, 4: `u${unitNum}-p2`
-    };
-    const applied = [];
-    const skipped = [];
-    Object.keys(nozzleMap).forEach(slipNzStr => {
-      const slipNz = Number(slipNzStr);
-      if(readings[slipNz] === undefined) return;
-      const nzId = nozzleMap[slipNz];
-      const value = readings[slipNz];
-      const opening = Number(getOpeningReading(date, currentShift, nzId)) || 0;
-      const litres = value - opening;
-      if(!Number.isFinite(value) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT){
-        skipped.push('Nozzle ' + slipNz + ' (' + value + ' — below opening reading or out of range)');
-        return;
-      }
-      sd.closing[nzId] = value;
-      applied.push('Nozzle ' + slipNz + ': ' + value);
-    });
-
-    renderNozzleAssignTable(date, currentShift);
-    renderShiftReadouts(date, currentShift);
-    renderShiftStaffTable(date, currentShift);
-    renderDaySummary(date);
-    scheduleAutosave();
-
-    if(applied.length){
-      let msg = '✅ Filled from slip — ' + applied.join(', ') + '.';
-      if(skipped.length) msg += ' Skipped: ' + skipped.join(', ') + ' — check these manually.';
-      msg += serialWarning;
-      setOcrStatus(unitNum, msg, skipped.length || serialWarning ? 'warn' : '');
-    } else {
-      setOcrStatus(unitNum, '⚠️ Found readings but none were valid closing values (below opening reading) — check these manually.' + serialWarning, 'error');
-    }
+    setOcrStatus(unitNum, '📖 Slip read — choose which nozzle(s) below to update, then Apply.' + serialWarning, serialWarning ? 'warn' : '');
+    showOcrConfirm(unitNum, readings);
   }catch(e){
     setOcrStatus(unitNum, '⚠️ Could not read that image (' + ((e && e.message) || 'unknown error') + ').', 'error');
   }
+}
+
+// Nozzle 1 & 2 on the slip = a unit's two Diesel nozzles;
+// Nozzle 3 & 4 on the slip = a unit's two Petrol nozzles.
+function ocrNozzleMap(unitNum){
+  return {
+    1: `u${unitNum}-d1`, 2: `u${unitNum}-d2`,
+    3: `u${unitNum}-p1`, 4: `u${unitNum}-p2`
+  };
+}
+
+// Shows a checklist of the readings found on the slip so the user can pick
+// which nozzle(s) to actually apply — nothing is written to the shift data
+// until "Apply Selected" is clicked.
+function showOcrConfirm(unitNum, readings){
+  const date = document.getElementById('salesDate').value;
+  const nozzleMap = ocrNozzleMap(unitNum);
+  const nzLabel = { 1:'Nozzle 1 (Diesel)', 2:'Nozzle 2 (Diesel)', 3:'Nozzle 3 (Petrol)', 4:'Nozzle 4 (Petrol)' };
+
+  const rowsHtml = Object.keys(nozzleMap).map(slipNzStr => {
+    const slipNz = Number(slipNzStr);
+    const nzId = nozzleMap[slipNz];
+    if(readings[slipNz] === undefined){
+      return `<div class="ocr-confirm-row ocr-confirm-skipped"><label><input type="checkbox" disabled>${nzLabel[slipNz]}</label><span class="ocr-confirm-val">not found on slip</span></div>`;
+    }
+    const value = readings[slipNz];
+    const opening = Number(getOpeningReading(date, currentShift, nzId)) || 0;
+    const litres = value - opening;
+    const invalid = !Number.isFinite(value) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT;
+    return `<div class="ocr-confirm-row${invalid ? ' ocr-confirm-skipped' : ''}">
+      <label><input type="checkbox" data-slip-nz="${slipNz}" ${invalid ? 'disabled' : 'checked'}>${nzLabel[slipNz]}</label>
+      <span class="ocr-confirm-val">${value}${invalid ? ' — below opening / out of range' : ''}</span>
+    </div>`;
+  }).join('');
+
+  const box = document.getElementById('ocrConfirm-' + unitNum);
+  if(!box) return;
+  box.dataset.readings = JSON.stringify(readings);
+  box.innerHTML = `
+    <div class="ocr-confirm-title">Apply readings to which nozzle(s)?</div>
+    ${rowsHtml}
+    <div class="ocr-confirm-actions">
+      <button class="ocr-apply-btn" onclick="applyOcrSelections(${unitNum})">✅ Apply Selected</button>
+      <button onclick="cancelOcrSelections(${unitNum})">Cancel</button>
+    </div>`;
+  box.style.display = 'block';
+}
+
+function cancelOcrSelections(unitNum){
+  const box = document.getElementById('ocrConfirm-' + unitNum);
+  if(!box) return;
+  box.style.display = 'none';
+  box.innerHTML = '';
+  delete box.dataset.readings;
+  setOcrStatus(unitNum, '', '');
+}
+
+function applyOcrSelections(unitNum){
+  const box = document.getElementById('ocrConfirm-' + unitNum);
+  if(!box || !box.dataset.readings) return;
+  const readings = JSON.parse(box.dataset.readings);
+  const nozzleMap = ocrNozzleMap(unitNum);
+
+  const date = document.getElementById('salesDate').value;
+  const sd = ensureShiftData(date, currentShift);
+
+  const applied = [];
+  box.querySelectorAll('input[type="checkbox"][data-slip-nz]:checked:not(:disabled)').forEach(cb => {
+    const slipNz = Number(cb.dataset.slipNz);
+    const nzId = nozzleMap[slipNz];
+    const value = readings[slipNz];
+    if(value === undefined) return;
+    sd.closing[nzId] = value;
+    applied.push('Nozzle ' + slipNz + ': ' + value);
+  });
+
+  renderNozzleAssignTable(date, currentShift);
+  renderShiftReadouts(date, currentShift);
+  renderShiftStaffTable(date, currentShift);
+  renderDaySummary(date);
+  scheduleAutosave();
+
+  box.style.display = 'none';
+  box.innerHTML = '';
+  delete box.dataset.readings;
+
+  setOcrStatus(unitNum, applied.length ? ('✅ Applied — ' + applied.join(', ') + '.') : '⚠️ Nothing selected — no readings were applied.', applied.length ? '' : 'warn');
 }
 
 function onReadingInput(el){
