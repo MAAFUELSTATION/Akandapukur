@@ -3661,22 +3661,28 @@ function parseTotalizerSlipText(text){
   // corrupts that word during OCR — sometimes even injecting a stray digit
   // into it. Anchoring only on the literal "Atot" (which is rarely marked
   // up) and then taking the LAST well-formed decimal number on that line
-  // (falling back to the next line if only one number is found) sidesteps
-  // that corruption instead of trying to match the "Vtot" label itself.
+  // sidesteps that corruption instead of trying to match "Vtot" itself.
+  // If the Vtot number didn't OCR on the Atot line, we look ahead up to two
+  // more lines for it — but we stop the instant we reach the next nozzle's
+  // "Nozzle No." header, so we never borrow a number (e.g. an Ecal Factor
+  // percentage) that actually belongs to a different nozzle's block.
   const lines = text.split(/\r?\n/);
   const decimalRe = /\d[\d,]*\.\d+/g;
+  const nozzleHeaderRe = /Nozzle\s*No\.?\s*:?\s*0?([1-4])\b/i;
   let pendingNzNum = null;
   for(let i = 0; i < lines.length; i++){
     const line = lines[i];
-    const nzMatch = line.match(/Nozzle\s*No\.?\s*:?\s*0?([1-4])\b/i);
+    const nzMatch = line.match(nozzleHeaderRe);
     if(nzMatch){
       pendingNzNum = Number(nzMatch[1]);
       continue;
     }
     if(pendingNzNum && /Atot/i.test(line)){
       let nums = line.match(decimalRe) || [];
-      if(nums.length < 2 && lines[i + 1]){
-        nums = nums.concat(lines[i + 1].match(decimalRe) || []);
+      let look = i + 1;
+      while(nums.length < 2 && look < lines.length && look < i + 3 && !nozzleHeaderRe.test(lines[look]) && !/Ecal\s*Factor/i.test(lines[look])){
+        nums = nums.concat(lines[look].match(decimalRe) || []);
+        look++;
       }
       if(nums.length >= 2){
         const val = parseFloat(nums[nums.length - 1].replace(/,/g, ''));
