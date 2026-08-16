@@ -3656,39 +3656,45 @@ function escapeOcrHtml(s){
 // rather than matching on "tot:" alone, which would also match "Atot:".
 function parseTotalizerSlipText(text){
   const readings = {}; // nozzleNumber (1-4) -> value
-  // Line-based parsing, not a single sprawling regex: totalizer slips are
-  // often hand-annotated (circles/checkmarks drawn over "Vtot"), which
-  // corrupts that word during OCR — sometimes even injecting a stray digit
-  // into it. Anchoring only on the literal "Atot" (which is rarely marked
-  // up) and then taking the LAST well-formed decimal number on that line
-  // sidesteps that corruption instead of trying to match "Vtot" itself.
-  // If the Vtot number didn't OCR on the Atot line, we look ahead up to two
-  // more lines for it — but we stop the instant we reach the next nozzle's
-  // "Nozzle No." header, so we never borrow a number (e.g. an Ecal Factor
-  // percentage) that actually belongs to a different nozzle's block.
+  // Line-based parsing, not a single sprawling regex. Real-world scanned
+  // totalizer slips OCR imperfectly in two ways we've seen in practice:
+  //  1) A checkmark/circle pen-marked directly over "Vtot" garbles just
+  //     that word, sometimes injecting a stray digit into it.
+  //  2) On a soft-focus/glare/creased area of the photo, OCR can drop an
+  //     entire leading word — e.g. "Nozzle No." -> "ozzle No." (missing
+  //     "N"), or "Atot: ..." -> "..." (missing "Atot" altogether), while
+  //     the numbers themselves still read fine.
+  // To survive both, we: (a) accept a missing leading "N" on "Nozzle", and
+  // (b) don't require the word "Atot" at all — we just take the next line
+  // (within a few lines, and never crossing into the next nozzle's header)
+  // that has at least two decimal numbers on it, and use the last one.
   const lines = text.split(/\r?\n/);
-  const decimalRe = /\d[\d,]*\.\d+/g;
-  const nozzleHeaderRe = /Nozzle\s*No\.?\s*:?\s*0?([1-4])\b/i;
+  // Tesseract sometimes inserts a stray space right after the decimal
+  // point (e.g. "0000198494. 470" instead of "0000198494.470") — allow
+  // for that so those numbers still count as valid decimals.
+  const decimalRe = /\d[\d,]*\.\s{0,2}\d+/g;
+  const nozzleHeaderRe = /\bN?ozzle\s*No\.?\s*:?\s*0?([1-4])\b/i;
   let pendingNzNum = null;
+  let pendingStartIdx = -1;
   for(let i = 0; i < lines.length; i++){
     const line = lines[i];
     const nzMatch = line.match(nozzleHeaderRe);
     if(nzMatch){
       pendingNzNum = Number(nzMatch[1]);
+      pendingStartIdx = i;
       continue;
     }
-    if(pendingNzNum && /Atot/i.test(line)){
-      let nums = line.match(decimalRe) || [];
-      let look = i + 1;
-      while(nums.length < 2 && look < lines.length && look < i + 3 && !nozzleHeaderRe.test(lines[look]) && !/Ecal\s*Factor/i.test(lines[look])){
-        nums = nums.concat(lines[look].match(decimalRe) || []);
-        look++;
-      }
+    if(pendingNzNum !== null){
+      const nums = line.match(decimalRe) || [];
       if(nums.length >= 2){
-        const val = parseFloat(nums[nums.length - 1].replace(/,/g, ''));
+        const val = parseFloat(nums[nums.length - 1].replace(/,/g, '').replace(/\s+/g, ''));
         if(Number.isFinite(val)) readings[pendingNzNum] = val;
+        pendingNzNum = null;
+      } else if(i - pendingStartIdx >= 3){
+        // Gave this block a few lines to show its numbers; give up so we
+        // don't misattribute stray numbers further down the slip.
+        pendingNzNum = null;
       }
-      pendingNzNum = null;
     }
   }
   const serialMatch = text.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
