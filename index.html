@@ -3656,6 +3656,40 @@ function escapeOcrHtml(s){
 // rather than matching on "tot:" alone, which would also match "Atot:".
 function parseTotalizerSlipText(text){
   const readings = {}; // nozzleNumber (1-4) -> value
+  const source = String(text || '');
+  const headers = [];
+  const nozzleHeaderReStrict = /\bN?ozzle\b[\s\S]{0,15}?0?([1-4])\b/gi;
+  let headerMatch;
+  while((headerMatch = nozzleHeaderReStrict.exec(source)) !== null){
+    headers.push({ number: Number(headerMatch[1]), index: headerMatch.index });
+  }
+
+  // Read ONLY the complete number printed after Vtot. In particular, do
+  // not use Atot, Ecal Factor, or an unlabelled nearby number as a fallback.
+  // Spaces inserted by OCR are removed only after the full Vtot value has
+  // been captured, so no digits are lost.
+  const vtotRe = /\bv\s*tot\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/gi;
+  const unassignedValues = [];
+  let valueMatch;
+  while((valueMatch = vtotRe.exec(source)) !== null){
+    const value = parseFloat(valueMatch[1].replace(/[\s,]/g, ''));
+    if(!Number.isFinite(value)) continue;
+    let nozzle = null;
+    for(let i = headers.length - 1; i >= 0; i--){
+      if(headers[i].index < valueMatch.index){ nozzle = headers[i].number; break; }
+    }
+    if(nozzle && readings[nozzle] === undefined) readings[nozzle] = value;
+    else unassignedValues.push(value);
+  }
+  // When a lower nozzle heading is missing in OCR, map the remaining Vtot
+  // values in the slip's printed order (1, 2, 3, 4).
+  unassignedValues.forEach(value => {
+    const nozzle = [1,2,3,4].find(n => readings[n] === undefined);
+    if(nozzle) readings[nozzle] = value;
+  });
+  const vtotSerialMatch = source.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
+  return { readings, serial: vtotSerialMatch ? vtotSerialMatch[1] : null };
+
   // Line-based parsing, not a single sprawling regex. Real-world scanned
   // totalizer slips OCR imperfectly in ways we've seen in practice:
   //  1) A checkmark/circle pen-marked directly over "Vtot" garbles just
