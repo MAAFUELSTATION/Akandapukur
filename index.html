@@ -8,6 +8,10 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- jsQR — used only by the EOD Shift Payout QR scanner to decode Lube/Water QR tags from the camera feed. -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<!-- Tesseract.js — used only by the Nozzle Sale Report's "Scan Totalizer Slip" OCR
+     feature, to read the Vtot meter readings straight off a photographed
+     electronic totalizer printout instead of typing them in by hand. -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 // Apply the saved interface theme (Light, Graphite, or Cyan) as early as possible,
 // before the page paints, so switching themes never causes a flash of the
@@ -338,6 +342,9 @@
   .nozzle-row .field-closing{grid-area:closing;}
   .nozzle-row .meter-input{width:100%;min-width:0;box-sizing:border-box;padding:8px 8px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;text-align:right;}
   .nozzle-row .meter-input:disabled{background:#F4EEDD;color:var(--muted);cursor:not-allowed;border-style:dashed;}
+  .ocr-paste-hint{border:1.5px dashed var(--line);border-radius:6px;padding:6px 8px;margin:-6px 0 10px;cursor:text;user-select:none;transition:border-color .15s ease,background .15s ease;}
+  .ocr-paste-hint:hover,.ocr-paste-hint:focus{border-color:var(--brass,#a9812f);background:rgba(169,129,47,.06);outline:none;}
+  .ocr-paste-hint.paste-active{border-color:var(--brass,#a9812f);background:rgba(169,129,47,.1);}
   .nz-result{grid-area:result;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;}
   .nz-chip{border-radius:7px;padding:8px 9px;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35;text-align:center;border:1px solid var(--line);background:#fff;min-width:0;}
   .fuel-group.diesel .nz-chip.litres{color:var(--diesel-dark);background:#EAF2FE;border-color:#D3E4FC;}
@@ -2505,6 +2512,7 @@ const NOZZLES = [
   {id:'u2-p1', unit:2, fuel:'petrol', label:'Petrol Nozzle 1'},
   {id:'u2-p2', unit:2, fuel:'petrol', label:'Petrol Nozzle 2'}
 ];
+const UNIT_MACHINE_NO = {1:'M241409', 2:'M2402032'};
 // A single nozzle cannot legitimately dispense an unlimited number of litres in
 // one shift. This guards summaries against an accidental pasted/appended meter value.
 // Raised to crore-range (1,00,00,000) so large legitimate readings are never rejected.
@@ -3535,15 +3543,20 @@ function renderNozzleAssignTable(date, shift){
     </div>`;
   };
 
-  const UNIT_MACHINE_NO = {1:'M241409', 2:'M2402032'};
-
   const unitPanelHtml = (unitNum) => {
     const unitNozzles = NOZZLES.filter(nz=>nz.unit===unitNum);
     const dieselRows = unitNozzles.filter(nz=>nz.fuel==='diesel').map(nozzleRowHtml).join('');
     const petrolRows = unitNozzles.filter(nz=>nz.fuel==='petrol').map(nozzleRowHtml).join('');
     const machineNo = UNIT_MACHINE_NO[unitNum] || '';
     return `<div class="unit-panel">
-      <div class="unit-head"><span class="unit-num">${String(unitNum).padStart(2,'0')}</span><span class="unit-titles"><span class="unit-name">Dispensing Unit</span>${machineNo?`<span class="unit-machine">${machineNo}</span>`:''}</span></div>
+      <div class="unit-head">
+        <span class="unit-num">${String(unitNum).padStart(2,'0')}</span>
+        <span class="unit-titles"><span class="unit-name">Dispensing Unit</span>${machineNo?`<span class="unit-machine">${machineNo}</span>`:''}</span>
+        <button class="btn ghost small" style="margin-left:auto;white-space:nowrap;" onclick="triggerOcrScan(${unitNum})" title="Photograph or upload this unit's Electronic Totalizer slip to auto-fill the closing readings below">📷 Scan Totalizer Slip</button>
+        <input type="file" accept="image/*" capture="environment" id="ocrFile-${unitNum}" style="display:none;" onchange="handleOcrFile(${unitNum}, this)">
+      </div>
+      <div class="hint" id="ocrStatus-${unitNum}" style="display:none;margin:-6px 0 10px;"></div>
+      <div class="hint ocr-paste-hint" tabindex="0" id="ocrPasteZone-${unitNum}" title="Click here, then press Ctrl+V (or Cmd+V) to paste a copied totalizer slip image">📋 Or click here and paste (Ctrl+V) a copied slip image</div>
       <div class="fuel-group diesel">
         <div class="fuel-group-head"><span class="dot"></span>Diesel · HSD</div>
         ${dieselRows}
@@ -3557,6 +3570,7 @@ function renderNozzleAssignTable(date, shift){
 
   const units = [...new Set(NOZZLES.map(nz=>nz.unit))];
   document.getElementById('nozzleAssignTable').innerHTML = units.map(unitPanelHtml).join('');
+  initOcrPasteZones();
 }
 function onAssignChange(el){
   const date = document.getElementById('salesDate').value;
@@ -3566,6 +3580,160 @@ function onAssignChange(el){
   renderDaySummary(date);
   scheduleAutosave();
 }
+
+/* ============== NOZZLE OCR — SCAN TOTALIZER SLIP ==============
+   Reads the printed "Electronic Totalizer" slip photographed at each
+   Dispensing Unit and auto-fills that unit's four Closing reading fields
+   for the current shift, using only the "Vtot:" figure next to each
+   Nozzle No. on the slip (Atot / Ecal Factor are ignored). Per the DU's
+   layout, Nozzle 1 & 2 are always Diesel and Nozzle 3 & 4 are always
+   Petrol — matching this app's u{unit}-d1/d2 and u{unit}-p1/p2 nozzles. */
+function triggerOcrScan(unitNum){
+  const input = document.getElementById('ocrFile-' + unitNum);
+  if(input) input.click();
+}
+
+function setOcrStatus(unitNum, text, kind){
+  const el = document.getElementById('ocrStatus-' + unitNum);
+  if(!el) return;
+  el.style.display = text ? 'block' : 'none';
+  el.textContent = text || '';
+  el.style.color = kind === 'error' ? 'var(--danger, #b3261e)' : (kind === 'warn' ? 'var(--brass, #a9812f)' : '');
+}
+
+// Pulls each Nozzle No. -> Vtot pair out of the raw OCR text. Tolerant of
+// OCR noise: colons/periods may be missed or doubled, there's often a
+// stretch of "Ecal Factor: x.xx %" text between "Nozzle No." and "Atot:"
+// that we skip over, and OCR frequently misreads "Vtot:" as "tot:" (drops
+// the V) — so we require the preceding "Atot: <number>" as an anchor and
+// then take the *next* number after it (with or without a leading "V"),
+// rather than matching on "tot:" alone, which would also match "Atot:".
+function parseTotalizerSlipText(text){
+  const readings = {}; // nozzleNumber (1-4) -> value
+  const blockRegex = /Nozzle\s*No\.?\s*:?\s*0?([1-4])[\s\S]{0,80}?Atot\s*:?\s*[\d,]+\.?\d*\s+V?tot\s*:?\s*([\d][\d,]*\.?\d*)/gi;
+  let m;
+  while((m = blockRegex.exec(text)) !== null){
+    const nzNum = Number(m[1]);
+    const val = parseFloat(m[2].replace(/,/g,''));
+    if(nzNum >= 1 && nzNum <= 4 && Number.isFinite(val)) readings[nzNum] = val;
+  }
+  const serialMatch = text.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
+  return { readings, serial: serialMatch ? serialMatch[1] : null };
+}
+
+async function handleOcrFile(unitNum, inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  try{
+    await processOcrImage(unitNum, file);
+  } finally {
+    inputEl.value = '';
+  }
+}
+
+// Lets the user paste (Ctrl+V / Cmd+V) a copied totalizer slip image
+// straight into a unit's paste zone, as an alternative to the file-upload
+// button — same downstream OCR/parsing pipeline as handleOcrFile above.
+function initOcrPasteZones(){
+  document.querySelectorAll('.ocr-paste-hint[id^="ocrPasteZone-"]').forEach(zone => {
+    if(zone.dataset.pasteBound) return; // avoid double-binding on re-render
+    zone.dataset.pasteBound = '1';
+    const unitNum = Number(zone.id.replace('ocrPasteZone-',''));
+    zone.addEventListener('paste', async (ev) => {
+      const items = (ev.clipboardData && ev.clipboardData.items) || [];
+      let imageFile = null;
+      for(const item of items){
+        if(item.kind === 'file' && item.type.startsWith('image/')){
+          imageFile = item.getAsFile();
+          break;
+        }
+      }
+      if(!imageFile){
+        setOcrStatus(unitNum, '⚠️ No image found in clipboard — copy an image first, then paste here.', 'error');
+        return;
+      }
+      ev.preventDefault();
+      await processOcrImage(unitNum, imageFile);
+    });
+    zone.addEventListener('focus', () => zone.classList.add('paste-active'));
+    zone.addEventListener('blur', () => zone.classList.remove('paste-active'));
+  });
+}
+
+// Core OCR pipeline shared by both the file-upload input and the paste
+// zone: reads the totalizer slip image (a File or a Blob from clipboard
+// paste, either works with Tesseract.recognize) and fills in the closing
+// readings for the given unit.
+async function processOcrImage(unitNum, file){
+  if(!file) return;
+
+  if(typeof Tesseract === 'undefined'){
+    setOcrStatus(unitNum, '⚠️ OCR library failed to load — check your connection and try again.', 'error');
+    return;
+  }
+
+  setOcrStatus(unitNum, '📷 Reading slip… this can take a few seconds.');
+  try{
+    const { data: { text } } = await Tesseract.recognize(file, 'eng');
+    const { readings, serial } = parseTotalizerSlipText(text);
+
+    const foundCount = Object.keys(readings).length;
+    if(foundCount === 0){
+      setOcrStatus(unitNum, "⚠️ Couldn't read any Vtot values from that photo — try a clearer, well-lit shot straight-on to the slip.", 'error');
+      inputEl.value = '';
+      return;
+    }
+
+    const expectedSerial = UNIT_MACHINE_NO[unitNum];
+    let serialWarning = '';
+    if(serial && expectedSerial && serial.toUpperCase() !== expectedSerial.toUpperCase()){
+      serialWarning = ` ⚠️ Slip's DU Serial No. (${serial}) doesn't match Unit ${unitNum}'s (${expectedSerial}) — double-check you scanned the right unit's slip.`;
+    }
+
+    const date = document.getElementById('salesDate').value;
+    const sd = ensureShiftData(date, currentShift);
+    // Nozzle 1 & 2 on the slip = this unit's two Diesel nozzles;
+    // Nozzle 3 & 4 on the slip = this unit's two Petrol nozzles.
+    const nozzleMap = {
+      1: `u${unitNum}-d1`, 2: `u${unitNum}-d2`,
+      3: `u${unitNum}-p1`, 4: `u${unitNum}-p2`
+    };
+    const applied = [];
+    const skipped = [];
+    Object.keys(nozzleMap).forEach(slipNzStr => {
+      const slipNz = Number(slipNzStr);
+      if(readings[slipNz] === undefined) return;
+      const nzId = nozzleMap[slipNz];
+      const value = readings[slipNz];
+      const opening = Number(getOpeningReading(date, currentShift, nzId)) || 0;
+      const litres = value - opening;
+      if(!Number.isFinite(value) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT){
+        skipped.push('Nozzle ' + slipNz + ' (' + value + ' — below opening reading or out of range)');
+        return;
+      }
+      sd.closing[nzId] = value;
+      applied.push('Nozzle ' + slipNz + ': ' + value);
+    });
+
+    renderNozzleAssignTable(date, currentShift);
+    renderShiftReadouts(date, currentShift);
+    renderShiftStaffTable(date, currentShift);
+    renderDaySummary(date);
+    scheduleAutosave();
+
+    if(applied.length){
+      let msg = '✅ Filled from slip — ' + applied.join(', ') + '.';
+      if(skipped.length) msg += ' Skipped: ' + skipped.join(', ') + ' — check these manually.';
+      msg += serialWarning;
+      setOcrStatus(unitNum, msg, skipped.length || serialWarning ? 'warn' : '');
+    } else {
+      setOcrStatus(unitNum, '⚠️ Found readings but none were valid closing values (below opening reading) — check these manually.' + serialWarning, 'error');
+    }
+  }catch(e){
+    setOcrStatus(unitNum, '⚠️ Could not read that image (' + ((e && e.message) || 'unknown error') + ').', 'error');
+  }
+}
+
 function onReadingInput(el){
   const date = document.getElementById('salesDate').value;
   const nzId = el.dataset.nz, f = el.dataset.f;
