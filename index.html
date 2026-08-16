@@ -3612,6 +3612,41 @@ function setOcrStatus(unitNum, text, kind){
   el.style.color = kind === 'error' ? 'var(--danger, #b3261e)' : (kind === 'warn' ? 'var(--brass, #a9812f)' : '');
 }
 
+// Keeps the last raw OCR text per unit so it can be inspected via
+// "View raw scanned text" below — useful for diagnosing why a particular
+// nozzle's reading wasn't picked up from a slip photo.
+const lastOcrRawText = {};
+
+function appendRawTextToggle(unitNum){
+  const statusEl = document.getElementById('ocrStatus-' + unitNum);
+  if(!statusEl) return;
+  const link = document.createElement('div');
+  link.innerHTML = '<a href="#" style="font-size:11.5px;text-decoration:underline;">🔍 View raw scanned text</a>';
+  link.style.marginTop = '4px';
+  link.querySelector('a').onclick = (ev) => {
+    ev.preventDefault();
+    showRawOcrText(unitNum);
+  };
+  statusEl.appendChild(link);
+}
+
+function showRawOcrText(unitNum){
+  const text = lastOcrRawText[unitNum] || '(no scan yet)';
+  const box = document.getElementById('ocrConfirm-' + unitNum);
+  if(!box) return;
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="ocr-confirm-title">Raw text read from the slip (Unit ${unitNum})</div>
+    <pre style="white-space:pre-wrap;font-size:11.5px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px;max-height:220px;overflow:auto;">${escapeOcrHtml(text)}</pre>
+    <div class="ocr-confirm-actions">
+      <button onclick="document.getElementById('ocrConfirm-${unitNum}').style.display='none';document.getElementById('ocrConfirm-${unitNum}').innerHTML='';">Close</button>
+    </div>`;
+}
+
+function escapeOcrHtml(s){
+  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
 // Pulls each Nozzle No. -> Vtot pair out of the raw OCR text. Tolerant of
 // OCR noise: colons/periods may be missed or doubled, there's often a
 // stretch of "Ecal Factor: x.xx %" text between "Nozzle No." and "Atot:"
@@ -3686,11 +3721,13 @@ async function processOcrImage(unitNum, file){
   setOcrStatus(unitNum, '📷 Reading slip… this can take a few seconds.');
   try{
     const { data: { text } } = await Tesseract.recognize(file, 'eng');
+    lastOcrRawText[unitNum] = text;
     const { readings, serial } = parseTotalizerSlipText(text);
 
     const foundCount = Object.keys(readings).length;
     if(foundCount === 0){
       setOcrStatus(unitNum, "⚠️ Couldn't read any Vtot values from that photo — try a clearer, well-lit shot straight-on to the slip.", 'error');
+      appendRawTextToggle(unitNum);
       return;
     }
 
@@ -3701,6 +3738,7 @@ async function processOcrImage(unitNum, file){
     }
 
     setOcrStatus(unitNum, '📖 Slip read — choose which nozzle(s) below to update, then Apply.' + serialWarning, serialWarning ? 'warn' : '');
+    if(foundCount < 4) appendRawTextToggle(unitNum);
     showOcrConfirm(unitNum, readings);
   }catch(e){
     setOcrStatus(unitNum, '⚠️ Could not read that image (' + ((e && e.message) || 'unknown error') + ').', 'error');
