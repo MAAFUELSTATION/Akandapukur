@@ -1076,6 +1076,7 @@
   <button class="tab-btn" data-tab="dipchart" onclick="switchTab('dipchart')">📏 Dip Chart</button>
   <button class="tab-btn" data-tab="devices" onclick="switchTab('devices')">🖥️ Devices</button>
   <button class="tab-btn" data-tab="cashledger" onclick="switchTab('cashledger')">💰 Cash Ledger</button>
+  <button class="tab-btn" data-tab="addonreport" onclick="switchTab('addonreport')">🎁 Add-on Daily Report</button>
 </nav>
 
 <main>
@@ -1895,6 +1896,27 @@
   <section id="tab-cashledger" class="tab">
     <div class="card" style="padding:0;overflow:hidden;">
       <iframe id="cashLedgerFrame" title="Cash Ledger" style="width:100%;border:none;display:block;min-height:520px;background:#F5F0E4;" scrolling="no"></iframe>
+    </div>
+  </section>
+
+  <!-- ===================== ADD-ON DAILY REPORT TAB ===================== -->
+  <section id="tab-addonreport" class="tab">
+    <div class="card">
+      <h2>🎁 Add-on Pouches Sold — Daily by Staff <span class="tag">Every recorded sale, broken down per day per staff member</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="addonReportMonth" onchange="renderAddonDailyReport()">
+        </div>
+      </div>
+      <div style="overflow-x:auto; margin-top:14px;">
+      <table>
+        <thead id="addonDailyReportHead"><tr><th>Date</th><th class="num">Total</th></tr></thead>
+        <tbody id="addonDailyReportBody"></tbody>
+        <tfoot id="addonDailyReportFoot"></tfoot>
+      </table>
+      </div>
+      <div class="empty" id="addonDailyReportEmpty" style="display:none;">No add-on pouch sales recorded for this month yet.</div>
     </div>
   </section>
 
@@ -2960,6 +2982,7 @@ function switchTab(name){
   if(name==='dipchart') renderDipChartTab();
   if(name==='devices'){ renderDevicesTab(); startDevicesAutoRefresh(); }
   if(name==='cashledger') refreshCashLedgerFrame();
+  if(name==='addonreport') renderAddonDailyReport();
 }
 
 /* ============== STAFF TAB ============== */
@@ -4672,6 +4695,80 @@ function editPouchBoxIssue(staffId, boxId){
   renderAddonMonthlySummary();
 }
 
+// Builds a Date x Staff pivot of add-on pouches sold, for the "Add-on Daily
+// Report" tab — pulled straight from every staff member's box soldLog
+// entries (the same source of truth used for incentive calculations), so
+// it always agrees with the per-staff panel and the monthly incentive
+// summary. Includes staff who have since been deleted, so historical sales
+// are never silently dropped from the report.
+function renderAddonDailyReport(){
+  const monthInput = document.getElementById('addonReportMonth');
+  const tbody = document.getElementById('addonDailyReportBody');
+  const thead = document.getElementById('addonDailyReportHead');
+  const tfoot = document.getElementById('addonDailyReportFoot');
+  const emptyEl = document.getElementById('addonDailyReportEmpty');
+  if(!monthInput || !tbody || !thead) return;
+  if(!monthInput.value) monthInput.value = thisMonthStr();
+  const ym = monthInput.value;
+
+  // date -> staffId -> qty
+  const byDate = {};
+  const staffIdsWithSales = new Set();
+  Object.keys(state.pouchBoxes || {}).forEach(staffId => {
+    (state.pouchBoxes[staffId] || []).forEach(box => {
+      (box.soldLog || []).forEach(entry => {
+        if(!entry.date || entry.date.slice(0,7) !== ym) return;
+        if(!byDate[entry.date]) byDate[entry.date] = {};
+        byDate[entry.date][staffId] = (byDate[entry.date][staffId] || 0) + entry.qty;
+        staffIdsWithSales.add(staffId);
+      });
+    });
+  });
+
+  const dates = Object.keys(byDate).sort().reverse();
+
+  if(!dates.length){
+    thead.innerHTML = '<tr><th>Date</th><th class="num">Total</th></tr>';
+    tbody.innerHTML = '';
+    if(tfoot) tfoot.innerHTML = '';
+    if(emptyEl) emptyEl.style.display = 'block';
+    return;
+  }
+  if(emptyEl) emptyEl.style.display = 'none';
+
+  // Columns: current staff in their usual order, then any staff who sold
+  // this month but are no longer in the staff list (e.g. deleted).
+  const staffCols = state.staff.map(s => s.id);
+  staffIdsWithSales.forEach(id => { if(!staffCols.includes(id)) staffCols.push(id); });
+
+  thead.innerHTML = '<tr><th>Date</th>' +
+    staffCols.map(id => `<th class="num">${escapeHtml(staffNameById(id))}</th>`).join('') +
+    '<th class="num">Total</th></tr>';
+
+  const staffTotals = {};
+  staffCols.forEach(id => staffTotals[id] = 0);
+  let grandTotal = 0;
+
+  tbody.innerHTML = dates.map(date => {
+    const row = byDate[date];
+    let rowTotal = 0;
+    const cells = staffCols.map(id => {
+      const qty = row[id] || 0;
+      rowTotal += qty;
+      staffTotals[id] += qty;
+      return `<td class="num">${qty ? qty : '—'}</td>`;
+    }).join('');
+    grandTotal += rowTotal;
+    return `<tr><td data-label="Date">${date}</td>${cells}<td class="num" style="font-weight:700;">${rowTotal}</td></tr>`;
+  }).join('');
+
+  if(tfoot){
+    tfoot.innerHTML = '<tr><td style="font-weight:700;">Total</td>' +
+      staffCols.map(id => `<td class="num" style="font-weight:700;">${staffTotals[id]}</td>`).join('') +
+      `<td class="num" style="font-weight:700;">${grandTotal}</td></tr>`;
+  }
+}
+
 function renderAddonPanel(staffId){
   const openWrap = document.getElementById('addonOpenBoxes');
   const closedWrap = document.getElementById('addonClosedBoxes');
@@ -5841,6 +5938,7 @@ document.getElementById('salesDate').value = todayStr();
 document.getElementById('monthPicker').value = thisMonthStr();
 document.getElementById('cashDate').value = todayStr();
 document.getElementById('surplusMonth').value = thisMonthStr();
+document.getElementById('addonReportMonth').value = thisMonthStr();
 setQrScanMode('lube');
 renderSalesTab();
 
