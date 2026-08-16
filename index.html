@@ -3656,47 +3656,52 @@ function escapeOcrHtml(s){
 // rather than matching on "tot:" alone, which would also match "Atot:".
 function parseTotalizerSlipText(text){
   const readings = {}; // nozzleNumber (1-4) -> value
-  // Line-based parsing, not a single sprawling regex. Real-world scanned
-  // totalizer slips OCR imperfectly in two ways we've seen in practice:
-  //  1) A checkmark/circle pen-marked directly over "Vtot" garbles just
-  //     that word, sometimes injecting a stray digit into it.
-  //  2) On a soft-focus/glare/creased area of the photo, OCR can drop an
-  //     entire leading word — e.g. "Nozzle No." -> "ozzle No." (missing
-  //     "N"), or "Atot: ..." -> "..." (missing "Atot" altogether), while
-  //     the numbers themselves still read fine.
-  // To survive both, we: (a) accept a missing leading "N" on "Nozzle", and
-  // (b) don't require the word "Atot" at all — we just take the next line
-  // (within a few lines, and never crossing into the next nozzle's header)
-  // that has at least two decimal numbers on it, and use the last one.
-  const lines = text.split(/\r?\n/);
-  // Tesseract sometimes inserts a stray space right after the decimal
-  // point (e.g. "0000198494. 470" instead of "0000198494.470") — allow
-  // for that so those numbers still count as valid decimals.
-  const decimalRe = /\d[\d,]*\.\s{0,2}\d+/g;
+  const lines = String(text || '').split(/\r?\n/);
   const nozzleHeaderRe = /\bN?ozzle\s*No\.?\s*:?\s*0?([1-4])\b/i;
-  let pendingNzNum = null;
-  let pendingStartIdx = -1;
-  for(let i = 0; i < lines.length; i++){
-    const line = lines[i];
-    const nzMatch = line.match(nozzleHeaderRe);
-    if(nzMatch){
-      pendingNzNum = Number(nzMatch[1]);
-      pendingStartIdx = i;
-      continue;
+  // Capture a complete meter value even if Tesseract inserts spaces between
+  // digits or after the decimal point (e.g. "0000198494. 470").
+  const numberRe = /\d[\d, \t]*\.[ \t]*\d[\d \t]*/g;
+  const readNumber = raw => {
+    const value = parseFloat(String(raw).replace(/[\s,]/g, ''));
+    return Number.isFinite(value) ? value : null;
+  };
+  const headers = [];
+  lines.forEach((line, index) => {
+    const match = line.match(nozzleHeaderRe);
+    if(match) headers.push({ number: Number(match[1]), index });
+  });
+
+  headers.forEach((header, headerIndex) => {
+    // Keep each reading inside its own nozzle block. A ten-line ceiling also
+    // prevents a badly-read/missing header from consuming the next section.
+    const end = Math.min(
+      headerIndex + 1 < headers.length ? headers[headerIndex + 1].index : lines.length,
+      header.index + 11
+    );
+    const block = lines.slice(header.index + 1, end).join('\n');
+
+    // Prefer the number explicitly associated with Vtot. OCR occasionally
+    // drops the V ("tot"), or reads it as U/Y, but the word boundary keeps
+    // this from accidentally matching the "Atot" amount field.
+    const vtotRe = /(?:^|[^a-z])(?:[vuy]\s*)?tot\b\s*[:.=\-_]*\s*([\d][\d, \t]*\.[ \t]*\d[\d \t]*)/gim;
+    const vtotMatch = vtotRe.exec(block);
+    const vtotValue = vtotMatch ? readNumber(vtotMatch[1]) : null;
+    if(vtotValue !== null){
+      readings[header.number] = vtotValue;
+      return;
     }
-    if(pendingNzNum !== null){
-      const nums = line.match(decimalRe) || [];
-      if(nums.length >= 2){
-        const val = parseFloat(nums[nums.length - 1].replace(/,/g, '').replace(/\s+/g, ''));
-        if(Number.isFinite(val)) readings[pendingNzNum] = val;
-        pendingNzNum = null;
-      } else if(i - pendingStartIdx >= 3){
-        // Gave this block a few lines to show its numbers; give up so we
-        // don't misattribute stray numbers further down the slip.
-        pendingNzNum = null;
-      }
+
+    // Fallback for heavily garbled labels: within this nozzle's own block,
+    // Vtot is the final decimal meter figure. This supports a label/value
+    // split across lines and no longer requires two values on the same line.
+    const values = [];
+    let match;
+    while((match = numberRe.exec(block)) !== null){
+      const value = readNumber(match[0]);
+      if(value !== null) values.push(value);
     }
-  }
+    if(values.length) readings[header.number] = values[values.length - 1];
+  });
   const serialMatch = text.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
   return { readings, serial: serialMatch ? serialMatch[1] : null };
 }
