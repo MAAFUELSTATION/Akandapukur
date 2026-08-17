@@ -3692,29 +3692,51 @@ function escapeOcrHtml(s){
 function parseTotalizerSlipText(text){
   const readings = {}; // nozzleNumber (1-4) -> Vtot value
   const source = String(text || '');
+
   // A block begins only at "Nozzle No. <1-4>". This automatically excludes
-  // the summary Vtot printed near the top of the receipt.
+  // the summary Vtot printed near the top of the receipt. We restrict all
+  // matching (headers AND Vtot values) to the text from the first such
+  // header onward, so the header-block's own summary Vtot can never be
+  // mistaken for a nozzle reading.
   const nozzleHeaderRe = /\bnozzle\s*(?:no\.?\s*)?[:\-]?\s*0?([1-4])\b/gi;
+  const firstHeaderMatch = nozzleHeaderRe.exec(source);
+  const section = firstHeaderMatch ? source.slice(firstHeaderMatch.index) : source;
+
+  nozzleHeaderRe.lastIndex = 0;
   const headers = [];
   let match;
-  while((match = nozzleHeaderRe.exec(source)) !== null){
+  while((match = nozzleHeaderRe.exec(section)) !== null){
     headers.push({ number: Number(match[1]), index: match.index, end: nozzleHeaderRe.lastIndex });
   }
 
-  headers.forEach((header, i) => {
-    if(readings[header.number] !== undefined) return;
-    const nextHeaderIndex = i + 1 < headers.length ? headers[i + 1].index : source.length;
-    // The reading is on this header's line or one of the next two lines.
-    // This prevents a later nozzle's Vtot being assigned here when OCR
-    // fails to recognise that later nozzle heading.
-    const block = source.slice(header.end, nextHeaderIndex).split(/\r?\n/).slice(0, 3).join('\n');
-    // Read only a labeled Vtot/Vtotal number. Atot and every other number
-    // on the receipt are deliberately ignored.
-    const vtotMatch = /\bv\s*tot(?:al)?\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/i.exec(block);
-    if(!vtotMatch) return;
-    const value = Number(vtotMatch[1].replace(/[\s,]/g, ''));
-    if(Number.isFinite(value)) readings[header.number] = value;
-  });
+  // Every labeled Vtot/Vtotal figure in the nozzle section, in the order
+  // it's printed. Atot and every other number on the receipt are
+  // deliberately ignored.
+  const vtotRe = /\bv\s*tot(?:al)?\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/gi;
+  const vtots = [];
+  while((match = vtotRe.exec(section)) !== null){
+    const value = Number(match[1].replace(/[\s,]/g, ''));
+    if(Number.isFinite(value)) vtots.push({ value, index: match.index });
+  }
+
+  // Trust the explicit header digits ONLY when they form a clean, complete
+  // set — headers 1, 2, 3, 4 each appearing exactly once, lining up 1:1
+  // with the Vtot values found (in the same order they're printed).
+  const headerNumbers = headers.map(h => h.number).sort();
+  const isCleanHeaderSet = headers.length === 4 && vtots.length === 4 &&
+    headerNumbers.every((n, i) => n === i + 1);
+
+  if(isCleanHeaderSet){
+    headers.forEach((header, i) => { readings[header.number] = vtots[i].value; });
+  } else {
+    // A header digit was misread or dropped by OCR (e.g. "01" read as "2",
+    // a header missed entirely, or the slip's two-column layout
+    // interleaving lines oddly) — a per-header match can then grab the
+    // wrong Vtot, or a Vtot could get assigned twice. The DU always prints
+    // Nozzle No. 1-4 in that fixed order, so instead assign the Vtot
+    // values found, in document order, straight to nozzles 1, 2, 3, 4.
+    vtots.slice(0, 4).forEach((v, i) => { readings[i + 1] = v.value; });
+  }
 
   const serialMatch = source.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
   return { readings, serial: serialMatch ? serialMatch[1] : null };
