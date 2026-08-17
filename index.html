@@ -3711,8 +3711,12 @@ function parseTotalizerSlipText(text){
 
   // Every labeled Vtot/Vtotal figure in the nozzle section, in the order
   // it's printed. Atot and every other number on the receipt are
-  // deliberately ignored.
-  const vtotRe = /\bv\s*tot(?:al)?\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/gi;
+  // deliberately ignored. Tesseract frequently drops the leading "V" of
+  // "Vtot" entirely (reading it as bare "tot:") or misreads it as "Y" —
+  // both are tolerated here. The \b before the optional v/y still stops
+  // this from ever matching inside "Atot" (no word boundary sits between
+  // the "A" and the "tot" that follows it).
+  const vtotRe = /\b[vy]?\s*tot(?:al)?\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/gi;
   const vtots = [];
   while((match = vtotRe.exec(section)) !== null){
     const value = Number(match[1].replace(/[\s,]/g, ''));
