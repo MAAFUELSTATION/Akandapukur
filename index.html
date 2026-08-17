@@ -3721,6 +3721,30 @@ function parseTotalizerSlipText(text){
     headers.push({ number: Number(match[1]), index: match.index, end: nozzleHeaderRe.lastIndex });
   }
 
+  // Prefer a Vtot found inside the matching nozzle's own printed block.
+  // OCR commonly changes the reading order of this two-column slip (or
+  // inserts a header total among the values), so pairing the 2nd, 4th, 6th
+  // and 8th numbers across the complete scan can assign one nozzle's value
+  // to another.  Block-local matching keeps Nozzle 1-4 tied to their own
+  // Vtot label regardless of how the OCR arranges the lines globally.
+  const blockReadings = {};
+  const blockVtotRe = /\b[vy]?\s*tot(?:al)?\b[^\d]{0,42}(\d[\d, \t]{4,}\.[ \t]*\d{1,3})/gi;
+  headers.forEach((header, i) => {
+    const end = i + 1 < headers.length ? headers[i + 1].index : section.length;
+    const block = section.slice(header.end, end);
+    let localMatch, lastValue;
+    blockVtotRe.lastIndex = 0;
+    while((localMatch = blockVtotRe.exec(block)) !== null){
+      const value = Number(localMatch[1].replace(/[\s,]/g, ''));
+      if(Number.isFinite(value)) lastValue = value;
+    }
+    if(lastValue !== undefined) blockReadings[header.number] = lastValue;
+  });
+  if([1,2,3,4].every(n => blockReadings[n] !== undefined)){
+    const serialMatch = source.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
+    return { readings: blockReadings, serial: serialMatch ? serialMatch[1] : null };
+  }
+
   // Every meter-sized number (6+ digits before the decimal — long enough
   // to safely exclude the 1-digit Ecal Factor percentages like "0.24" or
   // "-0.06") found in the nozzle section, in the order it's printed.
