@@ -3686,112 +3686,34 @@ function escapeOcrHtml(s){
   return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
 
-// Pulls each Nozzle No. -> Vtot pair out of the raw OCR text. Tolerant of
-// OCR noise: colons/periods may be missed or doubled, there's often a
-// stretch of "Ecal Factor: x.xx %" text between "Nozzle No." and "Atot:"
-// that we skip over, and OCR frequently misreads "Vtot:" as "tot:" (drops
-// the V) — so we require the preceding "Atot: <number>" as an anchor and
-// then take the *next* number after it (with or without a leading "V"),
-// rather than matching on "tot:" alone, which would also match "Atot:".
+// Pull each Nozzle No. -> Vtot pair from its own block on the slip.
+// Deliberately ignore every other number: Atot, Ecal Factor, the header
+// summary Vtot, dates, and DU serial number must never be used as readings.
 function parseTotalizerSlipText(text){
-  const readings = {}; // nozzleNumber (1-4) -> value
+  const readings = {}; // nozzleNumber (1-4) -> Vtot value
   const source = String(text || '');
+  // A block begins only at "Nozzle No. <1-4>". This automatically excludes
+  // the summary Vtot printed near the top of the receipt.
+  const nozzleHeaderRe = /\bnozzle\s*(?:no\.?\s*)?[:\-]?\s*0?([1-4])\b/gi;
   const headers = [];
-  const nozzleHeaderReStrict = /\bN?ozzle\b[\s\S]{0,15}?0?([1-4])\b/gi;
-  let headerMatch;
-  while((headerMatch = nozzleHeaderReStrict.exec(source)) !== null){
-    headers.push({ number: Number(headerMatch[1]), index: headerMatch.index });
+  let match;
+  while((match = nozzleHeaderRe.exec(source)) !== null){
+    headers.push({ number: Number(match[1]), index: match.index, end: nozzleHeaderRe.lastIndex });
   }
 
-  // Read ONLY the complete number printed after Vtot. In particular, do
-  // not use Atot, Ecal Factor, or an unlabelled nearby number as a fallback.
-  // Spaces inserted by OCR are removed only after the full Vtot value has
-  // been captured, so no digits are lost.
-  const vtotRe = /\bv\s*tot\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/gi;
-  const unassignedValues = [];
-  let valueMatch;
-  while((valueMatch = vtotRe.exec(source)) !== null){
-    const value = parseFloat(valueMatch[1].replace(/[\s,]/g, ''));
-    if(!Number.isFinite(value)) continue;
-    let nozzle = null;
-    for(let i = headers.length - 1; i >= 0; i--){
-      if(headers[i].index < valueMatch.index){ nozzle = headers[i].number; break; }
-    }
-    if(nozzle && readings[nozzle] === undefined) readings[nozzle] = value;
-    else unassignedValues.push(value);
-  }
-  // When a lower nozzle heading is missing in OCR, map the remaining Vtot
-  // values in the slip's printed order (1, 2, 3, 4).
-  unassignedValues.forEach(value => {
-    const nozzle = [1,2,3,4].find(n => readings[n] === undefined);
-    if(nozzle) readings[nozzle] = value;
+  headers.forEach((header, i) => {
+    if(readings[header.number] !== undefined) return;
+    const nextHeaderIndex = i + 1 < headers.length ? headers[i + 1].index : source.length;
+    const block = source.slice(header.end, nextHeaderIndex);
+    // Read the complete numeric value that immediately follows Vtot. OCR may
+    // add spaces or commas, but no unlabeled number is ever considered.
+    const vtotMatch = /\bv\s*tot\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/i.exec(block);
+    if(!vtotMatch) return;
+    const value = Number(vtotMatch[1].replace(/[\s,]/g, ''));
+    if(Number.isFinite(value)) readings[header.number] = value;
   });
-  const vtotSerialMatch = source.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
-  return { readings, serial: vtotSerialMatch ? vtotSerialMatch[1] : null };
 
-  // Line-based parsing, not a single sprawling regex. Real-world scanned
-  // totalizer slips OCR imperfectly in ways we've seen in practice:
-  //  1) A checkmark/circle pen-marked directly over "Vtot" garbles just
-  //     that word, sometimes injecting a stray digit into it.
-  //  2) On a soft-focus/glare/creased area of the photo (often near the
-  //     bottom of the slip), OCR can mangle or entirely drop the "Nozzle
-  //     No." label — e.g. "No" -> "Mo", or "Nozzle No. : 04" collapsing
-  //     down to just "le No. : 04" — while the numbers below it still
-  //     read fine.
-  //  3) A stray space can land right after a decimal point, e.g.
-  //     "0000198494. 470" instead of "0000198494.470".
-  // To survive all of these: the header match tolerates a missing leading
-  // "N" and a garbled "No"/"Mo"/etc, the decimal match tolerates the
-  // stray space, and — since these slips always print nozzles in order
-  // 1,2,3,4 — if a header is unreadable but we've already found nozzles
-  // in sequence, we fall back to treating the next data-shaped line as
-  // belonging to the next nozzle in that sequence.
-  const lines = text.split(/\r?\n/);
-  const decimalRe = /\d[\d,]*\.\s{0,2}\d+/g;
-  const nozzleHeaderRe = /\bN?ozzle\b[\s\S]{0,15}?0?([1-4])\b/i;
-  let pendingNzNum = null;
-  let pendingStartIdx = -1;
-  let sawAnyHeader = false;
-  let lastAssignedNz = 0;
-  for(let i = 0; i < lines.length; i++){
-    const line = lines[i];
-    const nzMatch = line.match(nozzleHeaderRe);
-    if(nzMatch){
-      pendingNzNum = Number(nzMatch[1]);
-      pendingStartIdx = i;
-      sawAnyHeader = true;
-      continue;
-    }
-    if(pendingNzNum !== null){
-      const nums = line.match(decimalRe) || [];
-      if(nums.length >= 2){
-        const val = parseFloat(nums[nums.length - 1].replace(/,/g, '').replace(/\s+/g, ''));
-        if(Number.isFinite(val)){ readings[pendingNzNum] = val; lastAssignedNz = pendingNzNum; }
-        pendingNzNum = null;
-      } else if(i - pendingStartIdx >= 3){
-        // Gave this block a few lines to show its numbers; give up so we
-        // don't misattribute stray numbers further down the slip.
-        pendingNzNum = null;
-      }
-      continue;
-    }
-    // No header currently pending, and this line didn't look like one
-    // either — if its label was destroyed by OCR but it still has two
-    // readable numbers, and we already know (from earlier headers) which
-    // nozzle comes next in sequence, attribute it to that nozzle.
-    if(sawAnyHeader && lastAssignedNz < 4 && !readings[lastAssignedNz + 1]){
-      const nums = line.match(decimalRe) || [];
-      if(nums.length >= 2){
-        const val = parseFloat(nums[nums.length - 1].replace(/,/g, '').replace(/\s+/g, ''));
-        if(Number.isFinite(val)){
-          const candidateNz = lastAssignedNz + 1;
-          readings[candidateNz] = val;
-          lastAssignedNz = candidateNz;
-        }
-      }
-    }
-  }
-  const serialMatch = text.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
+  const serialMatch = source.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
   return { readings, serial: serialMatch ? serialMatch[1] : null };
 }
 
