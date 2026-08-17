@@ -3693,14 +3693,23 @@ function parseTotalizerSlipText(text){
   const readings = {}; // nozzleNumber (1-4) -> Vtot value
   const source = String(text || '');
 
-  // A block begins only at "Nozzle No. <1-4>". This automatically excludes
-  // the summary Vtot printed near the top of the receipt. We restrict all
-  // matching (headers AND Vtot values) to the text from the first such
-  // header onward, so the header-block's own summary Vtot can never be
-  // mistaken for a nozzle reading.
+  // Anchor the nozzle section using "DU SERIAL NO" — distinctive text that
+  // appears exactly once, always right before the nozzle block (tolerant
+  // of "SERIAL" itself being misread, since only "SER" + "NO" are
+  // required). This is far more reliable than anchoring on the first
+  // "Nozzle No." match, which fails outright if OCR garbles nozzle 1's
+  // header beyond recognition. Falls back to that first-header anchor
+  // only if the serial line isn't legible either.
   const nozzleHeaderRe = /\bnozzle\s*(?:no\.?\s*)?[:\-]?\s*0?([1-4])\b/gi;
-  const firstHeaderMatch = nozzleHeaderRe.exec(source);
-  const section = firstHeaderMatch ? source.slice(firstHeaderMatch.index) : source;
+  let sectionStart;
+  const serialAnchor = /DU\s*SER\w*\s*NO\.?\s*:?\s*[A-Za-z0-9]+/i.exec(source);
+  if(serialAnchor){
+    sectionStart = serialAnchor.index + serialAnchor[0].length;
+  } else {
+    const firstHeaderMatch = nozzleHeaderRe.exec(source);
+    sectionStart = firstHeaderMatch ? firstHeaderMatch.index : 0;
+  }
+  const section = source.slice(sectionStart);
 
   nozzleHeaderRe.lastIndex = 0;
   const headers = [];
@@ -3709,13 +3718,38 @@ function parseTotalizerSlipText(text){
     headers.push({ number: Number(match[1]), index: match.index, end: nozzleHeaderRe.lastIndex });
   }
 
-  // Every labeled Vtot/Vtotal figure in the nozzle section, in the order
-  // it's printed. Atot and every other number on the receipt are
-  // deliberately ignored. Tesseract frequently drops the leading "V" of
-  // "Vtot" entirely (reading it as bare "tot:") or misreads it as "Y" —
-  // both are tolerated here. The \b before the optional v/y still stops
-  // this from ever matching inside "Atot" (no word boundary sits between
-  // the "A" and the "tot" that follows it).
+  // Every meter-sized number (6+ digits before the decimal — long enough
+  // to safely exclude the 1-digit Ecal Factor percentages like "0.24" or
+  // "-0.06") found in the nozzle section, in the order it's printed.
+  const bigNumRe = /\b(\d[\d, \t]{4,}\.[ \t]*\d{1,3})\b/g;
+  const bigNums = [];
+  while((match = bigNumRe.exec(section)) !== null){
+    const value = Number(match[1].replace(/[\s,]/g, ''));
+    if(Number.isFinite(value)) bigNums.push({ value, index: match.index });
+  }
+
+  // ---- PRIMARY STRATEGY: pure positional pairing ----
+  // This slip's template always prints "Atot: X   Vtot: Y" per nozzle
+  // line, for nozzles 1-4 in that fixed order — 8 meter-sized numbers
+  // total. When exactly 8 are found, the 2nd, 4th, 6th and 8th are
+  // GUARANTEED to be the four Vtot readings, entirely independent of
+  // whether the "Vtot"/"Atot"/"Nozzle No." label text next to them
+  // survived OCR at all. This is what makes the reading reliable scan
+  // after scan, even though Tesseract's exact misreadings vary between
+  // photos of the very same slip.
+  if(bigNums.length === 8){
+    [1, 3, 5, 7].forEach((idx, i) => { readings[i + 1] = bigNums[idx].value; });
+    const serialMatch = source.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
+    return { readings, serial: serialMatch ? serialMatch[1] : null };
+  }
+
+  // ---- FALLBACK (only when the photo is damaged enough that some digits
+  // themselves didn't survive OCR, so a clean set of 8 numbers isn't
+  // available) ----
+
+  // TIER 1: label-based ("Vtot"/"tot"/"Ytot"), tolerant of a dropped or
+  // misread leading V, but never matching inside "Atot" (no word boundary
+  // sits between the "A" and the "tot" that follows it).
   const vtotRe = /\b[vy]?\s*tot(?:al)?\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/gi;
   const vtots = [];
   while((match = vtotRe.exec(section)) !== null){
@@ -3723,9 +3757,6 @@ function parseTotalizerSlipText(text){
     if(Number.isFinite(value)) vtots.push({ value, index: match.index });
   }
 
-  // Trust the explicit header digits ONLY when they form a clean, complete
-  // set — headers 1, 2, 3, 4 each appearing exactly once, lining up 1:1
-  // with the Vtot values found (in the same order they're printed).
   const headerNumbers = headers.map(h => h.number).sort();
   const isCleanHeaderSet = headers.length === 4 && vtots.length === 4 &&
     headerNumbers.every((n, i) => n === i + 1);
@@ -3733,27 +3764,18 @@ function parseTotalizerSlipText(text){
   if(isCleanHeaderSet){
     headers.forEach((header, i) => { readings[header.number] = vtots[i].value; });
   } else if(vtots.length >= 1){
-    // A header digit was misread or dropped by OCR (e.g. "01" read as "2",
-    // a header missed entirely, or the slip's two-column layout
-    // interleaving lines oddly) — a per-header match can then grab the
-    // wrong Vtot, or a Vtot could get assigned twice. The DU always prints
+    // A header digit was misread or dropped by OCR — the DU always prints
     // Nozzle No. 1-4 in that fixed order, so instead assign the Vtot
     // values found, in document order, straight to nozzles 1, 2, 3, 4.
     vtots.slice(0, 4).forEach((v, i) => { readings[i + 1] = v.value; });
   }
 
-  // TIER 2 — for any of nozzles 1-4 still missing (typically because OCR
-  // mangled the "Vtot" label itself beyond recognition on part of the
-  // slip — blur, low light, a crease), fall back to reading the raw
-  // meter-sized number straight out of that nozzle's own block, ignoring
-  // labels entirely. This recovers a reading as long as the digits
+  // TIER 2 — for any of nozzles 1-4 still missing, fall back to reading
+  // the raw meter-sized number straight out of that nozzle's own block,
+  // ignoring labels entirely. Recovers a reading as long as the digits
   // themselves are legible, even when every letter around them isn't.
   const missingNozzles = [1, 2, 3, 4].filter(n => readings[n] === undefined);
   if(missingNozzles.length > 0){
-    // One text block per nozzle position (1st, 2nd, 3rd, 4th on the slip),
-    // built from header positions in the order they appear — not by
-    // whatever digit OCR (mis)read them as — and evenly split if no
-    // headers were found at all.
     const blockBounds = [];
     if(headers.length >= 1){
       for(let i = 0; i < 4; i++){
@@ -3765,23 +3787,18 @@ function parseTotalizerSlipText(text){
       const step = Math.floor(section.length / 4);
       for(let i = 0; i < 4; i++) blockBounds.push([i * step, i === 3 ? section.length : (i + 1) * step]);
     }
-
-    // A "meter-sized" number: totals on this slip run to 6+ digits before
-    // the decimal (padded with leading zeros), which safely excludes the
-    // 1-digit Ecal Factor percentages (e.g. "0.24", "-0.06").
-    const bigNumRe = /\b(\d[\d, \t]{4,}\.[ \t]*\d{1,3})\b/g;
     // Rule a number out as Atot only if "atot" (allowing OCR noise between
     // the "a" and "tot") appears shortly before it — Atot is always
     // printed before Vtot on this slip, so of the remaining candidates the
     // last one in reading order is the Vtot.
     const atotLabelRe = /a\s*tot\w*\s*[:\-]?\s*$/i;
-
     missingNozzles.forEach(n => {
       const bounds = blockBounds[n - 1] || [0, 0];
       const block = section.slice(bounds[0], bounds[1]);
       const candidates = [];
       let bigMatch;
-      while((bigMatch = bigNumRe.exec(block)) !== null){
+      const localRe = /\b(\d[\d, \t]{4,}\.[ \t]*\d{1,3})\b/g;
+      while((bigMatch = localRe.exec(block)) !== null){
         const before = block.slice(Math.max(0, bigMatch.index - 20), bigMatch.index);
         if(!atotLabelRe.test(before)){
           const value = Number(bigMatch[1].replace(/[\s,]/g, ''));
