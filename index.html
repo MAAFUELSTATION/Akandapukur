@@ -3871,7 +3871,7 @@ async function processOcrImage(unitNum, file){
   try{
     const { data: { text } } = await Tesseract.recognize(file, 'eng');
     lastOcrRawText[unitNum] = text;
-    const { readings, serial } = parseTotalizerSlipText(text);
+    const { readings } = parseTotalizerSlipText(text);
 
     const foundCount = Object.keys(readings).length;
     if(foundCount === 0){
@@ -3880,13 +3880,7 @@ async function processOcrImage(unitNum, file){
       return;
     }
 
-    const expectedSerial = UNIT_MACHINE_NO[unitNum];
-    let serialWarning = '';
-    if(serial && expectedSerial && serial.toUpperCase() !== expectedSerial.toUpperCase()){
-      serialWarning = ` ⚠️ Slip's DU Serial No. (${serial}) doesn't match Unit ${unitNum}'s (${expectedSerial}) — double-check you scanned the right unit's slip.`;
-    }
-
-    setOcrStatus(unitNum, '📖 Slip read — choose which nozzle(s) below to update, then Apply.' + serialWarning, serialWarning ? 'warn' : '');
+    setOcrStatus(unitNum, '📖 Slip read — choose which nozzle(s) below to update, then Apply.');
     if(foundCount < 4) appendRawTextToggle(unitNum);
     showOcrConfirm(unitNum, readings);
   }catch(e){
