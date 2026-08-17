@@ -351,6 +351,9 @@
   .ocr-confirm-row:last-of-type{border-bottom:none;}
   .ocr-confirm-row label{display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;}
   .ocr-confirm-row .ocr-confirm-val{font-family:'JetBrains Mono',monospace;margin-left:auto;}
+  .ocr-confirm-row .ocr-reading-input{width:142px;padding:5px 7px;border:1px solid var(--line);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:12px;text-align:right;background:#fff;color:var(--ink);}
+  .ocr-confirm-row .ocr-reading-input:focus{outline:2px solid var(--brass,#a9812f);outline-offset:1px;}
+  .ocr-confirm-row .ocr-reading-input.ocr-reading-invalid{border-color:var(--danger,#b3261e);background:#fff7f5;}
   .ocr-confirm-row.ocr-confirm-skipped{opacity:.55;}
   .ocr-confirm-actions{display:flex;gap:8px;margin-top:10px;}
   .ocr-confirm-actions button{flex:1;padding:7px 10px;border-radius:6px;font-size:12.5px;cursor:pointer;border:1px solid var(--line);background:#fff;}
@@ -3920,7 +3923,8 @@ function showOcrConfirm(unitNum, readings){
     const invalid = !Number.isFinite(value) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT;
     return `<div class="ocr-confirm-row${invalid ? ' ocr-confirm-skipped' : ''}">
       <label><input type="checkbox" data-slip-nz="${slipNz}" ${invalid ? 'disabled' : 'checked'}>${nzLabel[slipNz]}</label>
-      <span class="ocr-confirm-val">${value}${invalid ? ' — below opening / out of range' : ''}</span>
+      <input class="ocr-reading-input${invalid ? ' ocr-reading-invalid' : ''}" type="number" inputmode="decimal" step="0.001" value="${value}" data-slip-value="${slipNz}" data-opening="${opening}" oninput="validateOcrReadingInput(this)" aria-label="${nzLabel[slipNz]} scanned closing reading">
+      <span class="ocr-confirm-val" data-ocr-message>${invalid ? 'below opening / out of range — correct it' : ''}</span>
     </div>`;
   }).join('');
 
@@ -3935,6 +3939,29 @@ function showOcrConfirm(unitNum, readings){
       <button onclick="cancelOcrSelections(${unitNum})">Cancel</button>
     </div>`;
   box.style.display = 'block';
+}
+
+// OCR can occasionally confuse an Atot value with Vtot.  Keep the scan as a
+// starting point, but let the operator correct a reading before it reaches
+// the shift ledger.  A corrected value is enabled only when it passes the
+// same safety range used by manual closing-reading entry.
+function validateOcrReadingInput(input){
+  const row = input.closest('.ocr-confirm-row');
+  if(!row) return;
+  const checkbox = row.querySelector('input[type="checkbox"][data-slip-nz]');
+  const message = row.querySelector('[data-ocr-message]');
+  const value = Number(input.value);
+  const opening = Number(input.dataset.opening) || 0;
+  const litres = value - opening;
+  const invalid = !Number.isFinite(value) || input.value.trim() === '' || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT;
+
+  input.classList.toggle('ocr-reading-invalid', invalid);
+  row.classList.toggle('ocr-confirm-skipped', invalid);
+  if(checkbox){
+    checkbox.disabled = invalid;
+    if(!invalid) checkbox.checked = true;
+  }
+  if(message) message.textContent = invalid ? 'below opening / out of range — correct it' : '';
 }
 
 function cancelOcrSelections(unitNum){
@@ -3959,8 +3986,11 @@ function applyOcrSelections(unitNum){
   box.querySelectorAll('input[type="checkbox"][data-slip-nz]:checked:not(:disabled)').forEach(cb => {
     const slipNz = Number(cb.dataset.slipNz);
     const nzId = nozzleMap[slipNz];
-    const value = readings[slipNz];
-    if(value === undefined) return;
+    const input = box.querySelector(`.ocr-reading-input[data-slip-value="${slipNz}"]`);
+    const value = input ? Number(input.value) : readings[slipNz];
+    const opening = Number(getOpeningReading(date, currentShift, nzId)) || 0;
+    const litres = value - opening;
+    if(!Number.isFinite(value) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT) return;
     sd.closing[nzId] = value;
     applied.push('Nozzle ' + slipNz + ': ' + value);
   });
