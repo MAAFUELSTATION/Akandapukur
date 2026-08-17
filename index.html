@@ -3704,10 +3704,13 @@ function parseTotalizerSlipText(text){
   headers.forEach((header, i) => {
     if(readings[header.number] !== undefined) return;
     const nextHeaderIndex = i + 1 < headers.length ? headers[i + 1].index : source.length;
-    const block = source.slice(header.end, nextHeaderIndex);
-    // Read the complete numeric value that immediately follows Vtot. OCR may
-    // add spaces or commas, but no unlabeled number is ever considered.
-    const vtotMatch = /\bv\s*tot\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/i.exec(block);
+    // The reading is on this header's line or one of the next two lines.
+    // This prevents a later nozzle's Vtot being assigned here when OCR
+    // fails to recognise that later nozzle heading.
+    const block = source.slice(header.end, nextHeaderIndex).split(/\r?\n/).slice(0, 3).join('\n');
+    // Read only a labeled Vtot/Vtotal number. Atot and every other number
+    // on the receipt are deliberately ignored.
+    const vtotMatch = /\bv\s*tot(?:al)?\b[^\d]{0,24}(\d[\d, \t]*\.[ \t]*\d[\d \t]*)/i.exec(block);
     if(!vtotMatch) return;
     const value = Number(vtotMatch[1].replace(/[\s,]/g, ''));
     if(Number.isFinite(value)) readings[header.number] = value;
