@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- jsQR — used only by the EOD Shift Payout QR scanner to decode Lube/Water QR tags from the camera feed. -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 // Apply the saved interface theme (Light, Graphite, or Cyan) as early as possible,
 // before the page paints, so switching themes never causes a flash of the
@@ -312,6 +313,14 @@
   .unit-head .unit-name{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);font-weight:700;}
   .unit-head .unit-titles{display:flex;flex-direction:column;gap:2px;}
   .unit-head .unit-machine{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.6px;color:var(--navy);font-weight:700;background:var(--cream);border:1px solid var(--line);border-radius:5px;padding:1px 7px;display:inline-block;width:fit-content;}
+  .ocr-paste-hint{border:1.5px dashed var(--line);border-radius:6px;padding:6px 8px;margin:-6px 0 10px;cursor:text;user-select:none;color:var(--muted);font-size:12px;}
+  .ocr-paste-hint:hover,.ocr-paste-hint:focus{border-color:var(--petrol);outline:none;background:#fffaf0;}
+  .ocr-confirm-box{border:1px solid var(--line);border-radius:8px;padding:10px;margin:-6px 0 10px;background:#FCFAF2;}
+  .ocr-confirm-title{font-size:12.5px;font-weight:700;margin-bottom:7px;}
+  .ocr-confirm-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px;}
+  .ocr-confirm-row:last-of-type{border-bottom:none;}
+  .ocr-confirm-val{font-family:'JetBrains Mono',monospace;font-weight:700;}
+  .ocr-confirm-skipped{opacity:.6;}
   .fuel-group{border-radius:10px;padding:10px 12px 4px;margin-bottom:10px;border-left:3px solid var(--line);}
   .fuel-group.diesel{background:#F2F7FE;border-left-color:var(--diesel);}
   .fuel-group.petrol{background:#FDF6EA;border-left-color:var(--petrol);}
@@ -3584,7 +3593,12 @@ function renderNozzleAssignTable(date, shift){
       <div class="unit-head">
         <span class="unit-num">${String(unitNum).padStart(2,'0')}</span>
         <span class="unit-titles"><span class="unit-name">Dispensing Unit</span>${machineNo?`<span class="unit-machine">${machineNo}</span>`:''}</span>
+        <button class="btn ghost small" style="margin-left:auto;white-space:nowrap;" onclick="triggerOcrScan(${unitNum})">📷 Read Vtot Slip</button>
+        <input type="file" accept="image/*" capture="environment" id="ocrFile-${unitNum}" style="display:none;" onchange="handleOcrFile(${unitNum}, this)">
       </div>
+      <div class="hint" id="ocrStatus-${unitNum}" style="display:none;margin:-6px 0 10px;"></div>
+      <div id="ocrConfirm-${unitNum}" class="ocr-confirm-box" style="display:none;"></div>
+      <div class="ocr-paste-hint" tabindex="0" id="ocrPasteZone-${unitNum}">📋 Click here, then paste a copied slip image (Ctrl+V)</div>
       <div class="fuel-group diesel">
         <div class="fuel-group-head"><span class="dot"></span>Diesel · HSD</div>
         ${dieselRows}
@@ -3598,6 +3612,7 @@ function renderNozzleAssignTable(date, shift){
 
   const units = [...new Set(NOZZLES.map(nz=>nz.unit))];
   document.getElementById('nozzleAssignTable').innerHTML = units.map(unitPanelHtml).join('');
+  initOcrPasteZones();
 }
 function onAssignChange(el){
   const date = document.getElementById('salesDate').value;
@@ -3930,7 +3945,7 @@ async function processOcrImage(unitNum, file){
       return;
     }
 
-    setOcrStatus(unitNum, '📖 Slip read — choose which nozzle(s) below to update, then Apply.');
+    setOcrStatus(unitNum, '📖 Slip read — Vtot values are shown below.');
     if(foundCount < 4) appendRawTextToggle(unitNum);
     showOcrConfirm(unitNum, readings);
   }catch(e){
@@ -3947,41 +3962,21 @@ function ocrNozzleMap(unitNum){
   };
 }
 
-// Shows a checklist of the readings found on the slip so the user can pick
-// which nozzle(s) to actually apply — nothing is written to the shift data
-// until "Apply Selected" is clicked.
+// Shows only the Vtot readings read from the slip.  OCR never writes to the
+// sales ledger; staff can compare these values with the manual closing fields.
 function showOcrConfirm(unitNum, readings){
-  const date = document.getElementById('salesDate').value;
-  const nozzleMap = ocrNozzleMap(unitNum);
   const nzLabel = { 1:'Nozzle 1 (Diesel)', 2:'Nozzle 2 (Diesel)', 3:'Nozzle 3 (Petrol)', 4:'Nozzle 4 (Petrol)' };
-
-  const rowsHtml = Object.keys(nozzleMap).map(slipNzStr => {
-    const slipNz = Number(slipNzStr);
-    const nzId = nozzleMap[slipNz];
+  const rowsHtml = [1,2,3,4].map(slipNz => {
     if(readings[slipNz] === undefined){
-      return `<div class="ocr-confirm-row ocr-confirm-skipped"><label><input type="checkbox" disabled>${nzLabel[slipNz]}</label><span class="ocr-confirm-val">not found on slip</span></div>`;
+      return `<div class="ocr-confirm-row ocr-confirm-skipped"><span>${nzLabel[slipNz]}</span><span class="ocr-confirm-val">not found</span></div>`;
     }
-    const value = readings[slipNz];
-    const opening = Number(getOpeningReading(date, currentShift, nzId)) || 0;
-    const litres = value - opening;
-    const invalid = !Number.isFinite(value) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT;
-    return `<div class="ocr-confirm-row${invalid ? ' ocr-confirm-skipped' : ''}">
-      <label><input type="checkbox" data-slip-nz="${slipNz}" ${invalid ? 'disabled' : 'checked'}>${nzLabel[slipNz]}</label>
-      <input class="ocr-reading-input${invalid ? ' ocr-reading-invalid' : ''}" type="number" inputmode="decimal" step="0.001" value="${value}" data-slip-value="${slipNz}" data-opening="${opening}" oninput="validateOcrReadingInput(this)" aria-label="${nzLabel[slipNz]} scanned closing reading">
-      <span class="ocr-confirm-val" data-ocr-message>${invalid ? 'below opening / out of range — correct it' : ''}</span>
-    </div>`;
+    return `<div class="ocr-confirm-row"><span>${nzLabel[slipNz]}</span><span class="ocr-confirm-val">Vtot: ${readings[slipNz]}</span></div>`;
   }).join('');
 
   const box = document.getElementById('ocrConfirm-' + unitNum);
   if(!box) return;
-  box.dataset.readings = JSON.stringify(readings);
   box.innerHTML = `
-    <div class="ocr-confirm-title">Apply readings to which nozzle(s)?</div>
-    ${rowsHtml}
-    <div class="ocr-confirm-actions">
-      <button class="ocr-apply-btn" onclick="applyOcrSelections(${unitNum})">✅ Apply Selected</button>
-      <button onclick="cancelOcrSelections(${unitNum})">Cancel</button>
-    </div>`;
+    <div class="ocr-confirm-title">Vtot readings only</div>${rowsHtml}`;
   box.style.display = 'block';
 }
 
