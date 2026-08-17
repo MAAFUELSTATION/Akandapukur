@@ -3689,6 +3689,54 @@ function escapeOcrHtml(s){
   return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
 
+// Tesseract also returns the position of every word it recognised.  The
+// text version of a two-column totalizer slip can be read in a scrambled
+// order, but those positions still tell us exactly which Vtot sits under
+// which "Nozzle No." header.  Use that geometry whenever it is available.
+function parseTotalizerSlipWords(words){
+  const items = (words || []).filter(w => w && w.text && w.bbox &&
+    Number.isFinite(w.bbox.x0) && Number.isFinite(w.bbox.y0));
+  const normal = w => String(w.text).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const midY = w => (w.bbox.y0 + (w.bbox.y1 || w.bbox.y0)) / 2;
+  const sameLine = (a, b) => Math.abs(midY(a) - midY(b)) < 42;
+  const meterValue = w => {
+    const cleaned = String(w.text).replace(/[^0-9.,\s]/g, '').replace(/[\s,]/g, '');
+    return /^\d{5,}\.\d{1,3}$/.test(cleaned) ? Number(cleaned) : NaN;
+  };
+
+  const headers = [];
+  items.forEach((word, index) => {
+    if(normal(word) !== 'nozzle') return;
+    // The printed header is "Nozzle No. : 01".  Find its number among the
+    // next few words on that same physical line.
+    for(let i = index + 1; i < Math.min(items.length, index + 7); i++){
+      if(!sameLine(word, items[i])) continue;
+      const m = String(items[i].text).match(/^0?([1-4])\D*$/);
+      if(m){ headers.push({ number: Number(m[1]), y: midY(word) }); break; }
+    }
+  });
+  headers.sort((a, b) => a.y - b.y);
+
+  const readings = {};
+  items.forEach((word, index) => {
+    const label = normal(word);
+    if(label !== 'vtot' && label !== 'ytot') return;
+    let value;
+    // The meter number is printed to the right of Vtot on the same line.
+    for(let i = index + 1; i < Math.min(items.length, index + 8); i++){
+      if(!sameLine(word, items[i])) continue;
+      if(items[i].bbox.x0 + 12 < word.bbox.x0) continue;
+      const candidate = meterValue(items[i]);
+      if(Number.isFinite(candidate)){ value = candidate; break; }
+    }
+    if(value === undefined) return;
+    const y = midY(word);
+    const header = headers.filter(h => h.y < y).slice(-1)[0];
+    if(header && readings[header.number] === undefined) readings[header.number] = value;
+  });
+  return readings;
+}
+
 // Pull each Nozzle No. -> Vtot pair from its own block on the slip.
 // Deliberately ignore every other number: Atot, Ecal Factor, the header
 // summary Vtot, dates, and DU serial number must never be used as readings.
@@ -3893,9 +3941,13 @@ async function processOcrImage(unitNum, file){
 
   setOcrStatus(unitNum, '📷 Reading slip… this can take a few seconds.');
   try{
-    const { data: { text } } = await Tesseract.recognize(file, 'eng');
+    const { data: { text, words } } = await Tesseract.recognize(file, 'eng');
     lastOcrRawText[unitNum] = text;
-    const { readings } = parseTotalizerSlipText(text);
+    const parsedSlip = parseTotalizerSlipText(text);
+    // Position-based results override text-order results only for the
+    // nozzle rows they could positively identify; text parsing remains a
+    // fallback for a partially recognised photo.
+    const readings = Object.assign({}, parsedSlip.readings, parseTotalizerSlipWords(words));
 
     const foundCount = Object.keys(readings).length;
     if(foundCount === 0){
