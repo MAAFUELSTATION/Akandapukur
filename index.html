@@ -3764,12 +3764,29 @@ function parseOcrTotalizerText(text){
   const norm = String(text||'').replace(/\r/g,'').replace(/[Oo](?=\d)/g,'0'); // OCR often reads a leading "0" as "O"
   const serialMatch = norm.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
   const serial = serialMatch ? serialMatch[1].trim() : null;
+
+  // Split the text into one chunk per nozzle, starting at each "Nozzle No. : NN".
+  // We deliberately DON'T anchor on the "Vtot" label text — OCR frequently misreads
+  // it (e.g. "Vtot" -> "Viot"/"Utot") and misreads the number itself (a stray space
+  // or "/" landing in the middle of a value). Instead we pull out every number-like
+  // token in the block and take the LAST one, since the slip always prints
+  // "Atot: <value>  Vtot: <value>" in that order — Vtot is reliably the second
+  // (last) number regardless of whether its label OCR'd correctly.
+  const blocks = norm.split(/(?=N[o0]zzle\s*N[o0]\.?\s*:?\s*\d{1,2})/i);
   const rows = [];
-  const re = /Nozzle\s*No\.?\s*:?\s*(\d{1,2})[\s\S]*?Vtot\s*:?\s*([\d]+\.\d+)/gi;
-  let m;
-  while((m = re.exec(norm))){
-    rows.push({ nozzleNo: parseInt(m[1],10), vtot: parseFloat(m[2]) });
-  }
+  const numRe = /\d[\d\/,]*\s*\.\s*[\d\/]+/g;
+  blocks.forEach(block=>{
+    const headMatch = block.match(/N[o0]zzle\s*N[o0]\.?\s*:?\s*(\d{1,2})/i);
+    if(!headMatch) return;
+    const nozzleNo = parseInt(headMatch[1], 10);
+    const nums = block.match(numRe);
+    if(!nums || nums.length===0) return;
+    const cleaned = nums
+      .map(n=> parseFloat(n.replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7')))
+      .filter(v=> Number.isFinite(v));
+    if(cleaned.length===0) return;
+    rows.push({ nozzleNo, vtot: cleaned[cleaned.length-1] });
+  });
   return { serial, rows };
 }
 
