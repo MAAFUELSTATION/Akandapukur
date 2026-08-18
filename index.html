@@ -411,6 +411,8 @@
   .ocr-pastezone img{max-height:150px;max-width:100%;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.15);}
   .ocr-rawtext{width:100%;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:8px;border:1px solid var(--line);border-radius:6px;resize:vertical;}
   #ocrRowsBody select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:'Inter',sans-serif;max-width:100%;}
+  .ocr-skip-row td{background:rgba(209,67,67,.08);border-left:3px solid var(--shortfall);color:var(--shortfall);font-size:12.5px;font-weight:600;line-height:1.5;padding:8px 10px;}
+  .ocr-skip-row .ocr-skip-guess{display:block;margin-top:2px;font-weight:400;color:var(--muted);}
   .audit-entry{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#FAFAF8;}
   .audit-entry .audit-meta{font-size:11.5px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
   .audit-entry .audit-lines{font-size:12.5px;line-height:1.6;}
@@ -3772,18 +3774,63 @@ function parseOcrTotalizerText(text){
   // landing next to the decimal point), but the "Vtot" label must be present.
   const blocks = norm.split(/(?=N[o0]zzle\s*N[o0]\.?\s*:?\s*\d{1,2})/i);
   const rows = [];
+  const skipped = [];
   const vtotRe = /Vtot\s*:?\s*(\d[\d\/,]*\s*\.\s*[\d\/]+)/i;
+  // Loose fallback used only to show the user *something* was spotted in a
+  // block that failed the strict "Vtot:" match — never used to set a
+  // reading, just surfaced as an unconfirmed hint so nothing is silently lost.
+  const anyNumRe = /(\d[\d\/,]*\s*\.\s*[\d\/]+)/;
   blocks.forEach(block=>{
     const headMatch = block.match(/N[o0]zzle\s*N[o0]\.?\s*:?\s*(\d{1,2})/i);
     if(!headMatch) return;
     const nozzleNo = parseInt(headMatch[1], 10);
     const vtotMatch = block.match(vtotRe);
-    if(!vtotMatch) return;
+    if(!vtotMatch){
+      const guessMatch = block.match(anyNumRe);
+      const guess = guessMatch ? parseFloat(guessMatch[1].replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7')) : null;
+      skipped.push({ nozzleNo, reason: 'Vtot label unclear in photo', guess: Number.isFinite(guess) ? guess : null });
+      return;
+    }
     const vtot = parseFloat(vtotMatch[1].replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7'));
-    if(!Number.isFinite(vtot)) return;
+    if(!Number.isFinite(vtot)){
+      skipped.push({ nozzleNo, reason: 'Vtot value unreadable', guess: null });
+      return;
+    }
     rows.push({ nozzleNo, vtot });
   });
-  return { serial, rows };
+  return { serial, rows, skipped };
+}
+
+// Formats a list of nozzle numbers like "03 & 04" or "03, 04 & 07" for the
+// inline skipped-rows notice.
+function formatNozzleGroupList(nums){
+  const padded = nums.map(n=>String(n).padStart(2,'0'));
+  if(padded.length === 1) return padded[0];
+  if(padded.length === 2) return padded.join(' & ');
+  return padded.slice(0,-1).join(', ') + ' & ' + padded[padded.length-1];
+}
+
+// Builds the inline warning row(s) shown inside the OCR results table for
+// any nozzle that was detected on the slip but couldn't be turned into a
+// reading — grouped by reason so e.g. "Nozzle 03 & 04 skipped — Vtot label
+// unclear in photo" appears as one line instead of one row per nozzle.
+function buildOcrSkippedRowHtml(skipped){
+  if(!skipped || skipped.length === 0) return '';
+  const byReason = {};
+  skipped.forEach(s=>{
+    (byReason[s.reason] = byReason[s.reason] || []).push(s);
+  });
+  const lines = Object.keys(byReason).map(reason=>{
+    const group = byReason[reason];
+    const nums = group.map(g=>g.nozzleNo);
+    const label = group.length === 1 ? 'Nozzle' : 'Nozzles';
+    const guesses = group.filter(g=>g.guess !== null);
+    const guessNote = guesses.length
+      ? `<span class="ocr-skip-guess">Unconfirmed number${guesses.length>1?'s':''} spotted nearby — check manually: ${guesses.map(g=>`Nozzle ${String(g.nozzleNo).padStart(2,'0')}: ${fmtNum(g.guess)}`).join(', ')}</span>`
+      : '';
+    return `⚠️ ${label} ${formatNozzleGroupList(nums)} skipped — ${reason}${guessNote}`;
+  });
+  return `<tr class="ocr-skip-row"><td colspan="3">${lines.join('<br>')}</td></tr>`;
 }
 
 function matchUnitBySerial(serial){
@@ -3796,17 +3843,27 @@ function matchUnitBySerial(serial){
 }
 
 function parseAndRenderOcrRows(text){
-  const { serial, rows } = parseOcrTotalizerText(text || '');
+  const { serial, rows, skipped } = parseOcrTotalizerText(text || '');
   ocrParsedRows = rows;
   const hintEl = document.getElementById('ocrMatchHint');
   const wrap = document.getElementById('ocrRowsWrap');
   const applyBtn = document.getElementById('ocrApplyBtn');
 
-  if(rows.length === 0){
+  if(rows.length === 0 && skipped.length === 0){
     hintEl.textContent = serial
       ? `Detected DU Serial ${serial}, but no "Nozzle No. / Vtot" readings could be found — check the pasted text above.`
       : 'No readings detected yet — paste a totalizer photo or its text above.';
     wrap.style.display = 'none';
+    applyBtn.style.display = 'none';
+    return;
+  }
+
+  if(rows.length === 0){
+    // Every nozzle we found was dropped — nothing valid to apply, but still
+    // show the table so the skipped-row notice below is visible.
+    hintEl.textContent = serial ? `Detected DU Serial ${serial}, but every nozzle reading was skipped — see below.` : 'Every nozzle reading was skipped — see below.';
+    document.getElementById('ocrRowsBody').innerHTML = buildOcrSkippedRowHtml(skipped);
+    wrap.style.display = 'block';
     applyBtn.style.display = 'none';
     return;
   }
@@ -3842,7 +3899,7 @@ function parseAndRenderOcrRows(text){
         ${optionsHtml(defaultNz)}
       </select></td>
     </tr>`;
-  }).join('');
+  }).join('') + buildOcrSkippedRowHtml(skipped);
   document.getElementById('ocrRowsBody').innerHTML = body;
   wrap.style.display = 'block';
   applyBtn.style.display = 'inline-block';
