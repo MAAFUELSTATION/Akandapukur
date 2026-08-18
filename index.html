@@ -3765,27 +3765,23 @@ function parseOcrTotalizerText(text){
   const serialMatch = norm.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
   const serial = serialMatch ? serialMatch[1].trim() : null;
 
-  // Split the text into one chunk per nozzle, starting at each "Nozzle No. : NN".
-  // We deliberately DON'T anchor on the "Vtot" label text — OCR frequently misreads
-  // it (e.g. "Vtot" -> "Viot"/"Utot") and misreads the number itself (a stray space
-  // or "/" landing in the middle of a value). Instead we pull out every number-like
-  // token in the block and take the LAST one, since the slip always prints
-  // "Atot: <value>  Vtot: <value>" in that order — Vtot is reliably the second
-  // (last) number regardless of whether its label OCR'd correctly.
+  // Split the text into one chunk per nozzle, starting at each "Nozzle No. : NN",
+  // then within that chunk only pick up a number that is explicitly labelled
+  // "Vtot:" — Atot and every other figure on the slip is ignored. The number
+  // pattern itself still tolerates common OCR noise (a stray space or "/"
+  // landing next to the decimal point), but the "Vtot" label must be present.
   const blocks = norm.split(/(?=N[o0]zzle\s*N[o0]\.?\s*:?\s*\d{1,2})/i);
   const rows = [];
-  const numRe = /\d[\d\/,]*\s*\.\s*[\d\/]+/g;
+  const vtotRe = /Vtot\s*:?\s*(\d[\d\/,]*\s*\.\s*[\d\/]+)/i;
   blocks.forEach(block=>{
     const headMatch = block.match(/N[o0]zzle\s*N[o0]\.?\s*:?\s*(\d{1,2})/i);
     if(!headMatch) return;
     const nozzleNo = parseInt(headMatch[1], 10);
-    const nums = block.match(numRe);
-    if(!nums || nums.length===0) return;
-    const cleaned = nums
-      .map(n=> parseFloat(n.replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7')))
-      .filter(v=> Number.isFinite(v));
-    if(cleaned.length===0) return;
-    rows.push({ nozzleNo, vtot: cleaned[cleaned.length-1] });
+    const vtotMatch = block.match(vtotRe);
+    if(!vtotMatch) return;
+    const vtot = parseFloat(vtotMatch[1].replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7'));
+    if(!Number.isFinite(vtot)) return;
+    rows.push({ nozzleNo, vtot });
   });
   return { serial, rows };
 }
