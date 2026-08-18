@@ -403,6 +403,14 @@
   .audit-modal .audit-controls{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
   .audit-modal .audit-controls input[type="date"]{padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;}
   .audit-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px;padding-right:4px;}
+
+  /* ---- OCR meter-reading paste modal (Nozzle Sales tab) ---- */
+  .ocr-modal{max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow-y:auto;}
+  .ocr-pastezone{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:12.5px;cursor:text;outline:none;min-height:80px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:#FAFAF8;}
+  .ocr-pastezone:focus{border-color:var(--diesel);background:#F5F9FF;}
+  .ocr-pastezone img{max-height:150px;max-width:100%;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.15);}
+  .ocr-rawtext{width:100%;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:8px;border:1px solid var(--line);border-radius:6px;resize:vertical;}
+  #ocrRowsBody select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:'Inter',sans-serif;max-width:100%;}
   .audit-entry{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#FAFAF8;}
   .audit-entry .audit-meta{font-size:11.5px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
   .audit-entry .audit-lines{font-size:12.5px;line-height:1.6;}
@@ -1143,6 +1151,10 @@
       </nav>
 
       <div class="readouts" id="shiftReadouts"></div>
+
+      <div class="row" style="justify-content:flex-end;margin-bottom:6px;">
+        <button class="btn ghost small" onclick="openOcrModal()" title="Paste a photo of the Dispensing Unit's Electronic Totalizer printout (or already-OCR'd text) and pull the Vtot readings straight into the Closing fields below">📋 Paste &amp; OCR Meter Reading</button>
+      </div>
 
       <div id="nozzleAssignTable" class="units-grid"></div>
       <div class="hint" id="shiftHint"></div>
@@ -3210,7 +3222,7 @@ function renderDutyTab(){
     const date = addDaysStr(dutyWeekStart, i);
     const d = ensureDuty(date);
     rows += `<tr class="${date===today ? 'duty-today' : ''}">
-      <td class="duty-daycell"><strong>${DUTY_DAY_LABELS[i]}</strong><br><span class="mono d">${date}</span></td>
+      <td class="duty-daycell"><span class="mono d">${date}</span></td>
       ${SHIFTS.map(sh=>`<td>${dutyCellHtml(date, sh.id, d[sh.id])}</td>`).join('')}
     </tr>`;
   }
@@ -3276,11 +3288,11 @@ async function downloadDutyRosterPDF(){
     for(let i=0; i<7; i++){
       const date = addDaysStr(dutyWeekStart, i);
       const d = ensureDuty(date);
-      body.push([`${DUTY_DAY_LABELS[i]}\n${date}`, cellFor(d,'morning'), cellFor(d,'afternoon'), cellFor(d,'night')]);
+      body.push([date, cellFor(d,'morning'), cellFor(d,'afternoon'), cellFor(d,'night')]);
     }
 
     doc.autoTable({
-      head: [['Day','Morning','Afternoon','Night']],
+      head: [['Date','Morning','Afternoon','Night']],
       body,
       startY: 74,
       styles:{font:'helvetica', fontSize:10, cellPadding:7, valign:'middle'},
@@ -3644,6 +3656,214 @@ function validateClosingReading(el){
   renderDaySummary(date);
   scheduleAutosave();
 }
+
+/* ===================== OCR METER READING (Paste & OCR) =====================
+   Lets a staffer paste a photo of the pump's Electronic Totalizer printout
+   (e.g. IndianOil "Nozzle No. / Vtot" slip) — or text already OCR'd
+   elsewhere — and pulls out the Vtot reading for each nozzle to set as this
+   shift's Closing reading. Only Vtot is used; Atot, Ecal Factor, date/time
+   etc. on the slip are ignored. Tesseract.js is loaded from a CDN on first
+   use only, so it never slows down normal page load. */
+let ocrParsedRows = [];
+let __ocrPastedImageDataUrl = null;
+let __tesseractLoadPromise = null;
+
+function loadTesseractScript(){
+  if(window.Tesseract) return Promise.resolve();
+  if(__tesseractLoadPromise) return __tesseractLoadPromise;
+  __tesseractLoadPromise = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js';
+    s.onload = ()=> resolve();
+    s.onerror = ()=>{ __tesseractLoadPromise = null; reject(new Error('could not load the OCR library — check your internet connection')); };
+    document.head.appendChild(s);
+  });
+  return __tesseractLoadPromise;
+}
+
+function setOcrStatus(msg){
+  const el = document.getElementById('ocrStatus');
+  if(el) el.textContent = msg || '';
+}
+
+function openOcrModal(){
+  const date = document.getElementById('salesDate').value;
+  if(!date){ alert('Pick a date on the Nozzle Sales tab first.'); return; }
+  document.getElementById('ocrModalShiftLabel').textContent = (SHIFTS.find(s=>s.id===currentShift)||{}).label || currentShift;
+  document.getElementById('ocrModalDateLabel').textContent = date;
+  document.getElementById('ocrPastePreview').innerHTML = '';
+  document.getElementById('ocrRunBtn').style.display = 'none';
+  document.getElementById('ocrRawText').value = '';
+  document.getElementById('ocrRowsWrap').style.display = 'none';
+  document.getElementById('ocrApplyBtn').style.display = 'none';
+  document.getElementById('ocrMatchHint').textContent = '';
+  setOcrStatus('');
+  __ocrPastedImageDataUrl = null;
+  ocrParsedRows = [];
+  document.getElementById('ocrModalBackdrop').classList.add('show');
+  setTimeout(()=>{ const z = document.getElementById('ocrPasteZone'); if(z) z.focus(); }, 50);
+}
+function closeOcrModal(){
+  document.getElementById('ocrModalBackdrop').classList.remove('show');
+}
+
+function onOcrPaste(e){
+  e.preventDefault();
+  const cd = e.clipboardData || window.clipboardData;
+  if(!cd) return;
+  const items = cd.items || [];
+  let imageFile = null;
+  for(let i=0;i<items.length;i++){
+    if(items[i].type && items[i].type.indexOf('image') === 0){ imageFile = items[i].getAsFile(); break; }
+  }
+  if(imageFile){
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      __ocrPastedImageDataUrl = ev.target.result;
+      document.getElementById('ocrPastePreview').innerHTML = `<img src="${ev.target.result}" alt="Pasted meter reading photo">`;
+      document.getElementById('ocrRunBtn').style.display = 'inline-block';
+      setOcrStatus('Photo pasted — tap "Run OCR on Photo" below to read it.');
+    };
+    reader.readAsDataURL(imageFile);
+    return;
+  }
+  const text = cd.getData ? cd.getData('text') : '';
+  if(text && text.trim()){
+    document.getElementById('ocrRawText').value = text;
+    setOcrStatus('Text pasted — checking for readings…');
+    parseAndRenderOcrRows(text);
+  } else {
+    setOcrStatus('Nothing usable found in that paste — try copying the photo or text again.');
+  }
+}
+
+async function runOcrOnPastedImage(){
+  if(!__ocrPastedImageDataUrl){ setOcrStatus('Paste a photo first.'); return; }
+  const btn = document.getElementById('ocrRunBtn');
+  btn.disabled = true;
+  try{
+    setOcrStatus('Loading OCR engine…');
+    await loadTesseractScript();
+    setOcrStatus('Reading the photo… this can take 15–30 seconds.');
+    const result = await Tesseract.recognize(__ocrPastedImageDataUrl, 'eng', {
+      logger: (m)=>{ if(m && m.status && typeof m.progress === 'number') setOcrStatus(`${m.status}… ${Math.round(m.progress*100)}%`); }
+    });
+    const text = (result && result.data && result.data.text) || '';
+    document.getElementById('ocrRawText').value = text;
+    setOcrStatus('Done — check the readings below (edit the text and tap Re-check if anything was misread).');
+    parseAndRenderOcrRows(text);
+  }catch(err){
+    console.error(err);
+    setOcrStatus('OCR failed (' + (err && err.message ? err.message : 'unknown error') + '). You can type/paste the readings into the text box below instead, then tap Re-check.');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function parseOcrTotalizerText(text){
+  const norm = String(text||'').replace(/\r/g,'').replace(/[Oo](?=\d)/g,'0'); // OCR often reads a leading "0" as "O"
+  const serialMatch = norm.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
+  const serial = serialMatch ? serialMatch[1].trim() : null;
+  const rows = [];
+  const re = /Nozzle\s*No\.?\s*:?\s*(\d{1,2})[\s\S]*?Vtot\s*:?\s*([\d]+\.\d+)/gi;
+  let m;
+  while((m = re.exec(norm))){
+    rows.push({ nozzleNo: parseInt(m[1],10), vtot: parseFloat(m[2]) });
+  }
+  return { serial, rows };
+}
+
+function matchUnitBySerial(serial){
+  if(!serial) return null;
+  const clean = serial.replace(/\s+/g,'').toUpperCase();
+  for(const u in UNIT_MACHINE_NO){
+    if(String(UNIT_MACHINE_NO[u]).toUpperCase() === clean) return Number(u);
+  }
+  return null;
+}
+
+function parseAndRenderOcrRows(text){
+  const { serial, rows } = parseOcrTotalizerText(text || '');
+  ocrParsedRows = rows;
+  const hintEl = document.getElementById('ocrMatchHint');
+  const wrap = document.getElementById('ocrRowsWrap');
+  const applyBtn = document.getElementById('ocrApplyBtn');
+
+  if(rows.length === 0){
+    hintEl.textContent = serial
+      ? `Detected DU Serial ${serial}, but no "Nozzle No. / Vtot" readings could be found — check the pasted text above.`
+      : 'No readings detected yet — paste a totalizer photo or its text above.';
+    wrap.style.display = 'none';
+    applyBtn.style.display = 'none';
+    return;
+  }
+
+  const matchedUnit = matchUnitBySerial(serial);
+  hintEl.textContent = matchedUnit
+    ? `Detected DU Serial ${serial} → matched to Dispensing Unit ${String(matchedUnit).padStart(2,'0')}. Review the mapping below, then apply.`
+    : (serial
+        ? `Detected DU Serial ${serial} (no matching unit on file) — pick the right nozzle for each reading below.`
+        : `Couldn't detect a DU Serial No. — pick the right nozzle for each reading below.`);
+
+  const unitNozzleLists = { 1: NOZZLES.filter(nz=>nz.unit===1), 2: NOZZLES.filter(nz=>nz.unit===2) };
+  const targetUnit = matchedUnit || 1;
+  const targetList = unitNozzleLists[targetUnit];
+
+  const optionsHtml = (defaultId)=> [1,2].map(u=>{
+    const opts = unitNozzleLists[u].map(nz=>`<option value="${nz.id}" ${nz.id===defaultId?'selected':''}>DU ${String(u).padStart(2,'0')} · ${nz.label}</option>`).join('');
+    return `<optgroup label="Dispensing Unit ${String(u).padStart(2,'0')}${UNIT_MACHINE_NO[u]?' ('+UNIT_MACHINE_NO[u]+')':''}">${opts}</optgroup>`;
+  }).join('');
+
+  const body = rows.map((r, idx)=>{
+    const defaultNz = (targetList[idx] || NOZZLES[idx] || NOZZLES[0]).id;
+    return `<tr>
+      <td>Nozzle ${String(r.nozzleNo).padStart(2,'0')}</td>
+      <td class="num mono">${fmtNum(r.vtot)}</td>
+      <td><select data-idx="${idx}" class="ocr-target-select">
+        <option value="">— Skip —</option>
+        ${optionsHtml(defaultNz)}
+      </select></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('ocrRowsBody').innerHTML = body;
+  wrap.style.display = 'block';
+  applyBtn.style.display = 'inline-block';
+}
+
+function applyOcrReadings(){
+  const date = document.getElementById('salesDate').value;
+  if(!date){ alert('Pick a date on the Nozzle Sales tab first.'); return; }
+  const shift = currentShift;
+  const sd = ensureShiftData(date, shift);
+  const selects = document.querySelectorAll('#ocrRowsBody .ocr-target-select');
+  let applied = 0;
+  let skipped = 0;
+  selects.forEach(sel=>{
+    const nzId = sel.value;
+    if(!nzId) return;
+    const idx = Number(sel.dataset.idx);
+    const row = ocrParsedRows[idx];
+    if(!row) return;
+    const opening = Number(getOpeningReading(date, shift, nzId)) || 0;
+    const litres = row.vtot - opening;
+    if(!Number.isFinite(row.vtot) || litres < 0 || litres > MAX_NOZZLE_LITRES_PER_SHIFT){
+      skipped++;
+      return;
+    }
+    sd.closing[nzId] = row.vtot;
+    applied++;
+  });
+  renderNozzleAssignTable(date, shift);
+  renderShiftReadouts(date, shift);
+  renderShiftStaffTable(date, shift);
+  renderDaySummary(date);
+  scheduleAutosave();
+  closeOcrModal();
+  setAutosaveStatus(applied
+    ? `Set ${applied} closing reading${applied===1?'':'s'} from OCR.${skipped ? ' ' + skipped + ' skipped (reading was lower than opening or invalid).' : ''}`
+    : 'No readings were applied — pick a nozzle for at least one row.');
+}
+
 function renderShiftReadouts(date, shift){
   let dl=0,da=0,pl=0,pa=0;
   const rate = getRateForDate(date);
@@ -6050,6 +6270,42 @@ setInterval(function(){
       <div class="modal-actions">
         <button class="btn ghost small" onclick="closeCorrectionModal()">Cancel</button>
         <button class="btn amber small" onclick="submitCorrectionUnlock()">Unlock for Editing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== OCR METER READING MODAL (Nozzle Sales tab) ===================== -->
+  <div class="correction-modal-backdrop" id="ocrModalBackdrop">
+    <div class="correction-modal ocr-modal">
+      <h3>📋 Paste &amp; OCR Meter Reading</h3>
+      <p class="hint">Paste a copied photo of the Dispensing Unit's Electronic Totalizer printout (or text already OCR'd elsewhere) below. Only the <strong>Vtot</strong> reading for each nozzle is used — everything else on the slip (Atot, Ecal Factor, date/time) is ignored. This will set the <strong>Closing</strong> reading for <span id="ocrModalShiftLabel"></span> shift on <span id="ocrModalDateLabel"></span>.</p>
+
+      <div class="ocr-pastezone" id="ocrPasteZone" tabindex="0" onpaste="onOcrPaste(event)">
+        <div id="ocrPastePreview"></div>
+        <div>📋 Click here, then paste (Ctrl+V, or long-press → Paste on mobile) a copied totalizer photo — or paste text.</div>
+      </div>
+      <div class="row" style="margin-top:10px;margin-bottom:0;">
+        <button class="btn ghost small" id="ocrRunBtn" style="display:none;" onclick="runOcrOnPastedImage()">🔎 Run OCR on Photo</button>
+      </div>
+      <div class="hint" id="ocrStatus" style="margin-top:4px;"></div>
+
+      <div class="field" style="margin-top:12px;">
+        <label>Detected Text <span style="font-weight:400;text-transform:none;letter-spacing:normal;">(edit here if OCR misread a digit, then tap Re-check)</span></label>
+        <textarea id="ocrRawText" class="ocr-rawtext" rows="5" placeholder="OCR / pasted text will appear here…"></textarea>
+        <button class="btn ghost small" style="margin-top:6px;" onclick="parseAndRenderOcrRows(document.getElementById('ocrRawText').value)">↻ Re-check Values</button>
+      </div>
+
+      <div class="hint" id="ocrMatchHint" style="margin-top:8px;"></div>
+      <div class="ledger-wrap" id="ocrRowsWrap" style="margin-top:8px;display:none;">
+        <table>
+          <thead><tr><th>Nozzle No. (receipt)</th><th class="num">Vtot Reading</th><th>Set As Closing For</th></tr></thead>
+          <tbody id="ocrRowsBody"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn ghost small" onclick="closeOcrModal()">Cancel</button>
+        <button class="btn amber small" id="ocrApplyBtn" style="display:none;" onclick="applyOcrReadings()">✅ Set Closing Readings</button>
       </div>
     </div>
   </div>
