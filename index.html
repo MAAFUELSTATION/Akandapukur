@@ -4595,7 +4595,15 @@ function pouchBoxesFor(staffId){
   return state.pouchBoxes[staffId];
 }
 
-function addDaysStr(dateStr, days){
+function addDaysStrUTCSlice(dateStr, days){
+  // NOTE: renamed from the old duplicate "addDaysStr" — that duplicate function
+  // declaration was silently overriding the correct, timezone-safe addDaysStr()
+  // defined earlier (near the Duty Roster code), because both were plain
+  // `function` declarations in the same scope and the later one wins. Its use
+  // of toISOString() converts to UTC, which rolls the date back a day for any
+  // UTC+ timezone (e.g. IST) — that was the cause of the Duty Roster showing
+  // the wrong date/weekday. Kept as a separate function for the pouch-box
+  // payout code below, but no longer shadows the shared addDaysStr().
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0,10);
@@ -4618,7 +4626,7 @@ function issuePouchBox(staffId){
   const issueDate = now.toISOString().slice(0,10);
   const issueTime = now.toTimeString().slice(0,5); // HH:MM, local time
   const minutesNow = now.getHours() * 60 + now.getMinutes();
-  const effectiveIssueDate = minutesNow >= ADDON_CUTOFF_MINUTES ? addDaysStr(issueDate, 1) : issueDate;
+  const effectiveIssueDate = minutesNow >= ADDON_CUTOFF_MINUTES ? addDaysStrUTCSlice(issueDate, 1) : issueDate;
 
   const box = {
     id: 'box_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -4728,7 +4736,7 @@ function editPouchBoxIssue(staffId, boxId){
   const minutes = hh * 60 + mm;
   box.issueDate = newDate;
   box.issueTime = newTime;
-  box.effectiveIssueDate = minutes >= ADDON_CUTOFF_MINUTES ? addDaysStr(newDate, 1) : newDate;
+  box.effectiveIssueDate = minutes >= ADDON_CUTOFF_MINUTES ? addDaysStrUTCSlice(newDate, 1) : newDate;
 
   if(box.status === 'closed' && box.closedDate){
     box.incentive = incentiveForDays(daysBetweenStr(box.effectiveIssueDate, box.closedDate));
