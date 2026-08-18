@@ -3764,31 +3764,49 @@ async function runOcrOnPastedImage(){
 
 function parseOcrTotalizerText(text){
   const norm = String(text||'').replace(/\r/g,'').replace(/[Oo](?=\d)/g,'0'); // OCR often reads a leading "0" as "O"
+
   const serialMatch = norm.match(/DU\s*SERIAL\s*NO\.?\s*:?\s*([A-Za-z0-9]+)/i);
   const serial = serialMatch ? serialMatch[1].trim() : null;
 
-  // Split the text into one chunk per nozzle, starting at each "Nozzle No. : NN",
-  // then within that chunk only pick up a number that is explicitly labelled
-  // "Vtot:" — Atot and every other figure on the slip is ignored. The number
-  // pattern itself still tolerates common OCR noise (a stray space or "/"
-  // landing next to the decimal point), but the "Vtot" label must be present.
+  // Split the text into one chunk per nozzle, starting at each "Nozzle No. : NN".
   const blocks = norm.split(/(?=N[o0]zzle\s*N[o0]\.?\s*:?\s*\d{1,2})/i);
   const rows = [];
   const skipped = [];
-  const vtotRe = /Vtot\s*:?\s*(\d[\d\/,]*\s*\.\s*[\d\/]+)/i;
-  // Loose fallback used only to show the user *something* was spotted in a
-  // block that failed the strict "Vtot:" match — never used to set a
-  // reading, just surfaced as an unconfirmed hint so nothing is silently lost.
-  const anyNumRe = /(\d[\d\/,]*\s*\.\s*[\d\/]+)/;
+
+  // Tesseract regularly mangles "Vtot" — real examples seen on these slips:
+  // "Wot", "Vfot", "Vlot", "V1ot", "Vto1", "Utot". Rather than one strict
+  // "Vtot" literal, match on shape: an optional leading junk char, a V/W/U
+  // (the letter OCR most often turns "V" into), then "t" or a t-lookalike
+  // (f/l/1), then "o" or "0", then another t/f/l/1 — so "Wot" alone (missing
+  // the first letter entirely) is also covered via the shorter alternative.
+  const vtotLabelRe = /(?:[VUWvuw][t1fl][o0][t1fl]|[Ww][o0][t1fl](?![a-zA-Z]))/;
+  const numPatt = '(\\d[\\d\\/,]*\\s*\\.\\s*[\\d\\/]+)';
+  const vtotRe = new RegExp(vtotLabelRe.source + '\\s*:?\\s*' + numPatt, 'i');
+
+  // Labels for figures that must NEVER be mistaken for Vtot, so the fallback
+  // guess below skips numbers sitting on these lines.
+  const otherLabelRe = /\b(A[t1fl][o0][t1fl]|Ecal|Factor|Date|Time)\b/i;
+
   blocks.forEach(block=>{
     const headMatch = block.match(/N[o0]zzle\s*N[o0]\.?\s*:?\s*(\d{1,2})/i);
     if(!headMatch) return;
     const nozzleNo = parseInt(headMatch[1], 10);
     const vtotMatch = block.match(vtotRe);
     if(!vtotMatch){
-      const guessMatch = block.match(anyNumRe);
-      const guess = guessMatch ? parseFloat(guessMatch[1].replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7')) : null;
-      skipped.push({ nozzleNo, reason: 'Vtot label unclear in photo', guess: Number.isFinite(guess) ? guess : null });
+      // Fallback: look line-by-line for a number NOT sitting on an Atot/Ecal
+      // Factor/Date/Time line, so we don't surface those as a "possible
+      // Vtot" guess (e.g. "Ecal Factor: 01.08" must never be offered here).
+      let guess = null;
+      const lines = block.split(/\n/);
+      for(const line of lines){
+        if(otherLabelRe.test(line)) continue;
+        const m = line.match(new RegExp(numPatt));
+        if(m){
+          const val = parseFloat(m[1].replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7'));
+          if(Number.isFinite(val)){ guess = val; break; }
+        }
+      }
+      skipped.push({ nozzleNo, reason: 'Vtot label unclear in photo', guess });
       return;
     }
     const vtot = parseFloat(vtotMatch[1].replace(/\s+/g,'').replace(/,/g,'').replace(/\//g,'7'));
