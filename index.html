@@ -303,7 +303,7 @@
   /* A single column below this width keeps every editable field inside its border. */
   @media(max-width:1150px){.units-grid{grid-template-columns:1fr;}}
   .unit-panel{background:#FFFEFB;border:1px solid var(--line);border-radius:14px;padding:14px 14px 6px;box-shadow:0 2px 10px rgba(15,42,61,.05);}
-  .unit-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line);}
+  .unit-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
   .unit-head .unit-num{
     font-family:'Fraunces',serif;font-weight:700;font-size:19px;color:#fff;
     background:var(--navy);width:34px;height:34px;border-radius:9px;
@@ -1151,10 +1151,6 @@
       </nav>
 
       <div class="readouts" id="shiftReadouts"></div>
-
-      <div class="row" style="justify-content:flex-end;margin-bottom:6px;">
-        <button class="btn ghost small" onclick="openOcrModal()" title="Paste a photo of the Dispensing Unit's Electronic Totalizer printout (or already-OCR'd text) and pull the Vtot readings straight into the Closing fields below">📋 Paste &amp; OCR Meter Reading</button>
-      </div>
 
       <div id="nozzleAssignTable" class="units-grid"></div>
       <div class="hint" id="shiftHint"></div>
@@ -3596,6 +3592,7 @@ function renderNozzleAssignTable(date, shift){
       <div class="unit-head">
         <span class="unit-num">${String(unitNum).padStart(2,'0')}</span>
         <span class="unit-titles"><span class="unit-name">Dispensing Unit</span>${machineNo?`<span class="unit-machine">${machineNo}</span>`:''}</span>
+        <button type="button" class="btn ghost small" style="margin-left:auto;" onclick="openOcrModal(${unitNum})" title="Paste a photo of this Dispensing Unit's Electronic Totalizer printout (or already-OCR'd text) and pull the Vtot readings straight into the Closing fields below">📋 Paste &amp; OCR</button>
       </div>
       <div class="fuel-group diesel">
         <div class="fuel-group-head"><span class="dot"></span>Diesel · HSD</div>
@@ -3667,6 +3664,7 @@ function validateClosingReading(el){
 let ocrParsedRows = [];
 let __ocrPastedImageDataUrl = null;
 let __tesseractLoadPromise = null;
+let ocrTargetUnit = null; // Dispensing Unit (1 or 2) the OCR modal was opened from, if any
 
 function loadTesseractScript(){
   if(window.Tesseract) return Promise.resolve();
@@ -3686,11 +3684,13 @@ function setOcrStatus(msg){
   if(el) el.textContent = msg || '';
 }
 
-function openOcrModal(){
+function openOcrModal(unitNum){
   const date = document.getElementById('salesDate').value;
   if(!date){ alert('Pick a date on the Nozzle Sales tab first.'); return; }
+  ocrTargetUnit = unitNum ? Number(unitNum) : null;
   document.getElementById('ocrModalShiftLabel').textContent = (SHIFTS.find(s=>s.id===currentShift)||{}).label || currentShift;
   document.getElementById('ocrModalDateLabel').textContent = date;
+  document.getElementById('ocrModalUnitLabel').textContent = ocrTargetUnit ? `Dispensing Unit ${String(ocrTargetUnit).padStart(2,'0')}${UNIT_MACHINE_NO[ocrTargetUnit]?' ('+UNIT_MACHINE_NO[ocrTargetUnit]+')':''}` : 'the selected Dispensing Unit';
   document.getElementById('ocrPastePreview').innerHTML = '';
   document.getElementById('ocrRunBtn').style.display = 'none';
   document.getElementById('ocrRawText').value = '';
@@ -3816,14 +3816,19 @@ function parseAndRenderOcrRows(text){
   }
 
   const matchedUnit = matchUnitBySerial(serial);
-  hintEl.textContent = matchedUnit
-    ? `Detected DU Serial ${serial} → matched to Dispensing Unit ${String(matchedUnit).padStart(2,'0')}. Review the mapping below, then apply.`
-    : (serial
-        ? `Detected DU Serial ${serial} (no matching unit on file) — pick the right nozzle for each reading below.`
-        : `Couldn't detect a DU Serial No. — pick the right nozzle for each reading below.`);
+  const pad2 = (n)=> String(n).padStart(2,'0');
+  if(ocrTargetUnit && matchedUnit && matchedUnit !== ocrTargetUnit){
+    hintEl.textContent = `⚠️ This slip's DU Serial ${serial} matches Dispensing Unit ${pad2(matchedUnit)}, but you opened this from Dispensing Unit ${pad2(ocrTargetUnit)} — double-check you pasted the right unit's photo. Rows default to Dispensing Unit ${pad2(ocrTargetUnit)}; change below if needed.`;
+  } else if(matchedUnit){
+    hintEl.textContent = `Detected DU Serial ${serial} → matched to Dispensing Unit ${pad2(matchedUnit)}. Review the mapping below, then apply.`;
+  } else if(serial){
+    hintEl.textContent = `Detected DU Serial ${serial} (no matching unit on file) — pick the right nozzle for each reading below.`;
+  } else {
+    hintEl.textContent = `Couldn't detect a DU Serial No. — pick the right nozzle for each reading below.`;
+  }
 
   const unitNozzleLists = { 1: NOZZLES.filter(nz=>nz.unit===1), 2: NOZZLES.filter(nz=>nz.unit===2) };
-  const targetUnit = matchedUnit || 1;
+  const targetUnit = ocrTargetUnit || matchedUnit || 1;
   const targetList = unitNozzleLists[targetUnit];
 
   const optionsHtml = (defaultId)=> [1,2].map(u=>{
@@ -6295,7 +6300,7 @@ setInterval(function(){
   <div class="correction-modal-backdrop" id="ocrModalBackdrop">
     <div class="correction-modal ocr-modal">
       <h3>📋 Paste &amp; OCR Meter Reading</h3>
-      <p class="hint">Paste a copied photo of the Dispensing Unit's Electronic Totalizer printout (or text already OCR'd elsewhere) below. Only the <strong>Vtot</strong> reading for each nozzle is used — everything else on the slip (Atot, Ecal Factor, date/time) is ignored. This will set the <strong>Closing</strong> reading for <span id="ocrModalShiftLabel"></span> shift on <span id="ocrModalDateLabel"></span>.</p>
+      <p class="hint">Paste a copied photo of the Dispensing Unit's Electronic Totalizer printout (or text already OCR'd elsewhere) below. Only the <strong>Vtot</strong> reading for each nozzle is used — everything else on the slip (Atot, Ecal Factor, date/time) is ignored. This will set the <strong>Closing</strong> reading on <span id="ocrModalUnitLabel"></span> for <span id="ocrModalShiftLabel"></span> shift on <span id="ocrModalDateLabel"></span>.</p>
 
       <div class="ocr-pastezone" id="ocrPasteZone" tabindex="0" onpaste="onOcrPaste(event)">
         <div id="ocrPastePreview"></div>
