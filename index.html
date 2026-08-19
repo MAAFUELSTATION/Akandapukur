@@ -1117,6 +1117,7 @@
   <button class="group-btn" data-group="finance" onclick="switchTabGroup('finance')">💰 Cash &amp; Finance</button>
   <button class="group-btn" data-group="staffops" onclick="switchTabGroup('staffops')">👥 Staff &amp; Ops</button>
   <button class="group-btn" data-group="addons" onclick="switchTabGroup('addons')">🎁 Add-on &amp; Incentives</button>
+  <button class="group-btn" data-group="news" onclick="switchTabGroup('news')">📰 Oil Market News</button>
 </nav>
 
 <nav class="tabs" data-group="sales">
@@ -1139,6 +1140,9 @@
 </nav>
 <nav class="tabs" data-group="addons" style="display:none;">
   <button class="tab-btn" data-tab="addonreport" onclick="switchTab('addonreport')">🎁 Add-on &amp; Incentives</button>
+</nav>
+<nav class="tabs" data-group="news" style="display:none;">
+  <button class="tab-btn" data-tab="oilnews" onclick="switchTab('oilnews')">📰 Petrol &amp; Diesel News</button>
 </nav>
 
 <main>
@@ -2005,6 +2009,35 @@
       <div class="calc-line"><span>Total Lube Sold This Month (Litres)</span><span class="mono" id="lubeWaterSummaryLitresTotal">0.00 L</span></div>
       <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="lubeWaterSummaryTotal">₹0.00</span></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ===================== OIL MARKET NEWS TAB ===================== -->
+  <section id="tab-oilnews" class="tab">
+    <div class="card">
+      <h2>📰 Petrol &amp; Diesel Market News <span class="tag">Curated fuel-price &amp; policy headlines — for load-planning, not financial advice</span></h2>
+      <div class="hint">Only petrol/diesel price hikes, rate cuts, OMC (IOCL/BPCL/HPCL) price revisions, crude oil moves, and Petroleum Ministry statements are shown here — everything else is filtered out.</div>
+
+      <div class="row" style="align-items:end;">
+        <div class="field">
+          <label>Focus</label>
+          <select id="oilNewsFocus" onchange="loadOilNews(true)">
+            <option value="all">All Petrol/Diesel News</option>
+            <option value="hike">Price Hike News</option>
+            <option value="cut">Rate Cut News</option>
+            <option value="minister">Petroleum Minister Statements</option>
+            <option value="crude">Crude Oil / Global Market</option>
+          </select>
+        </div>
+        <button class="btn ghost small" onclick="loadOilNews(true)">🔄 Refresh Now</button>
+      </div>
+      <div class="hint" id="oilNewsHint">Tap Refresh Now to load the latest headlines.</div>
+
+      <div id="oilNewsAdvisory" style="display:none; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--paper);"></div>
+
+      <div class="divider"></div>
+      <div id="oilNewsList"></div>
+      <div class="empty" id="oilNewsEmpty" style="display:none;">Tap Refresh Now to load the latest petrol/diesel headlines.</div>
     </div>
   </section>
 
@@ -3062,7 +3095,8 @@ const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
   finance:  ['cash','surplus','notestock','cashledger','buscash'],
   staffops: ['staff','duty'],
-  addons:   ['addonreport']
+  addons:   ['addonreport'],
+  news:     ['oilnews']
 };
 function tabGroupOf(name){
   for(const g in TAB_GROUPS){ if(TAB_GROUPS[g].includes(name)) return g; }
@@ -3093,6 +3127,7 @@ function switchTab(name){
   if(name==='cashledger') refreshCashLedgerFrame();
   if(name==='buscash') refreshBusCashFrame();
   if(name==='addonreport') renderAddonReportTab();
+  if(name==='oilnews') initOilNewsWidget();
 }
 
 /* ============== STAFF TAB ============== */
@@ -4003,6 +4038,160 @@ async function loadWeatherForecast(){
   }finally{
     weatherFetchInFlight = false;
   }
+}
+
+/* ============== OIL MARKET NEWS TAB ============== */
+// Pulls live headlines via Google News RSS (through the free rss2json
+// bridge, since Google News RSS itself has no CORS headers for browser
+// fetch), then filters twice: once by the search query itself, and again
+// client-side against a petrol/diesel/oil keyword list, so only genuinely
+// relevant stories ever reach the screen. Results are cached in
+// localStorage so the tab still shows the last-known headlines if the
+// device is offline or the news service is briefly unreachable.
+const OIL_NEWS_CACHE_KEY = 'maaFuelStationOilNewsCache_v1';
+let oilNewsLastFetchedAt = 0;
+let oilNewsFetchInFlight = false;
+
+const OIL_NEWS_QUERIES = {
+  all:      '"petrol price" OR "diesel price" OR "fuel price" India OR "petroleum minister" OR "oil marketing companies" OR IOCL OR BPCL OR HPCL',
+  hike:     '"petrol price hike" OR "diesel price hike" OR "fuel price hike" OR "petrol price increase" OR "diesel price increase" India',
+  cut:      '"petrol price cut" OR "diesel price cut" OR "fuel price cut" OR "petrol price reduced" OR "diesel rate cut" India',
+  minister: '"petroleum minister" OR "Hardeep Singh Puri" OR "oil ministry" India fuel',
+  crude:    '"crude oil price" OR "Brent crude" OR OPEC India fuel'
+};
+// Second-pass filter: a headline/description must contain at least one of
+// these before it's shown, regardless of which search query found it.
+const OIL_NEWS_KEYWORDS = ['petrol','diesel','fuel price','fuel prices','crude','opec','petroleum minister','oil marketing','hpcl','bpcl','iocl','lpg','atf','oil ministry','rate cut','price hike','price cut','fuel rate'];
+
+// Called when the tab is opened. Auto-refreshes at most once every 20
+// minutes per page session so switching tabs back and forth doesn't hammer
+// the news service, but always shows cached headlines instantly if present.
+function initOilNewsWidget(){
+  if(oilNewsLastFetchedAt === 0){
+    let cached = null;
+    try{ cached = JSON.parse(localStorage.getItem(OIL_NEWS_CACHE_KEY) || 'null'); }catch(e){}
+    if(cached && cached.items && cached.items.length){
+      const sel = document.getElementById('oilNewsFocus');
+      if(sel && cached.focus) sel.value = cached.focus;
+      renderOilNews(cached.items);
+      const hint = document.getElementById('oilNewsHint');
+      if(hint) hint.textContent = 'Showing last saved headlines from ' + new Date(cached.at).toLocaleString('en-IN') + '. Tap Refresh Now for the latest.';
+    }
+  }
+  if(Date.now() - oilNewsLastFetchedAt > 20*60*1000){
+    loadOilNews();
+  }
+}
+
+async function loadOilNews(){
+  const hint = document.getElementById('oilNewsHint');
+  const listEl = document.getElementById('oilNewsList');
+  const emptyEl = document.getElementById('oilNewsEmpty');
+  const advisoryEl = document.getElementById('oilNewsAdvisory');
+  if(!hint || !listEl) return;
+  if(oilNewsFetchInFlight) return;
+  const focus = (document.getElementById('oilNewsFocus')||{}).value || 'all';
+  oilNewsFetchInFlight = true;
+  hint.textContent = 'Loading latest headlines…';
+  try{
+    const q = OIL_NEWS_QUERIES[focus] || OIL_NEWS_QUERIES.all;
+    const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(q + ' when:14d') + '&hl=en-IN&gl=IN&ceid=IN:en';
+    const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
+    const res = await fetch(apiUrl);
+    if(!res.ok) throw new Error('news service returned ' + res.status);
+    const data = await res.json();
+    if(data.status !== 'ok') throw new Error(data.message || 'news service error');
+
+    let items = (data.items||[]).filter(it=>{
+      const t = ((it.title||'') + ' ' + (it.description||'')).toLowerCase();
+      return OIL_NEWS_KEYWORDS.some(k=>t.includes(k));
+    }).slice(0, 20);
+
+    try{ localStorage.setItem(OIL_NEWS_CACHE_KEY, JSON.stringify({focus, items, at: Date.now()})); }catch(e){}
+
+    renderOilNews(items);
+    oilNewsLastFetchedAt = Date.now();
+    hint.textContent = items.length + ' headlines · updated ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) + '.';
+  }catch(err){
+    let cached = null;
+    try{ cached = JSON.parse(localStorage.getItem(OIL_NEWS_CACHE_KEY) || 'null'); }catch(e){}
+    if(cached && cached.items && cached.items.length){
+      renderOilNews(cached.items);
+      hint.textContent = 'Could not refresh (' + err.message + '). Showing last saved headlines from ' + new Date(cached.at).toLocaleString('en-IN') + '.';
+    } else {
+      listEl.innerHTML = '';
+      if(advisoryEl) advisoryEl.style.display = 'none';
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = 'Could not load news (' + err.message + '). Check the internet connection and try Refresh Now again.';
+      hint.textContent = '';
+    }
+  }finally{
+    oilNewsFetchInFlight = false;
+  }
+}
+
+const OIL_NEWS_HIKE_WORDS = ['hike','hikes','hiked','increase','increased','rise','rises','risen','surge','surges','soar','soars','jump','jumps','up by','costlier'];
+const OIL_NEWS_CUT_WORDS = ['cut','cuts','reduce','reduced','reduction','decrease','decreased','fall','falls','fallen','drop','drops','lower','lowered','slash','slashed','cheaper'];
+
+function renderOilNews(items){
+  const listEl = document.getElementById('oilNewsList');
+  const emptyEl = document.getElementById('oilNewsEmpty');
+  const advisoryEl = document.getElementById('oilNewsAdvisory');
+  if(!listEl) return;
+
+  if(!items || items.length===0){
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = 'No matching headlines right now — try Refresh Now again in a bit.';
+    if(advisoryEl) advisoryEl.style.display = 'none';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  // Plain keyword count across the fetched headlines — a quick read of
+  // which way recent coverage is leaning. This is NOT a price forecast or
+  // financial advice; it's only meant to flag when it's worth checking the
+  // day's actual OMC price notification before deciding on tank top-ups.
+  let hikeScore = 0, cutScore = 0;
+  items.forEach(it=>{
+    const t = (it.title||'').toLowerCase();
+    if(OIL_NEWS_HIKE_WORDS.some(w=>t.includes(w))) hikeScore++;
+    if(OIL_NEWS_CUT_WORDS.some(w=>t.includes(w))) cutScore++;
+  });
+
+  if(advisoryEl){
+    let verdict, color, note;
+    if(hikeScore > cutScore){
+      verdict = '⚠️ More hike-leaning headlines than cut-leaning ones';
+      color = 'var(--shortfall)';
+      note = 'Recent coverage leans towards prices rising. Worth checking today\'s IOCL/BPCL/HPCL price notification before deciding whether to top up early.';
+    } else if(cutScore > hikeScore){
+      verdict = '🟢 More cut-leaning headlines than hike-leaning ones';
+      color = 'var(--surplus)';
+      note = 'Recent coverage leans towards prices easing. You may prefer to hold and top up closer to your usual reorder point rather than filling up now.';
+    } else {
+      verdict = '⚪ No clear direction in recent headlines';
+      color = 'var(--muted)';
+      note = 'Headlines are mixed or mostly informational — no strong signal either way. Stick to your normal reorder point and re-check after the next major headline.';
+    }
+    advisoryEl.style.display = 'block';
+    advisoryEl.innerHTML =
+      '<div style="font-weight:700; color:' + color + ';">' + verdict + '</div>' +
+      '<div class="hint" style="margin-top:6px;">' + note + ' This is a plain keyword count of the headlines below, not a price forecast — always confirm against the official OMC price circular before making a load-planning decision.</div>';
+  }
+
+  listEl.innerHTML = items.map(it=>{
+    const rawTitle = it.title || '';
+    let title = rawTitle, source = '';
+    const idx = rawTitle.lastIndexOf(' - ');
+    if(idx > -1){ title = rawTitle.slice(0, idx); source = rawTitle.slice(idx+3); }
+    const pub = it.pubDate ? new Date(it.pubDate.replace(' ', 'T') + 'Z') : null;
+    const dateStr = (pub && !isNaN(pub)) ? pub.toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    return '<div class="staff-row" style="flex-direction:column; align-items:flex-start; gap:4px;">' +
+      '<a href="' + (it.link||'#') + '" target="_blank" rel="noopener noreferrer" style="font-weight:600; text-decoration:none; color:var(--diesel);">' + escapeHtml(title) + '</a>' +
+      '<div class="hint" style="margin:0;">' + escapeHtml(source) + (source && dateStr ? ' · ' : '') + dateStr + '</div>' +
+      '</div>';
+  }).join('');
 }
 
 /* ============== TANK MONITOR TAB ============== */
