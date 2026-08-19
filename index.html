@@ -104,6 +104,14 @@
   #themeSelect{background:transparent;border:1px solid #3a5b74;color:#dfe8ee;padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:6px;font-family:'Inter',sans-serif;}
   #themeSelect option{color:#1C2733;}
 
+  /* ---- Grouped navigation: category pills, then the tabs within the
+     selected category — replaces one long 13-item tab strip with two much
+     shorter rows so there's less to scan/scroll on any screen size. ---- */
+  nav.tab-groups{display:flex;gap:8px;background:var(--navy);padding:10px 20px;overflow-x:auto;border-bottom:1px solid #1c3143;}
+  nav.tab-groups button{background:var(--navy2);border:1px solid #2a4d68;color:#B9C9D6;padding:8px 14px;font-size:12.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap;border-radius:999px;font-family:'Inter',sans-serif;transition:background .15s,color .15s,border-color .15s;}
+  nav.tab-groups button.active{background:var(--petrol);border-color:var(--petrol);color:#fff;}
+  nav.tab-groups button:hover{color:#fff;}
+
   nav.tabs{display:flex;background:var(--navy2);padding:0 20px;overflow-x:auto;}
   nav.tabs button{background:none;border:none;color:#B9C9D6;padding:14px 18px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:3px solid transparent;white-space:nowrap;font-family:'Inter',sans-serif;}
   nav.tabs button.active{color:#fff;border-bottom-color:var(--petrol);}
@@ -563,6 +571,8 @@
     .iobtns{display:flex;width:100%;gap:6px;}
     .iobtns button{margin-left:0;flex:1;padding:9px 8px;}
 
+    nav.tab-groups{padding:8px 10px;gap:6px;}
+    nav.tab-groups button{padding:7px 11px;font-size:11.5px;}
     nav.tabs{padding:0 10px;}
     nav.tabs button{padding:12px 12px;font-size:13px;}
 
@@ -736,6 +746,7 @@
   .autosave-indicator{font-size:13px;padding:9px 13px;}
   .iobtns button{font-size:14px;padding:9px 14px;}
   nav.tabs button{font-size:16px;padding:16px 20px;}
+  nav.tab-groups button{font-size:13px;padding:9px 15px;}
   .card{padding:22px;}
   .card h2{font-size:23px;margin-bottom:16px;}
   .card h2 .tag{font-size:12px;}
@@ -766,6 +777,7 @@
     body{font-size:15px;}
     header.top h1{font-size:24px;}
     nav.tabs button{font-size:15px;padding:14px 15px;}
+    nav.tab-groups button{font-size:12px;padding:8px 12px;}
     .card{padding:18px;}
     .card h2{font-size:20px;}
     .field input,.field select{font-size:16px;}
@@ -851,6 +863,7 @@
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] header.top{box-shadow:0 2px 24px color-mix(in srgb, var(--petrol) 18%, transparent);}
  [data-theme="cyan"] header.top .date-live, [data-theme="graphite"] header.top .date-live, [data-theme="neon-purple"] header.top .date-live, [data-theme="cyan"] .autosave-indicator, [data-theme="graphite"] .autosave-indicator, [data-theme="neon-purple"] .autosave-indicator{border-color:var(--theme-border);}
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] nav.tabs button.active{text-shadow:0 0 12px var(--theme-glow-a);}
+ [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] nav.tab-groups button.active{text-shadow:0 0 12px var(--theme-glow-a);}
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] #themeSelect{background:color-mix(in srgb, var(--petrol) 15%, transparent);border-color:var(--petrol);}
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] #themeSelect option{color:var(--ink);background:var(--paper);}
 
@@ -1096,20 +1109,36 @@
   </div>
 </header>
 
-<nav class="tabs">
+<!-- Grouped navigation: pick a category, then a tab within it — keeps every
+     row short instead of one 13-item strip. switchTab() auto-expands the
+     right category, so deep links / buttons elsewhere still work as before. -->
+<nav class="tab-groups" id="tabGroups">
+  <button class="group-btn active" data-group="sales" onclick="switchTabGroup('sales')">⛽ Sales &amp; Fuel</button>
+  <button class="group-btn" data-group="finance" onclick="switchTabGroup('finance')">💰 Cash &amp; Finance</button>
+  <button class="group-btn" data-group="staffops" onclick="switchTabGroup('staffops')">👥 Staff &amp; Ops</button>
+  <button class="group-btn" data-group="addons" onclick="switchTabGroup('addons')">🎁 Add-on &amp; Incentives</button>
+</nav>
+
+<nav class="tabs" data-group="sales">
   <button class="tab-btn active" data-tab="sales" onclick="switchTab('sales')">⛽ Nozzal's Sale Report</button>
   <button class="tab-btn" data-tab="salesreport" onclick="switchTab('salesreport')">📊 Sales Report</button>
   <button class="tab-btn" data-tab="tanks" onclick="switchTab('tanks')">⛽ Tank Monitor</button>
-  <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
-  <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
+  <button class="tab-btn" data-tab="dipchart" onclick="switchTab('dipchart')">📏 Dip Chart</button>
+  <button class="tab-btn" data-tab="devices" onclick="switchTab('devices')">🖥️ Devices</button>
+</nav>
+<nav class="tabs" data-group="finance" style="display:none;">
   <button class="tab-btn" data-tab="cash" onclick="switchTab('cash')">🧮 Cash Denomination Calculator</button>
   <button class="tab-btn" data-tab="surplus" onclick="switchTab('surplus')">📒 Staff Surplus / Short Data</button>
   <button class="tab-btn" data-tab="notestock" onclick="switchTab('notestock')">💵 Note Stock</button>
-  <button class="tab-btn" data-tab="dipchart" onclick="switchTab('dipchart')">📏 Dip Chart</button>
-  <button class="tab-btn" data-tab="devices" onclick="switchTab('devices')">🖥️ Devices</button>
   <button class="tab-btn" data-tab="cashledger" onclick="switchTab('cashledger')">💰 Cash Ledger</button>
   <button class="tab-btn" data-tab="buscash" onclick="switchTab('buscash')">🚌 Bus Cash Tracker</button>
-  <button class="tab-btn" data-tab="addonreport" onclick="switchTab('addonreport')">🎁 Add-on Daily Report</button>
+</nav>
+<nav class="tabs" data-group="staffops" style="display:none;">
+  <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
+  <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
+</nav>
+<nav class="tabs" data-group="addons" style="display:none;">
+  <button class="tab-btn" data-tab="addonreport" onclick="switchTab('addonreport')">🎁 Add-on &amp; Incentives</button>
 </nav>
 
 <main>
@@ -1472,44 +1501,6 @@
           </div>
         </div>
 
-        <div class="card cc-block collapsed">
-          <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹25 same-day · ₹10 within 2 days</span><span class="cc-chev">▼</span></h2>
-          <div class="cc-block-body">
-          <div class="hint" style="margin-bottom:10px;">Tracked per staff member. A box issued at/after 11:00 AM has its incentive clock start the next day.</div>
-          <div id="addonStreakBadge" class="calc-line" style="margin-bottom:10px;"></div>
-
-          <button class="btn ghost small" onclick="issuePouchBox(document.getElementById('cashStaff').value)">📦 Issue New Box (50 pcs) to selected staff</button>
-
-          <div class="hint" style="margin-top:14px; margin-bottom:4px; font-weight:600;">Open boxes</div>
-          <div id="addonOpenBoxes"></div>
-
-          <div class="grid2" style="margin-top:14px; align-items:end;">
-            <div class="field">
-              <label>Pouches sold on this date</label>
-              <input type="number" id="addonSoldQty" min="0" step="1" value="">
-            </div>
-            <button class="btn amber small" onclick="recordPouchSale(document.getElementById('cashStaff').value, document.getElementById('cashDate').value, document.getElementById('addonSoldQty').value); document.getElementById('addonSoldQty').value='';">Record Sale</button>
-          </div>
-
-          <div class="hint" style="margin-top:14px; margin-bottom:4px; font-weight:600;">Recently closed boxes</div>
-          <div id="addonClosedBoxes"></div>
-
-          <div class="divider" style="margin:16px 0;"></div>
-          <div class="hint" style="margin-bottom:4px; font-weight:600;">📋 Stock Counter Check</div>
-          <div class="hint">System remaining across this staff member's open boxes: <span class="mono" id="addonSystemRemaining">0</span> pcs</div>
-          <div class="grid2" style="margin-top:8px; align-items:end;">
-            <div class="field">
-              <label>Physically counted pouches</label>
-              <input type="number" id="addonCountedQty" min="0" step="1" placeholder="Count all open boxes">
-            </div>
-            <button class="btn ghost small" onclick="checkAddonStock(document.getElementById('cashStaff').value)">🔍 Check Stock</button>
-          </div>
-          <div id="addonStockCheckResult"></div>
-          <div class="hint" style="margin-top:12px; margin-bottom:4px; font-weight:600;">Recent stock checks</div>
-          <div id="addonStockCheckHistory"></div>
-          </div>
-        </div>
-
       </div>
 
       <!-- SUMMARY COLUMN -->
@@ -1546,7 +1537,7 @@
     </div>
 
     <div class="divider" style="margin-top:4px;"></div>
-    <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 12px;">📊 Reports &amp; Monthly Incentives <span style="font-weight:400;text-transform:none;letter-spacing:0;">— tap a heading to expand</span></h3>
+    <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 12px;">📊 Reports <span style="font-weight:400;text-transform:none;letter-spacing:0;">— tap a heading to expand</span></h3>
 
     <div class="card cc-block collapsed">
       <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Past Cash Denomination Records <span class="tag">Every saved entry</span><span class="cc-chev">▼</span></h2>
@@ -1570,143 +1561,6 @@
       </table>
       </div>
       <div class="empty" id="cashHistoryEmpty" style="display:none;">No saved denomination records yet for this filter.</div>
-      </div>
-    </div>
-
-    <div class="card cc-block collapsed">
-      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Add-on Pouch Incentive — Month End <span class="tag">Total incentive paid per staff</span><span class="cc-chev">▼</span></h2>
-      <div class="cc-block-body">
-      <div class="row">
-        <div class="field">
-          <label>Month</label>
-          <input type="month" id="addonSummaryMonth" onchange="renderAddonMonthlySummary()">
-        </div>
-      </div>
-      <div style="overflow-x:auto;">
-      <table>
-        <thead>
-          <tr><th>Staff</th><th class="num">Boxes closed</th><th class="num">Incentive ₹</th></tr>
-        </thead>
-        <tbody id="addonSummaryBody"></tbody>
-      </table>
-      </div>
-      <div class="empty" id="addonSummaryEmpty" style="display:none;">No boxes closed this month yet.</div>
-      <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="addonSummaryTotal">₹0</span></div>
-      </div>
-    </div>
-
-    <div class="card cc-block collapsed">
-      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">🔥 Add-on Streak Counter <span class="tag">Consecutive same-day box closures, by staff</span><span class="cc-chev">▼</span></h2>
-      <div class="cc-block-body">
-      <div class="hint" style="margin-bottom:10px;">A streak is consecutive boxes closed the very same day they were issued (₹25 incentive). It resets the moment a box takes longer than that.</div>
-      <div style="overflow-x:auto;">
-      <table>
-        <thead>
-          <tr><th>Staff</th><th class="num">🔥 Current Streak (Days)</th><th class="num">🏆 Best Streak (Days)</th><th class="num">Boxes Closed</th></tr>
-        </thead>
-        <tbody id="addonStreakBody"></tbody>
-      </table>
-      </div>
-      <div class="empty" id="addonStreakEmpty" style="display:none;">No boxes closed yet.</div>
-      </div>
-    </div>
-
-    <!-- ===================== EOD SHIFT PAYOUT ===================== -->
-    <div class="card cc-block" id="eodPayoutCard">
-      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">🧾 EOD Shift Payout <span class="tag">Lube / Water QR incentive + breakfast</span><span class="cc-chev">▼</span></h2>
-      <div class="cc-block-body">
-      <div class="hint" style="margin-bottom:14px;">Uses the same Staff and Date fields at the top of this tab.</div>
-
-      <div style="margin-bottom:18px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-          <span class="cc-ico" style="width:24px;height:24px;font-size:13px;">📷</span>
-          <strong style="font-size:14px;color:var(--navy);">QR Code Scanner</strong>
-          <span class="tag" style="font-size:10px;color:var(--muted);">scan the serial printed on each unit</span>
-        </div>
-
-        <div class="field" style="max-width:320px;margin-bottom:12px;">
-          <label>Scanning For</label>
-          <div class="row" style="margin-bottom:0;gap:8px;">
-            <button class="btn small" id="qrModeLubeBtn" onclick="setQrScanMode('lube')">🛢 Lube (₹5)</button>
-            <button class="btn ghost small" id="qrModeWaterBtn" onclick="setQrScanMode('water')">💧 Water (₹2)</button>
-          </div>
-        </div>
-
-        <div id="qrScannerWrap" style="display:none;margin-bottom:10px;">
-          <video id="qrVideo" playsinline muted style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);background:#000;display:block;"></video>
-        </div>
-        <div class="row" style="margin-bottom:0;">
-          <button class="btn amber small" id="qrStartBtn" onclick="startQrScanner()">📷 Start Scanner</button>
-          <button class="btn danger" id="qrStopBtn" onclick="stopQrScanner()" style="display:none;">■ Stop Scanner</button>
-        </div>
-        <div class="hint" id="qrScanStatus" style="margin-top:10px;"></div>
-        <div class="hint" style="margin-top:6px;">Pick Lube or Water above, then scan the serial-number QR printed on each unit (like <span class="mono">251402793</span>) — every scan of a new serial logs one sale for the selected staff. Scanning the same serial twice is ignored so a bottle can't be counted twice. No camera? Use the +/- counters below instead — those don't need a QR at all.</div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="grid2" style="margin-bottom:16px;">
-        <div class="field">
-          <label>Lube Sales Today <span class="tag">₹5 each</span></label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn ghost small" onclick="adjustEodCount('lube',-1)">−</button>
-            <input type="number" id="eodLubeCount" min="0" step="1" value="0" style="width:80px;text-align:center;" onchange="setEodCount('lube', this.value)">
-            <button class="btn ghost small" onclick="adjustEodCount('lube',1)">+</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>Distilled Water Sales Today <span class="tag">₹2 each</span></label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn ghost small" onclick="adjustEodCount('water',-1)">−</button>
-            <input type="number" id="eodWaterCount" min="0" step="1" value="0" style="width:80px;text-align:center;" onchange="setEodCount('water', this.value)">
-            <button class="btn ghost small" onclick="adjustEodCount('water',1)">+</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="field" style="max-width:340px;margin-bottom:18px;">
-        <label>Breakfast Amount ₹</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" id="eodBreakfastAmt" min="0" step="0.01" value="0" style="flex:1;" disabled>
-          <button class="btn ghost small" id="eodBreakfastModifyBtn" onclick="toggleBreakfastEdit()">Modify</button>
-        </div>
-      </div>
-
-      <div class="cc-receipt" style="max-width:440px;">
-        <div class="calc-line"><span>Lube Incentive (₹5 × qty)</span><span class="mono" id="eodLubeIncentive">₹0.00</span></div>
-        <div class="calc-line"><span>Distilled Water Incentive (₹2 × qty)</span><span class="mono" id="eodWaterIncentive">₹0.00</span></div>
-        <div class="calc-line"><span>Breakfast Amount</span><span class="mono" id="eodBreakfastDisplay">₹0.00</span></div>
-        <div class="calc-line"><span>Add-on Pouch Incentive (today, closed boxes)</span><span class="mono" id="eodAddonToday">₹0.00</span></div>
-        <div class="calc-line total"><span>Total EOD Payout</span><span class="mono" id="eodTotalPayout">₹0.00</span></div>
-      </div>
-      </div>
-    </div>
-
-    <div class="card cc-block collapsed">
-      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Lube &amp; Water Sale Incentive — Month End <span class="tag">Total scanned/logged per staff</span><span class="cc-chev">▼</span></h2>
-      <div class="cc-block-body">
-      <div class="row">
-        <div class="field">
-          <label>Month</label>
-          <input type="month" id="lubeWaterSummaryMonth" onchange="renderLubeWaterMonthlySummary()">
-        </div>
-        <div class="field">
-          <label>Litres / Lube Unit</label>
-          <input type="number" id="lubeLitresPerUnitInput" min="0" step="0.01" value="1" style="width:100px;" onchange="setLubeLitresPerUnit(this.value)">
-        </div>
-      </div>
-      <div class="hint" style="margin-bottom:10px;">Set how many litres are in one lube unit/bottle sold — used to convert Lube Sold (units) into total litres below.</div>
-      <div style="overflow-x:auto;">
-      <table>
-        <thead>
-          <tr><th>Staff</th><th class="num">Lube Sold (units)</th><th class="num">Lube Sold (Litres)</th><th class="num">Lube Incentive ₹</th><th class="num">Water Sold</th><th class="num">Water Incentive ₹</th><th class="num">Total ₹</th></tr>
-        </thead>
-        <tbody id="lubeWaterSummaryBody"></tbody>
-      </table>
-      </div>
-      <div class="empty" id="lubeWaterSummaryEmpty" style="display:none;">No lube or water sales logged this month yet.</div>
-      <div class="calc-line"><span>Total Lube Sold This Month (Litres)</span><span class="mono" id="lubeWaterSummaryLitresTotal">0.00 L</span></div>
-      <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="lubeWaterSummaryTotal">₹0.00</span></div>
       </div>
     </div>
   </section>
@@ -1938,8 +1792,63 @@
     </div>
   </section>
 
-  <!-- ===================== ADD-ON DAILY REPORT TAB ===================== -->
+  <!-- ===================== ADD-ON & INCENTIVES TAB ===================== -->
+  <!-- Everything to do with add-on pouches, EOD lube/water incentives and
+       their monthly payouts lives in this one tab now, instead of being
+       split across the Cash Denomination Calculator and a separate report. -->
   <section id="tab-addonreport" class="tab">
+    <div class="card cc-header-card">
+      <h2>🎁 Add-on &amp; Incentives <span class="tag">Pouch sales, streaks, EOD payout &amp; monthly incentive totals</span></h2>
+      <div class="row" style="margin-bottom:0;">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="addonDate" onchange="renderAddonReportTab()">
+        </div>
+        <div class="field">
+          <label>Staff</label>
+          <select id="addonStaff" onchange="renderAddonReportTab()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card cc-block">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹25 same-day · ₹10 within 2 days</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <div class="hint" style="margin-bottom:10px;">Tracked per staff member. A box issued at/after 11:00 AM has its incentive clock start the next day.</div>
+      <div id="addonStreakBadge" class="calc-line" style="margin-bottom:10px;"></div>
+
+      <button class="btn ghost small" onclick="issuePouchBox(document.getElementById('addonStaff').value)">📦 Issue New Box (50 pcs) to selected staff</button>
+
+      <div class="hint" style="margin-top:14px; margin-bottom:4px; font-weight:600;">Open boxes</div>
+      <div id="addonOpenBoxes"></div>
+
+      <div class="grid2" style="margin-top:14px; align-items:end;">
+        <div class="field">
+          <label>Pouches sold on this date</label>
+          <input type="number" id="addonSoldQty" min="0" step="1" value="">
+        </div>
+        <button class="btn amber small" onclick="recordPouchSale(document.getElementById('addonStaff').value, document.getElementById('addonDate').value, document.getElementById('addonSoldQty').value); document.getElementById('addonSoldQty').value='';">Record Sale</button>
+      </div>
+
+      <div class="hint" style="margin-top:14px; margin-bottom:4px; font-weight:600;">Recently closed boxes</div>
+      <div id="addonClosedBoxes"></div>
+
+      <div class="divider" style="margin:16px 0;"></div>
+      <div class="hint" style="margin-bottom:4px; font-weight:600;">📋 Stock Counter Check</div>
+      <div class="hint">System remaining across this staff member's open boxes: <span class="mono" id="addonSystemRemaining">0</span> pcs</div>
+      <div class="grid2" style="margin-top:8px; align-items:end;">
+        <div class="field">
+          <label>Physically counted pouches</label>
+          <input type="number" id="addonCountedQty" min="0" step="1" placeholder="Count all open boxes">
+        </div>
+        <button class="btn ghost small" onclick="checkAddonStock(document.getElementById('addonStaff').value)">🔍 Check Stock</button>
+      </div>
+      <div id="addonStockCheckResult"></div>
+      <div class="hint" style="margin-top:12px; margin-bottom:4px; font-weight:600;">Recent stock checks</div>
+      <div id="addonStockCheckHistory"></div>
+      </div>
+    </div>
+
     <div class="card">
       <h2>🎁 Add-on Pouches Sold — Daily by Staff <span class="tag">Every recorded sale, broken down per day per staff member</span></h2>
       <div class="row">
@@ -1956,6 +1865,146 @@
       </table>
       </div>
       <div class="empty" id="addonDailyReportEmpty" style="display:none;">No add-on pouch sales recorded for this month yet.</div>
+    </div>
+
+    <div class="divider" style="margin-top:4px;"></div>
+    <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 12px;">📊 Monthly Incentives <span style="font-weight:400;text-transform:none;letter-spacing:0;">— tap a heading to expand</span></h3>
+
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Add-on Pouch Incentive — Month End <span class="tag">Total incentive paid per staff</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <div class="row">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="addonSummaryMonth" onchange="renderAddonMonthlySummary()">
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">Boxes closed</th><th class="num">Incentive ₹</th></tr>
+        </thead>
+        <tbody id="addonSummaryBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="addonSummaryEmpty" style="display:none;">No boxes closed this month yet.</div>
+      <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="addonSummaryTotal">₹0</span></div>
+      </div>
+    </div>
+
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">🔥 Add-on Streak Counter <span class="tag">Consecutive same-day box closures, by staff</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <div class="hint" style="margin-bottom:10px;">A streak is consecutive boxes closed the very same day they were issued (₹25 incentive). It resets the moment a box takes longer than that.</div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">🔥 Current Streak (Days)</th><th class="num">🏆 Best Streak (Days)</th><th class="num">Boxes Closed</th></tr>
+        </thead>
+        <tbody id="addonStreakBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="addonStreakEmpty" style="display:none;">No boxes closed yet.</div>
+      </div>
+    </div>
+
+    <!-- ===================== EOD SHIFT PAYOUT ===================== -->
+    <div class="card cc-block" id="eodPayoutCard">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">🧾 EOD Shift Payout <span class="tag">Lube / Water QR incentive + breakfast</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <div class="hint" style="margin-bottom:14px;">Uses the same Staff and Date fields at the top of this tab.</div>
+
+      <div style="margin-bottom:18px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span class="cc-ico" style="width:24px;height:24px;font-size:13px;">📷</span>
+          <strong style="font-size:14px;color:var(--navy);">QR Code Scanner</strong>
+          <span class="tag" style="font-size:10px;color:var(--muted);">scan the serial printed on each unit</span>
+        </div>
+
+        <div class="field" style="max-width:320px;margin-bottom:12px;">
+          <label>Scanning For</label>
+          <div class="row" style="margin-bottom:0;gap:8px;">
+            <button class="btn small" id="qrModeLubeBtn" onclick="setQrScanMode('lube')">🛢 Lube (₹5)</button>
+            <button class="btn ghost small" id="qrModeWaterBtn" onclick="setQrScanMode('water')">💧 Water (₹2)</button>
+          </div>
+        </div>
+
+        <div id="qrScannerWrap" style="display:none;margin-bottom:10px;">
+          <video id="qrVideo" playsinline muted style="width:100%;max-width:360px;border-radius:8px;border:1px solid var(--line);background:#000;display:block;"></video>
+        </div>
+        <div class="row" style="margin-bottom:0;">
+          <button class="btn amber small" id="qrStartBtn" onclick="startQrScanner()">📷 Start Scanner</button>
+          <button class="btn danger" id="qrStopBtn" onclick="stopQrScanner()" style="display:none;">■ Stop Scanner</button>
+        </div>
+        <div class="hint" id="qrScanStatus" style="margin-top:10px;"></div>
+        <div class="hint" style="margin-top:6px;">Pick Lube or Water above, then scan the serial-number QR printed on each unit (like <span class="mono">251402793</span>) — every scan of a new serial logs one sale for the selected staff. Scanning the same serial twice is ignored so a bottle can't be counted twice. No camera? Use the +/- counters below instead — those don't need a QR at all.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid2" style="margin-bottom:16px;">
+        <div class="field">
+          <label>Lube Sales Today <span class="tag">₹5 each</span></label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn ghost small" onclick="adjustEodCount('lube',-1)">−</button>
+            <input type="number" id="eodLubeCount" min="0" step="1" value="0" style="width:80px;text-align:center;" onchange="setEodCount('lube', this.value)">
+            <button class="btn ghost small" onclick="adjustEodCount('lube',1)">+</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Distilled Water Sales Today <span class="tag">₹2 each</span></label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn ghost small" onclick="adjustEodCount('water',-1)">−</button>
+            <input type="number" id="eodWaterCount" min="0" step="1" value="0" style="width:80px;text-align:center;" onchange="setEodCount('water', this.value)">
+            <button class="btn ghost small" onclick="adjustEodCount('water',1)">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="max-width:340px;margin-bottom:18px;">
+        <label>Breakfast Amount ₹</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="eodBreakfastAmt" min="0" step="0.01" value="0" style="flex:1;" disabled>
+          <button class="btn ghost small" id="eodBreakfastModifyBtn" onclick="toggleBreakfastEdit()">Modify</button>
+        </div>
+      </div>
+
+      <div class="cc-receipt" style="max-width:440px;">
+        <div class="calc-line"><span>Lube Incentive (₹5 × qty)</span><span class="mono" id="eodLubeIncentive">₹0.00</span></div>
+        <div class="calc-line"><span>Distilled Water Incentive (₹2 × qty)</span><span class="mono" id="eodWaterIncentive">₹0.00</span></div>
+        <div class="calc-line"><span>Breakfast Amount</span><span class="mono" id="eodBreakfastDisplay">₹0.00</span></div>
+        <div class="calc-line"><span>Add-on Pouch Incentive (today, closed boxes)</span><span class="mono" id="eodAddonToday">₹0.00</span></div>
+        <div class="calc-line total"><span>Total EOD Payout</span><span class="mono" id="eodTotalPayout">₹0.00</span></div>
+      </div>
+      </div>
+    </div>
+
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Lube &amp; Water Sale Incentive — Month End <span class="tag">Total scanned/logged per staff</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <div class="row">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="lubeWaterSummaryMonth" onchange="renderLubeWaterMonthlySummary()">
+        </div>
+        <div class="field">
+          <label>Litres / Lube Unit</label>
+          <input type="number" id="lubeLitresPerUnitInput" min="0" step="0.01" value="1" style="width:100px;" onchange="setLubeLitresPerUnit(this.value)">
+        </div>
+      </div>
+      <div class="hint" style="margin-bottom:10px;">Set how many litres are in one lube unit/bottle sold — used to convert Lube Sold (units) into total litres below.</div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">Lube Sold (units)</th><th class="num">Lube Sold (Litres)</th><th class="num">Lube Incentive ₹</th><th class="num">Water Sold</th><th class="num">Water Incentive ₹</th><th class="num">Total ₹</th></tr>
+        </thead>
+        <tbody id="lubeWaterSummaryBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="lubeWaterSummaryEmpty" style="display:none;">No lube or water sales logged this month yet.</div>
+      <div class="calc-line"><span>Total Lube Sold This Month (Litres)</span><span class="mono" id="lubeWaterSummaryLitresTotal">0.00 L</span></div>
+      <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="lubeWaterSummaryTotal">₹0.00</span></div>
+      </div>
     </div>
   </section>
 
@@ -3007,7 +3056,27 @@ function toggleCcBlock(headerEl){
   const block = headerEl.closest('.cc-block');
   if(block) block.classList.toggle('collapsed');
 }
+
+// Which category each tab lives under, for the grouped nav below.
+const TAB_GROUPS = {
+  sales:    ['sales','salesreport','tanks','dipchart','devices'],
+  finance:  ['cash','surplus','notestock','cashledger','buscash'],
+  staffops: ['staff','duty'],
+  addons:   ['addonreport']
+};
+function tabGroupOf(name){
+  for(const g in TAB_GROUPS){ if(TAB_GROUPS[g].includes(name)) return g; }
+  return 'sales';
+}
+// Shows only the tab-row for the chosen category and highlights its pill.
+// Does NOT change which tab is active — that's switchTab()'s job — so this
+// is safe to call on its own when someone's just browsing categories.
+function switchTabGroup(group){
+  document.querySelectorAll('.group-btn').forEach(b=>b.classList.toggle('active', b.dataset.group===group));
+  document.querySelectorAll('nav.tabs[data-group]').forEach(n=>{ n.style.display = (n.dataset.group===group) ? 'flex' : 'none'; });
+}
 function switchTab(name){
+  switchTabGroup(tabGroupOf(name));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active', s.id==='tab-'+name));
   if(name!=='devices') stopDevicesAutoRefresh();
@@ -3023,7 +3092,7 @@ function switchTab(name){
   if(name==='devices'){ renderDevicesTab(); startDevicesAutoRefresh(); }
   if(name==='cashledger') refreshCashLedgerFrame();
   if(name==='buscash') refreshBusCashFrame();
-  if(name==='addonreport') renderAddonDailyReport();
+  if(name==='addonreport') renderAddonReportTab();
 }
 
 /* ============== STAFF TAB ============== */
@@ -4264,10 +4333,6 @@ function renderCashTab(){
 
   calcCash();
   renderCashHistory();
-  renderAddonPanel(staffId);
-  renderAddonMonthlySummary();
-  breakfastEditing = false;
-  renderEodPayout();
 }
 
 /* ---- Read-only lock for already-saved cash records ---- */
@@ -4748,6 +4813,33 @@ function editPouchBoxIssue(staffId, boxId){
   renderAddonMonthlySummary();
 }
 
+/* ============== ADD-ON & INCENTIVES TAB (shared staff/date header) ============== */
+function populateAddonStaffSelect(){
+  const sel = document.getElementById('addonStaff');
+  if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  if(prev && state.staff.some(s=>s.id===prev)) sel.value = prev;
+}
+
+// Master render for the whole "Add-on & Incentives" tab — populates the
+// staff dropdown and date, then refreshes every block on the tab (pouch
+// sale panel, daily report, monthly incentive summaries, streaks and the
+// EOD shift payout) off that shared staff+date selection.
+function renderAddonReportTab(){
+  populateAddonStaffSelect();
+  const dateInp = document.getElementById('addonDate');
+  if(!dateInp) return;
+  if(!dateInp.value) dateInp.value = todayStr();
+  const staffId = document.getElementById('addonStaff').value;
+
+  renderAddonDailyReport();
+  renderAddonPanel(staffId);
+  renderAddonMonthlySummary();
+  breakfastEditing = false;
+  renderEodPayout();
+}
+
 // Builds a Date x Staff pivot of add-on pouches sold, for the "Add-on Daily
 // Report" tab — pulled straight from every staff member's box soldLog
 // entries (the same source of truth used for incentive calculations), so
@@ -4972,7 +5064,7 @@ function checkAddonStock(staffId){
       </div>
     </div>`;
 
-  const date = (document.getElementById('cashDate') && document.getElementById('cashDate').value) || todayStr();
+  const date = (document.getElementById('addonDate') && document.getElementById('addonDate').value) || todayStr();
   pouchStockChecksFor(staffId).push({
     id: 'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     date, systemRemaining, counted, diff,
@@ -5032,8 +5124,8 @@ function computeTodayAddonIncentive(staffId, date){
 }
 
 function renderEodPayout(){
-  const staffSel = document.getElementById('cashStaff');
-  const dateInp = document.getElementById('cashDate');
+  const staffSel = document.getElementById('addonStaff');
+  const dateInp = document.getElementById('addonDate');
   const lubeEl = document.getElementById('eodLubeCount');
   if(!staffSel || !dateInp || !lubeEl) return; // tab not in DOM yet
 
@@ -5063,8 +5155,8 @@ function renderEodPayout(){
 }
 
 function adjustEodCount(type, delta){
-  const staffId = document.getElementById('cashStaff').value;
-  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('addonStaff').value;
+  const date = document.getElementById('addonDate').value;
   const rec = getEodRecord(staffId, date);
   if(!rec) return;
   rec[type] = Math.max(0, (rec[type]||0) + delta);
@@ -5073,8 +5165,8 @@ function adjustEodCount(type, delta){
 }
 
 function setEodCount(type, value){
-  const staffId = document.getElementById('cashStaff').value;
-  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('addonStaff').value;
+  const date = document.getElementById('addonDate').value;
   const rec = getEodRecord(staffId, date);
   if(!rec) return;
   let v = parseInt(value, 10);
@@ -5097,8 +5189,8 @@ function toggleBreakfastEdit(){
     inp.select();
     btn.textContent = 'Save';
   } else {
-    const staffId = document.getElementById('cashStaff').value;
-    const date = document.getElementById('cashDate').value;
+    const staffId = document.getElementById('addonStaff').value;
+    const date = document.getElementById('addonDate').value;
     const rec = getEodRecord(staffId, date);
     let v = parseFloat(inp.value);
     if(isNaN(v) || v < 0) v = 0;
@@ -5201,8 +5293,8 @@ function tryLogQrSerial(code, type, staffId, date){
 }
 
 function recordQrSale(code, type){
-  const staffId = document.getElementById('cashStaff').value;
-  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('addonStaff').value;
+  const date = document.getElementById('addonDate').value;
   const staffName = ((state.staff||[]).find(s=>s.id===staffId)||{}).name || 'selected staff';
   const label = type === 'lube' ? 'Lube' : 'Distilled Water';
   const statusEl = document.getElementById('qrScanStatus');
@@ -5990,6 +6082,7 @@ loadAutosave();
 document.getElementById('salesDate').value = todayStr();
 document.getElementById('monthPicker').value = thisMonthStr();
 document.getElementById('cashDate').value = todayStr();
+document.getElementById('addonDate').value = todayStr();
 document.getElementById('surplusMonth').value = thisMonthStr();
 document.getElementById('addonReportMonth').value = thisMonthStr();
 setQrScanMode('lube');
