@@ -1165,7 +1165,6 @@
   <button class="group-btn" data-group="finance" onclick="switchTabGroup('finance')">💰 Cash &amp; Finance</button>
   <button class="group-btn" data-group="staffops" onclick="switchTabGroup('staffops')">👥 Staff &amp; Ops</button>
   <button class="group-btn" data-group="addons" onclick="switchTabGroup('addons')">🎁 Add-on &amp; Incentives</button>
-  <button class="group-btn" data-group="news" onclick="switchTabGroup('news')">📰 Oil Market News</button>
 </nav>
 
 <nav class="tabs" data-group="sales">
@@ -1188,9 +1187,6 @@
 </nav>
 <nav class="tabs" data-group="addons" style="display:none;">
   <button class="tab-btn" data-tab="addonreport" onclick="switchTab('addonreport')">🎁 Add-on &amp; Incentives</button>
-</nav>
-<nav class="tabs" data-group="news" style="display:none;">
-  <button class="tab-btn" data-tab="oilnews" onclick="switchTab('oilnews')">📰 Petrol &amp; Diesel News</button>
 </nav>
 
 <main>
@@ -2057,35 +2053,6 @@
       <div class="calc-line"><span>Total Lube Sold This Month (Litres)</span><span class="mono" id="lubeWaterSummaryLitresTotal">0.00 L</span></div>
       <div class="calc-line total" style="margin-top:10px;"><span>Total Incentive This Month</span><span class="mono" id="lubeWaterSummaryTotal">₹0.00</span></div>
       </div>
-    </div>
-  </section>
-
-  <!-- ===================== OIL MARKET NEWS TAB ===================== -->
-  <section id="tab-oilnews" class="tab">
-    <div class="card">
-      <h2>📰 Petrol &amp; Diesel Market News <span class="tag">Curated fuel-price &amp; policy headlines — for load-planning, not financial advice</span></h2>
-      <div class="hint">Only petrol/diesel price hikes, rate cuts, OMC (IOCL/BPCL/HPCL) price revisions, crude oil moves, and Petroleum Ministry statements are shown here — everything else is filtered out.</div>
-
-      <div class="row" style="align-items:end;">
-        <div class="field">
-          <label>Focus</label>
-          <select id="oilNewsFocus" onchange="loadOilNews(true)">
-            <option value="all">All Petrol/Diesel News</option>
-            <option value="hike">Price Hike News</option>
-            <option value="cut">Rate Cut News</option>
-            <option value="minister">Petroleum Minister Statements</option>
-            <option value="crude">Crude Oil / Global Market</option>
-          </select>
-        </div>
-        <button class="btn ghost small" onclick="loadOilNews(true)">🔄 Refresh Now</button>
-      </div>
-      <div class="hint" id="oilNewsHint">Tap Refresh Now to load the latest headlines.</div>
-
-      <div id="oilNewsAdvisory" style="display:none; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--paper);"></div>
-
-      <div class="divider"></div>
-      <div id="oilNewsList"></div>
-      <div class="empty" id="oilNewsEmpty" style="display:none;">Tap Refresh Now to load the latest petrol/diesel headlines.</div>
     </div>
   </section>
 
@@ -3143,8 +3110,7 @@ const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
   finance:  ['cash','surplus','notestock','cashledger','buscash'],
   staffops: ['staff','duty'],
-  addons:   ['addonreport'],
-  news:     ['oilnews']
+  addons:   ['addonreport']
 };
 function tabGroupOf(name){
   for(const g in TAB_GROUPS){ if(TAB_GROUPS[g].includes(name)) return g; }
@@ -3175,7 +3141,6 @@ function switchTab(name){
   if(name==='cashledger') refreshCashLedgerFrame();
   if(name==='buscash') refreshBusCashFrame();
   if(name==='addonreport') renderAddonReportTab();
-  if(name==='oilnews') initOilNewsWidget();
 }
 
 /* ============== STAFF TAB ============== */
