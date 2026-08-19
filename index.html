@@ -93,6 +93,41 @@
   header.top .sub{color:#C9D6DF;font-size:12px;margin-top:2px;letter-spacing:1px;text-transform:uppercase;}
   header.top .right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   header.top .date-live{font-family:'JetBrains Mono',monospace;background:var(--navy2);padding:8px 14px;border-radius:6px;font-size:13px;border:1px solid #2a4d68;}
+
+  /* ---- Top news marquee: horizontal scrolling ticker of oil/fuel headlines ---- */
+  .news-marquee{
+    background:var(--navy2); color:#fff; border-bottom:1px solid #2a4d68;
+    display:flex; align-items:center; overflow:hidden; position:relative;
+  }
+  .news-marquee .nm-label{
+    flex-shrink:0; display:flex; align-items:center; gap:6px;
+    background:var(--petrol); color:#fff; font-weight:700; font-size:12px;
+    letter-spacing:0.5px; text-transform:uppercase; padding:8px 14px;
+    white-space:nowrap; z-index:2; box-shadow:2px 0 8px rgba(0,0,0,0.15);
+  }
+  .news-marquee .nm-track-wrap{ flex:1; overflow:hidden; position:relative; height:34px; }
+  .news-marquee .nm-track{
+    position:absolute; top:0; left:0; display:flex; align-items:center; height:34px;
+    white-space:nowrap; will-change:transform;
+    animation:nm-scroll 45s linear infinite;
+  }
+  .news-marquee .nm-track:hover{ animation-play-state:paused; }
+  .news-marquee .nm-item{
+    display:inline-flex; align-items:center; gap:8px; padding:0 28px;
+    font-size:13px; color:#E7EEF3; text-decoration:none; white-space:nowrap;
+  }
+  .news-marquee .nm-item:hover{ color:#fff; text-decoration:underline; }
+  .news-marquee .nm-item .nm-dot{ color:var(--petrol); font-size:10px; }
+  .news-marquee .nm-refresh{
+    flex-shrink:0; background:none; border:none; color:#C9D6DF; cursor:pointer;
+    font-size:14px; padding:8px 12px; z-index:2;
+  }
+  .news-marquee .nm-refresh:hover{ color:#fff; }
+  @keyframes nm-scroll{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+  @media (max-width:640px){
+    .news-marquee .nm-label{ padding:8px 10px; font-size:11px; }
+    .news-marquee .nm-item{ font-size:12px; padding:0 20px; }
+  }
   .autosave-indicator{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9FD6C4;background:var(--navy2);padding:7px 12px;border-radius:6px;border:1px solid #2a4d68;white-space:nowrap;}
   /* ---- Server status badge (Active / Sleeping / Waking / Unreachable) ---- */
   .autosave-indicator.server-status-active{color:#8FE3B0;}
@@ -1108,6 +1143,19 @@
     </div>
   </div>
 </header>
+
+<!-- Top news marquee: horizontal scrolling ticker of live petrol/diesel &
+     petroleum ministry headlines, pulled from the same feed as the Oil
+     Market News tab, so it's visible no matter which tab is open. -->
+<div class="news-marquee" id="newsMarquee">
+  <div class="nm-label">📰 Top News</div>
+  <div class="nm-track-wrap">
+    <div class="nm-track" id="newsMarqueeTrack">
+      <span class="nm-item">Loading latest petrol/diesel &amp; petroleum ministry headlines…</span>
+    </div>
+  </div>
+  <button class="nm-refresh" onclick="loadOilNews()" title="Refresh top news">🔄</button>
+</div>
 
 <!-- Grouped navigation: pick a category, then a tab within it — keeps every
      row short instead of one 13-item strip. switchTab() auto-expands the
@@ -4133,7 +4181,35 @@ async function loadOilNews(){
 const OIL_NEWS_HIKE_WORDS = ['hike','hikes','hiked','increase','increased','rise','rises','risen','surge','surges','soar','soars','jump','jumps','up by','costlier'];
 const OIL_NEWS_CUT_WORDS = ['cut','cuts','reduce','reduced','reduction','decrease','decreased','fall','falls','fallen','drop','drops','lower','lowered','slash','slashed','cheaper'];
 
+// Renders the same headlines into the horizontal marquee bar in the header
+// (visible on every tab, not just the Oil Market News tab). Items are
+// duplicated once so the CSS animation (translateX 0 -> -50%) loops
+// seamlessly with no visible jump/gap.
+function renderNewsMarquee(items){
+  const track = document.getElementById('newsMarqueeTrack');
+  if(!track) return;
+  if(!items || items.length===0){
+    track.innerHTML = '<span class="nm-item">No fresh headlines right now — tap 🔄 to retry.</span>';
+    track.style.animation = 'none';
+    return;
+  }
+  const pieces = items.slice(0, 12).map(it=>{
+    const rawTitle = it.title || '';
+    let title = rawTitle;
+    const idx = rawTitle.lastIndexOf(' - ');
+    if(idx > -1) title = rawTitle.slice(0, idx);
+    return '<a class="nm-item" href="' + (it.link||'#') + '" target="_blank" rel="noopener noreferrer">' +
+      '<span class="nm-dot">●</span>' + escapeHtml(title) + '</a>';
+  });
+  // Duplicate the sequence once so the loop is seamless.
+  track.innerHTML = pieces.join('') + pieces.join('');
+  // Slower scroll for more headlines, so reading speed stays roughly steady.
+  const seconds = Math.max(25, pieces.length * 6);
+  track.style.animation = 'nm-scroll ' + seconds + 's linear infinite';
+}
+
 function renderOilNews(items){
+  renderNewsMarquee(items);
   const listEl = document.getElementById('oilNewsList');
   const emptyEl = document.getElementById('oilNewsEmpty');
   const advisoryEl = document.getElementById('oilNewsAdvisory');
@@ -6276,6 +6352,11 @@ document.getElementById('surplusMonth').value = thisMonthStr();
 document.getElementById('addonReportMonth').value = thisMonthStr();
 setQrScanMode('lube');
 renderSalesTab();
+
+// Load the top-news marquee right away (independent of the Oil Market News
+// tab being opened) so headlines are visible in the header from the start.
+// Shows cached headlines instantly if present, then refreshes in the background.
+initOilNewsWidget();
 
 // The initial loadFromServer() call now happens inside initServerSync(),
 // right when serverSyncEnabled actually flips to true — see the comment
