@@ -4160,7 +4160,7 @@ async function loadOilNews(){
 
     const relevant = (data.items||[]).filter(it=>{
       const t = ((it.title||'') + ' ' + (it.description||'')).toLowerCase();
-      return OIL_NEWS_KEYWORDS.some(k=>t.includes(k)) && !isStateRateRoundup(it);
+      return OIL_NEWS_KEYWORDS.some(k=>t.includes(k));
     });
 
     // Prefer today's headlines only. If nothing has posted yet today (e.g.
