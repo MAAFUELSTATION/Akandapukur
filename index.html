@@ -4076,6 +4076,42 @@ const OIL_NEWS_QUERIES = {
 // these before it's shown, regardless of which search query found it.
 const OIL_NEWS_KEYWORDS = ['petrol','diesel','fuel price','fuel prices','crude','opec','petroleum minister','oil marketing','hpcl','bpcl','iocl','lpg','atf','oil ministry','rate cut','price hike','price cut','fuel rate'];
 
+// Third-pass filter: Google News floods the "petrol/diesel" query with the
+// daily "Petrol Diesel Price Today: check rates in Delhi, Mumbai, Chennai…"
+// roundup articles that every outlet republishes each morning for every
+// city/state. Those aren't real news — they're routine rate listings — so
+// they're dropped here to keep only genuine developments (hikes, cuts,
+// policy, crude oil moves, etc).
+const OIL_NEWS_ROUNDUP_PATTERNS = [
+  /price(s)?\s+today/i,
+  /rate(s)?\s+today/i,
+  /today.?s\s+(petrol|diesel|fuel)\s+(price|rate)/i,
+  /check\s+(the\s+)?(latest\s+)?(petrol|diesel|fuel)\s+(price|rate)/i,
+  /(petrol|diesel|fuel)\s+(price|rate)s?\s+in\s+your\s+city/i,
+  /(state|city)[\s-]*wise\s+(petrol|diesel|fuel)/i
+];
+// These roundup articles also tend to name several cities/states in one
+// headline — a second, independent signal used alongside the patterns above.
+const OIL_NEWS_CITY_LIST = ['delhi','mumbai','chennai','kolkata','bengaluru','bangalore','hyderabad','pune','noida','gurugram','gurgaon','lucknow','jaipur','patna','bhopal','chandigarh','ahmedabad','kochi','thiruvananthapuram','indore','nagpur','surat','ranchi','raipur','bhubaneswar','guwahati'];
+
+function isStateRateRoundup(it){
+  const t = ((it.title||'') + ' ' + (it.description||'')).toLowerCase();
+  if(OIL_NEWS_ROUNDUP_PATTERNS.some(p=>p.test(t))) return true;
+  let cityHits = 0;
+  for(const c of OIL_NEWS_CITY_LIST){ if(t.includes(c)) cityHits++; if(cityHits>=2) return true; }
+  return false;
+}
+
+// Keeps only headlines actually published "today" in India (Asia/Kolkata),
+// so the ticker reflects today's top news rather than the last 14 days.
+function isPubToday(pubDateStr){
+  if(!pubDateStr) return false;
+  const pub = new Date(pubDateStr.replace(' ', 'T') + 'Z');
+  if(isNaN(pub)) return false;
+  const fmt = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit'});
+  return fmt.format(pub) === fmt.format(new Date());
+}
+
 // Called when the tab is opened. Auto-refreshes at most once every 20
 // minutes per page session so switching tabs back and forth doesn't hammer
 // the news service, but always shows cached headlines instantly if present.
@@ -4101,42 +4137,59 @@ async function loadOilNews(){
   const listEl = document.getElementById('oilNewsList');
   const emptyEl = document.getElementById('oilNewsEmpty');
   const advisoryEl = document.getElementById('oilNewsAdvisory');
-  if(!hint || !listEl) return;
+  const marqueeTrack = document.getElementById('newsMarqueeTrack');
+  // Only bail if there's nowhere at all to show results — the marquee is
+  // the one bit of UI that's always present, so it drives this now rather
+  // than requiring the (optional) full Oil Market News tab elements too.
+  if(!marqueeTrack && !listEl) return;
   if(oilNewsFetchInFlight) return;
   const focus = (document.getElementById('oilNewsFocus')||{}).value || 'all';
   oilNewsFetchInFlight = true;
-  hint.textContent = 'Loading latest headlines…';
+  if(hint) hint.textContent = 'Loading latest headlines…';
   try{
+    // Widened to when:2d (not just today) so there's still something to
+    // filter down from even right after midnight; the isPubToday() pass
+    // below is what actually restricts the ticker to today's headlines.
     const q = OIL_NEWS_QUERIES[focus] || OIL_NEWS_QUERIES.all;
-    const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(q + ' when:14d') + '&hl=en-IN&gl=IN&ceid=IN:en';
+    const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(q + ' when:2d') + '&hl=en-IN&gl=IN&ceid=IN:en';
     const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
     const res = await fetch(apiUrl);
     if(!res.ok) throw new Error('news service returned ' + res.status);
     const data = await res.json();
     if(data.status !== 'ok') throw new Error(data.message || 'news service error');
 
-    let items = (data.items||[]).filter(it=>{
+    const relevant = (data.items||[]).filter(it=>{
       const t = ((it.title||'') + ' ' + (it.description||'')).toLowerCase();
-      return OIL_NEWS_KEYWORDS.some(k=>t.includes(k));
-    }).slice(0, 20);
+      return OIL_NEWS_KEYWORDS.some(k=>t.includes(k)) && !isStateRateRoundup(it);
+    });
+
+    // Prefer today's headlines only. If nothing has posted yet today (e.g.
+    // early morning), fall back to the most recent relevant headlines
+    // rather than showing an empty ticker, and say so in the hint.
+    let items = relevant.filter(it=>isPubToday(it.pubDate)).slice(0, 20);
+    let usedFallback = false;
+    if(items.length === 0){
+      items = relevant.slice(0, 20);
+      usedFallback = true;
+    }
 
     try{ localStorage.setItem(OIL_NEWS_CACHE_KEY, JSON.stringify({focus, items, at: Date.now()})); }catch(e){}
 
     renderOilNews(items);
     oilNewsLastFetchedAt = Date.now();
-    hint.textContent = items.length + ' headlines · updated ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) + '.';
+    if(hint) hint.textContent = items.length + (usedFallback ? ' headlines (none posted yet today — showing most recent) · updated ' : ' headlines today · updated ') + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) + '.';
   }catch(err){
     let cached = null;
     try{ cached = JSON.parse(localStorage.getItem(OIL_NEWS_CACHE_KEY) || 'null'); }catch(e){}
     if(cached && cached.items && cached.items.length){
       renderOilNews(cached.items);
-      hint.textContent = 'Could not refresh (' + err.message + '). Showing last saved headlines from ' + new Date(cached.at).toLocaleString('en-IN') + '.';
+      if(hint) hint.textContent = 'Could not refresh (' + err.message + '). Showing last saved headlines from ' + new Date(cached.at).toLocaleString('en-IN') + '.';
     } else {
-      listEl.innerHTML = '';
+      if(listEl) listEl.innerHTML = '';
       if(advisoryEl) advisoryEl.style.display = 'none';
-      emptyEl.style.display = 'block';
-      emptyEl.textContent = 'Could not load news (' + err.message + '). Check the internet connection and try Refresh Now again.';
-      hint.textContent = '';
+      if(emptyEl){ emptyEl.style.display = 'block'; emptyEl.textContent = 'Could not load news (' + err.message + '). Check the internet connection and try Refresh Now again.'; }
+      renderNewsMarquee([]);
+      if(hint) hint.textContent = '';
     }
   }finally{
     oilNewsFetchInFlight = false;
