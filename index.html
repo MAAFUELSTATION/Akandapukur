@@ -4066,15 +4066,19 @@ let oilNewsLastFetchedAt = 0;
 let oilNewsFetchInFlight = false;
 
 const OIL_NEWS_QUERIES = {
-  all:      '"petrol price" OR "diesel price" OR "fuel price" India OR "petroleum minister" OR "oil marketing companies" OR IOCL OR BPCL OR HPCL',
-  hike:     '"petrol price hike" OR "diesel price hike" OR "fuel price hike" OR "petrol price increase" OR "diesel price increase" India',
-  cut:      '"petrol price cut" OR "diesel price cut" OR "fuel price cut" OR "petrol price reduced" OR "diesel rate cut" India',
-  minister: '"petroleum minister" OR "Hardeep Singh Puri" OR "oil ministry" India fuel',
-  crude:    '"crude oil price" OR "Brent crude" OR OPEC India fuel'
+  all:      '"petrol price" OR "diesel price" India',
+  hike:     '"petrol price hike" OR "diesel price hike" OR "petrol price increase" OR "diesel price increase" India',
+  cut:      '"petrol price cut" OR "diesel price cut" OR "petrol price reduced" OR "diesel rate cut" India',
+  minister: '"petrol price" OR "diesel price" "petroleum minister" India',
+  crude:    '"petrol price" OR "diesel price" "crude oil" India'
 };
-// Second-pass filter: a headline/description must contain at least one of
-// these before it's shown, regardless of which search query found it.
-const OIL_NEWS_KEYWORDS = ['petrol','diesel','fuel price','fuel prices','crude','opec','petroleum minister','oil marketing','hpcl','bpcl','iocl','lpg','atf','oil ministry','rate cut','price hike','price cut','fuel rate'];
+// Second-pass filter: a headline/description must mention petrol or diesel,
+// AND must mention India (or an Indian oil marketing company), so global
+// fuel-price stories and unrelated crude/OPEC/LPG/ATF news stay out.
+const OIL_NEWS_FUEL_KEYWORDS = ['petrol','diesel'];
+const OIL_NEWS_INDIA_KEYWORDS = ['india','hpcl','bpcl','iocl','delhi','mumbai','chennai','kolkata','bengaluru','bangalore','hyderabad','pune','noida','gurugram','gurgaon','lucknow','jaipur','patna','bhopal','chandigarh','ahmedabad','kochi','indore'];
+const OIL_NEWS_KEYWORDS = OIL_NEWS_FUEL_KEYWORDS; // kept for compatibility with existing callers
+
 
 // Third-pass filter: Google News floods the "petrol/diesel" query with the
 // daily "Petrol Diesel Price Today: check rates in Delhi, Mumbai, Chennai…"
@@ -4160,7 +4164,7 @@ async function loadOilNews(){
 
     const relevant = (data.items||[]).filter(it=>{
       const t = ((it.title||'') + ' ' + (it.description||'')).toLowerCase();
-      return OIL_NEWS_KEYWORDS.some(k=>t.includes(k));
+      return OIL_NEWS_FUEL_KEYWORDS.some(k=>t.includes(k)) && OIL_NEWS_INDIA_KEYWORDS.some(k=>t.includes(k));
     });
 
     // Prefer today's headlines only. If nothing has posted yet today (e.g.
