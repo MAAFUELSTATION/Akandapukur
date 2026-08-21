@@ -726,6 +726,13 @@
     transition:border-color .15s, box-shadow .15s;
   }
   .login-field input:focus{ outline:none; border-color:var(--petrol); box-shadow:0 0 0 3px rgba(224,138,43,.15); }
+  .login-field select{
+    width:100%; padding:12px 14px;
+    border:1.5px solid var(--line); border-radius:9px;
+    font-family:'Inter',sans-serif; font-size:14.5px; background:#fff; color:var(--ink);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .login-field select:focus{ outline:none; border-color:var(--petrol); box-shadow:0 0 0 3px rgba(224,138,43,.15); }
   .login-field .toggle-eye{
     position:absolute; right:10px; top:50%; transform:translateY(-50%);
     background:none; border:none; cursor:pointer; padding:4px; color:var(--muted); font-size:15px; line-height:1;
@@ -1058,7 +1065,7 @@
   }
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-card{background:rgba(20,17,44,.96);border-color:var(--theme-border);}
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-card h2{color:var(--ink);}
- [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-field input{background:rgba(255,255,255,.05);color:var(--ink);border-color:var(--theme-border);}
+ [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-field input, [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-field select{background:rgba(255,255,255,.05);color:var(--ink);border-color:var(--theme-border);}
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-field .toggle-eye:hover{color:var(--ink);}
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] button.btn.login-submit{color:#fff;box-shadow:0 0 20px var(--theme-glow-a);}
  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-error{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3);}
@@ -1128,6 +1135,14 @@
     <div class="login-error" id="loginError">⚠ Wrong username or password. Please try again.</div>
 
     <form id="loginForm" autocomplete="off">
+      <div class="login-field">
+        <label for="loginUserSelect">Who are you?</label>
+        <div class="input-wrap">
+          <select id="loginUserSelect" onchange="onLoginStaffPick(this.value)">
+            <option value="">Select your name…</option>
+          </select>
+        </div>
+      </div>
       <div class="login-field">
         <label for="loginUser">Login ID</label>
         <div class="input-wrap">
@@ -1490,6 +1505,17 @@
         </div>
       </div>
       <div class="hint">Keep this password somewhere safe — it's the only login that can see every staff member's credentials and unrestricted sale data.</div>
+    </div>
+    <div class="card">
+      <h2>🔢 Cash Correction PIN <span class="tag">Needed to edit an already-saved Cash Denomination record</span></h2>
+      <div class="row">
+        <div class="field" style="flex:1;">
+          <label>Current PIN</label>
+          <input type="text" id="cashEditPinDisplay" readonly>
+        </div>
+        <button class="btn amber" onclick="resetCashEditPin()">Reset PIN</button>
+      </div>
+      <div class="hint">Whoever knows this PIN (plus a reason) can unlock a Cash Denomination record that's already been saved, in the Cash Denomination Calculator tab. Change it any time — leave the prompt blank to go back to the default.</div>
     </div>
   </section>
 
@@ -2202,7 +2228,26 @@ function ensureStaffCredentials(){
 // submitCorrectionUnlock below). Kept apart from the console login so
 // any staff member can log in and view records, but only someone who
 // knows this PIN can alter a record that's already been saved.
-const CASH_EDIT_PIN = '6677';
+// The PIN itself is stored on state.cashCorrectionPin (so Admin can
+// change/reset it from the Admin tab) and defaults to this value the
+// very first time the app runs / for anyone who hasn't set their own.
+const CASH_EDIT_PIN_DEFAULT = '6677';
+function getCashEditPin(){
+  return (state && state.cashCorrectionPin) ? state.cashCorrectionPin : CASH_EDIT_PIN_DEFAULT;
+}
+// Admin-only: change the Cash Denomination correction PIN, or reset it
+// back to the factory default (6677) by leaving the prompt blank.
+function resetCashEditPin(){
+  if(!isAdmin()) return;
+  const current = getCashEditPin();
+  const next = prompt('Set a new Cash Denomination correction PIN.\n\nLeave this blank and press OK to reset it back to the default (' + CASH_EDIT_PIN_DEFAULT + ').', current);
+  if(next === null) return; // cancelled
+  const trimmed = next.trim();
+  state.cashCorrectionPin = trimmed ? trimmed : CASH_EDIT_PIN_DEFAULT;
+  if(typeof scheduleAutosave === 'function') scheduleAutosave();
+  if(typeof renderAdminTab === 'function') renderAdminTab();
+  alert(trimmed ? 'Cash correction PIN updated.' : 'Cash correction PIN reset to the default (' + CASH_EDIT_PIN_DEFAULT + ').');
+}
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;   // auto-logout after 5 minutes of inactivity
 const IDLE_WARN_MS = 1 * 60 * 1000;      // start showing the countdown after 1 minute idle
 let idleTickInterval = null;
@@ -2692,8 +2737,11 @@ function lockApp(){
   stopDevicesAutoRefresh();
   const userInp = document.getElementById('loginUser');
   const passInp = document.getElementById('loginPass');
+  const selInp = document.getElementById('loginUserSelect');
   if(userInp) userInp.value = '';
   if(passInp) passInp.value = '';
+  if(selInp) selInp.value = '';
+  populateLoginStaffDropdown();
   setTimeout(()=>{ if(userInp) userInp.focus(); }, 50);
 }
 
@@ -2721,6 +2769,36 @@ function authenticate(username, password){
     return {role:'staff', staffId:staffMatch.id, staffName:staffMatch.name};
   }
   return null;
+}
+
+// Fills the "Who are you?" dropdown on the login screen from the current
+// staff list (Staff & Ops → Staff → Manage Staff), plus the Admin account.
+// Wrapped in try/catch because this can be called very early — before
+// `state` has finished initializing further down in this script — in
+// which case it just no-ops and gets called again once data is ready.
+function populateLoginStaffDropdown(){
+  try{
+    const sel = document.getElementById('loginUserSelect');
+    if(!sel) return;
+    const admin = state.adminAccount || {username:'admin'};
+    const staffList = (state.staff||[]).slice().sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+    const prevValue = sel.value;
+    let html = '<option value="">Select your name…</option>';
+    html += '<option value="'+escapeHtml(admin.username||'admin')+'">🔑 Admin</option>';
+    html += staffList.map(s => '<option value="'+escapeHtml(s.username||'')+'">'+escapeHtml(s.name)+'</option>').join('');
+    sel.innerHTML = html;
+    if(prevValue && Array.from(sel.options).some(o=>o.value===prevValue)) sel.value = prevValue;
+  }catch(e){ /* state not ready yet — will be populated again once it is */ }
+}
+// Selecting a name from the dropdown fills the Login ID field for them,
+// so staff don't need to remember/type their own login ID — they still
+// need to know their own password.
+function onLoginStaffPick(username){
+  const userInp = document.getElementById('loginUser');
+  const passInp = document.getElementById('loginPass');
+  if(!userInp) return;
+  userInp.value = username || '';
+  if(username && passInp) passInp.focus();
 }
 
 (function initLoginGate(){
@@ -2825,9 +2903,20 @@ function openRecoverModal(){
 function closeRecoverModal(){
   document.getElementById('recoverOverlay').classList.remove('show');
 }
+// A fixed recovery PIN, independent of any stored password, so admin
+// access can always be regained even if state/localStorage is wiped.
+// Kept separate from the Cash Denomination correction PIN (a different
+// PIN for a different job) further down in this file.
+const ADMIN_RESET_PIN = '2602';
 function resetAdminPassword(){
   ensureStaffCredentials();
-  const next = prompt('Set a new admin password:');
+  const pin = prompt('Enter the admin-reset PIN to continue:');
+  if(pin === null) return; // cancelled
+  if(pin.trim() !== ADMIN_RESET_PIN){
+    alert('Incorrect PIN. Admin password was not changed.');
+    return;
+  }
+  const next = prompt('PIN accepted. Set a new admin password:');
   if(next === null) return; // cancelled
   const trimmed = next.trim();
   if(!trimmed){ alert('Password cannot be empty — nothing was changed.'); return; }
@@ -3098,6 +3187,7 @@ function initServerSync(retryCount){
     if(!state.sales) state.sales = {};
     if(!state.staff) state.staff = [];
         ensureStaffCredentials();
+        populateLoginStaffDropdown();
     if(!state.noteGivenOut) state.noteGivenOut = [];
     if(!state.duty) state.duty = {};
     if(!state.pouchBoxes) state.pouchBoxes = {};
@@ -3144,6 +3234,7 @@ async function loadFromServer(){
       if(!state.sales) state.sales = {};
       if(!state.staff) state.staff = [];
         ensureStaffCredentials();
+        populateLoginStaffDropdown();
       if(!state.noteGivenOut) state.noteGivenOut = [];
       if(!state.duty) state.duty = {};
       if(!state.pouchBoxes) state.pouchBoxes = {};
@@ -3340,6 +3431,7 @@ function loadAutosave(){
         if(!state.sales) state.sales = {};
         if(!state.staff) state.staff = [];
         ensureStaffCredentials();
+        populateLoginStaffDropdown();
         if(!state.noteGivenOut) state.noteGivenOut = [];
         if(!state.duty) state.duty = {};
         if(!state.tankUpdates) state.tankUpdates = [];
@@ -3408,6 +3500,11 @@ function switchTab(name){
 
 /* ============== STAFF TAB ============== */
 function renderStaffTab(){
+  // Keep the login screen's "Who are you?" dropdown in sync with Manage
+  // Staff even though the dropdown itself lives outside this tab (and
+  // even for non-admin logins, since renderStaffTab is skipped for them
+  // below but the dropdown still needs the latest names on next logout).
+  populateLoginStaffDropdown();
   if(!isAdmin()) return; // Manage Staff is admin-only; the tab button itself is hidden for staff logins too.
   const list = document.getElementById('staffList');
   if(state.staff.length===0){
@@ -3477,6 +3574,11 @@ function renderAdminTab(){
   const pInp = document.getElementById('adminSelfPassword');
   if(uInp) uInp.value = (state.adminAccount||{}).username || 'admin';
   if(pInp) pInp.value = (state.adminAccount||{}).password || '';
+  const pinInp = document.getElementById('cashEditPinDisplay');
+  if(pinInp) pinInp.value = getCashEditPin();
+  // A login ID may just have changed here — keep the login screen's
+  // dropdown current.
+  populateLoginStaffDropdown();
 }
 function updateStaffCredential(id, field, value){
   value = (value||'').trim();
@@ -5032,7 +5134,7 @@ function submitCorrectionUnlock(){
   const pin = document.getElementById('correctionPin').value.trim();
   const reason = document.getElementById('correctionReason').value.trim();
   const errEl = document.getElementById('correctionModalError');
-  if(pin !== CASH_EDIT_PIN || !reason){
+  if(pin !== getCashEditPin() || !reason){
     errEl.classList.add('show');
     return;
   }
@@ -6722,6 +6824,10 @@ function setTheme(theme){
 
 /* ============== INIT ============== */
 loadAutosave();
+// Belt-and-braces: make sure the login screen's staff dropdown is filled
+// even when there was no autosave to restore (fresh browser — state just
+// keeps its built-in default staff list).
+populateLoginStaffDropdown();
 document.getElementById('salesDate').value = todayStr();
 document.getElementById('monthPicker').value = thisMonthStr();
 document.getElementById('cashDate').value = todayStr();
