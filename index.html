@@ -1088,9 +1088,9 @@
 
     <form id="loginForm" autocomplete="off">
       <div class="login-field">
-        <label for="loginUser">Username</label>
+        <label for="loginUser">Login ID</label>
         <div class="input-wrap">
-          <input type="text" id="loginUser" placeholder="Enter username" autocomplete="username">
+          <input type="text" id="loginUser" placeholder="Your login ID" autocomplete="username">
         </div>
       </div>
       <div class="login-field">
@@ -1102,7 +1102,7 @@
       </div>
       <button type="submit" class="btn login-submit">Unlock Console</button>
     </form>
-    <div class="login-foot">Restricted access · Maa Fuel Station staff only</div>
+    <div class="login-foot">Each staff member signs in with their own ID · Restricted access</div>
   </div>
 </div>
 
@@ -1123,6 +1123,7 @@
   </div>
   <div class="right">
     <div class="date-live" id="liveDate"></div>
+    <div class="autosave-indicator" id="signedInAs" title="Who is currently signed in on this device"></div>
     <div class="autosave-indicator server-status-idle" id="serverStatusIndicator" title="Whether the backend that stores your data is awake right now">⚪ Server: Checking…</div>
     <div class="autosave-indicator" id="autosaveStatus">Autosave: idle</div>
     <div class="iobtns">
@@ -1184,6 +1185,7 @@
 <nav class="tabs" data-group="staffops" style="display:none;">
   <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
   <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
+  <button class="tab-btn" data-tab="admin" onclick="switchTab('admin')">🔑 Admin</button>
 </nav>
 <nav class="tabs" data-group="addons" style="display:none;">
   <button class="tab-btn" data-tab="addonreport" onclick="switchTab('addonreport')">🎁 Add-on &amp; Incentives</button>
@@ -1411,6 +1413,29 @@
         <button class="btn amber" onclick="addStaff()">Add Staff</button>
       </div>
       <div class="hint">Renaming a staff member updates their name everywhere. Deleting removes them from future entry lists — historical records are kept.</div>
+    </div>
+  </section>
+
+  <!-- ===================== ADMIN TAB (owner-only) ===================== -->
+  <section id="tab-admin" class="tab">
+    <div class="card">
+      <h2>🔑 Staff Login IDs &amp; Passwords <span class="tag">Visible to Admin only</span></h2>
+      <div class="hint" style="margin-bottom:10px;">Each staff member signs in to the console with their own Login ID and password below. Change either field and it saves automatically. Data separation here is a UI-level lock (same as the rest of this app) — it stops staff from browsing each other's data in normal use, not a hardened multi-tenant server.</div>
+      <div class="staff-list" id="adminCredList"></div>
+    </div>
+    <div class="card">
+      <h2>Admin Account <span class="tag">Your own login</span></h2>
+      <div class="row">
+        <div class="field" style="flex:1;">
+          <label>Admin Login ID</label>
+          <input type="text" id="adminSelfUsername" onchange="updateAdminAccount()">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Admin Password</label>
+          <input type="text" id="adminSelfPassword" onchange="updateAdminAccount()">
+        </div>
+      </div>
+      <div class="hint">Keep this password somewhere safe — it's the only login that can see every staff member's credentials and unrestricted sale data.</div>
     </div>
   </section>
 
@@ -2068,9 +2093,52 @@
    not real security — anyone who views the page source can find the
    credentials. Don't rely on this alone if the data behind it is sensitive;
    pair it with real server-side auth if that ever matters here. */
-const AUTH_STORAGE_KEY = 'maaFuelStationAuth_v1';
-const VALID_USERNAME = 'maafuelstation@2025';
-const VALID_PASSWORD = 'Jc730927h';
+const AUTH_STORAGE_KEY = 'maaFuelStationAuth_v2';
+// Who is signed in right now: { role:'admin' } or { role:'staff', staffId, staffName }.
+// Populated on every successful login and restored from sessionStorage on reload.
+let currentUser = null;
+function isAdmin(){ return !!currentUser && currentUser.role === 'admin'; }
+function isStaffUser(){ return !!currentUser && currentUser.role === 'staff'; }
+function currentStaffId(){ return isStaffUser() ? currentUser.staffId : null; }
+// Whether the signed-in user is allowed to see data belonging to staff id `sid`.
+// Admin sees everyone; a staff login only ever sees their own id.
+function isVisibleStaffId(sid){
+  if(isAdmin()) return true;
+  if(isStaffUser()) return sid === currentUser.staffId;
+  return false;
+}
+// The staff list scoped to what the signed-in user is allowed to see.
+function visibleStaffList(){
+  return (state.staff||[]).filter(s=>isVisibleStaffId(s.id));
+}
+function findStaffByUsername(username){
+  const u = (username||'').trim().toLowerCase();
+  return (state.staff||[]).find(s => (s.username||'').trim().toLowerCase() === u);
+}
+// Every existing/new staff record needs its own username+password. Called
+// after any load of state.staff (fresh load, import, restore) and whenever
+// a staff member is added, so older records saved before per-staff logins
+// existed automatically get usable credentials instead of being locked out.
+function slugifyUsername(name){
+  let base = (name||'staff').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,16) || 'staff';
+  let candidate = base;
+  let n = 1;
+  while((state.staff||[]).some(s => s.username && s.username.toLowerCase() === candidate && s.id !== this)){
+    candidate = base + (++n);
+  }
+  return candidate;
+}
+function randomPassword(){
+  return Math.random().toString(36).slice(2, 8);
+}
+function ensureStaffCredentials(){
+  if(!state.staff) return;
+  state.staff.forEach(s=>{
+    if(!s.username){ s.username = slugifyUsername.call(s.id, s.name); }
+    if(!s.password){ s.password = randomPassword(); }
+  });
+  if(!state.adminAccount) state.adminAccount = {username:'admin', password:'admin123'};
+}
 // Separate manager-only PIN required to unlock an already-saved cash
 // denomination record for correction (see openCorrectionModal / 
 // submitCorrectionUnlock below). Kept apart from the console login so
@@ -2233,6 +2301,7 @@ function stopLocationWatch(){
 
 function handleDeviceBlocked(){
   try{ sessionStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  currentUser = null;
   lockApp();
   const errEl = document.getElementById('loginError');
   if(errEl){
@@ -2283,6 +2352,7 @@ function formatPlatformCell(d){
 }
 
 async function renderDevicesTab(){
+  if(!isAdmin()) return; // Device management is admin-only; the tab button is hidden for staff logins too.
   const base = getApiBase();
   const body = document.getElementById('devicesBody');
   const emptyHint = document.getElementById('devicesEmptyHint');
@@ -2451,6 +2521,7 @@ function playLoginSuccessSound(){
 function idleLogout(){
   if(!isAppUnlocked()) return;
   try{ sessionStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  currentUser = null;
   lockApp();
 }
 
@@ -2517,6 +2588,30 @@ function unlockApp(){
   document.getElementById('loginGate').classList.add('hidden');
   startIdleWatch();
   startLocationWatch();
+  applyRoleUI();
+}
+
+// Shows/hides nav tabs and the "who's signed in" badge according to
+// currentUser.role. Staff logins never see admin-only tools (managing the
+// staff list, the Admin credentials tab, or device management) — those
+// buttons are removed from the DOM entirely rather than just visually
+// hidden, so there's nothing to click even via devtools.
+function applyRoleUI(){
+  const admin = isAdmin();
+  const adminOnlyTabs = ['staff','devices','admin'];
+  adminOnlyTabs.forEach(t=>{
+    document.querySelectorAll('.tab-btn[data-tab="'+t+'"]').forEach(b=>{ b.style.display = admin ? '' : 'none'; });
+  });
+  const whoEl = document.getElementById('signedInAs');
+  if(whoEl){
+    whoEl.textContent = admin ? '🔑 Admin' : ('👤 ' + (currentUser && currentUser.staffName || 'Staff'));
+  }
+  // If a staff login is sitting on (or lands on, via a stale bookmark/tab
+  // state) an admin-only tab, bounce them back to their own sales view.
+  if(!admin){
+    const activeAdminTab = document.querySelector('.tab-btn.active[data-tab="staff"], .tab-btn.active[data-tab="devices"], .tab-btn.active[data-tab="admin"]');
+    if(activeAdminTab) switchTab('sales');
+  }
 }
 
 function lockApp(){
@@ -2533,9 +2628,29 @@ function lockApp(){
 }
 
 function logoutApp(){
-  if(!confirm('Lock the console? You will need the password to open it again on this device.')) return;
+  if(!confirm('Lock the console? You will need your login ID and password to open it again on this device.')) return;
   try{ sessionStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+  currentUser = null;
   lockApp();
+}
+
+// Checks one submitted username/password against the admin account and
+// every staff account, and returns the matching session object (or null).
+// Username match is case-insensitive (easier to type on a shift), password
+// is checked exactly.
+function authenticate(username, password){
+  const u = (username||'').trim();
+  const p = password||'';
+  if(!u || !p) return null;
+  const admin = state.adminAccount || {username:'admin', password:'admin123'};
+  if(u.toLowerCase() === (admin.username||'').toLowerCase() && p === admin.password){
+    return {role:'admin'};
+  }
+  const staffMatch = findStaffByUsername(u);
+  if(staffMatch && p === staffMatch.password){
+    return {role:'staff', staffId:staffMatch.id, staffName:staffMatch.name};
+  }
+  return null;
 }
 
 (function initLoginGate(){
@@ -2546,7 +2661,16 @@ function logoutApp(){
     // storing the "logged in" flag here is enough to require the password
     // again next time the app is opened. A page reload/refresh within the
     // same open tab keeps the session, same as before.
-    if(sessionStorage.getItem(AUTH_STORAGE_KEY) === 'granted'){
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    const saved = raw ? JSON.parse(raw) : null;
+    if(saved && saved.role === 'admin'){
+      currentUser = {role:'admin'};
+      unlockApp();
+    } else if(saved && saved.role === 'staff' && saved.staffId){
+      // Re-derive the staff name from current state (in case it changed
+      // since login) rather than trusting the stale cached copy.
+      const s = (state.staff||[]).find(x=>x.id===saved.staffId);
+      currentUser = {role:'staff', staffId:saved.staffId, staffName: s ? s.name : saved.staffName};
       unlockApp();
     } else {
       lockApp();
@@ -2562,11 +2686,12 @@ function logoutApp(){
 
   form.addEventListener('submit', function(e){
     e.preventDefault();
-    const u = userInp.value.trim();
-    const p = passInp.value;
-    if(u === VALID_USERNAME && p === VALID_PASSWORD){
+    ensureStaffCredentials();
+    const session = authenticate(userInp.value, passInp.value);
+    if(session){
       errEl.classList.remove('show');
-      try{ sessionStorage.setItem(AUTH_STORAGE_KEY, 'granted'); }catch(e){}
+      currentUser = session;
+      try{ sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session)); }catch(e){}
       playLoginSuccessSound();
       unlockApp();
       registerDeviceWithServer();
@@ -2577,6 +2702,7 @@ function logoutApp(){
       // guarantees the data shown right after login is current, not just
       // whatever was current a while ago when the page first loaded.
       loadFromServer().then(function(loaded){
+        applyRoleUI();
         if(loaded){
           const activeTab = document.querySelector('.tab-btn.active');
           if(activeTab) switchTab(activeTab.dataset.tab);
@@ -2602,13 +2728,17 @@ function logoutApp(){
 /* ============== STATE ============== */
 let state = {
   staff: [
-    {id:'s1',name:'Abhijit'},
-    {id:'s2',name:'Anindo'},
-    {id:'s3',name:'Bappa'},
-    {id:'s4',name:'Palash'},
-    {id:'s5',name:'Nasir'},
-    {id:'s6',name:'Sujai'}
+    {id:'s1',name:'Abhijit',username:'abhijit',password:'abhijit123'},
+    {id:'s2',name:'Anindo',username:'anindo',password:'anindo123'},
+    {id:'s3',name:'Bappa',username:'bappa',password:'bappa123'},
+    {id:'s4',name:'Palash',username:'palash',password:'palash123'},
+    {id:'s5',name:'Nasir',username:'nasir',password:'nasir123'},
+    {id:'s6',name:'Sujai',username:'sujai',password:'sujai123'}
   ],
+  // Separate owner/manager account — not a staff member, so it never shows
+  // up in staff-picker dropdowns or per-staff sale tables. This is the only
+  // login that can open the Admin tab (staff login IDs/passwords, full data).
+  adminAccount: {username:'admin', password:'admin123'},
   sales: {},   
   rates: {},   
   cash: {},    
@@ -2845,6 +2975,7 @@ function initServerSync(retryCount){
     if(!state.cash) state.cash = {};
     if(!state.sales) state.sales = {};
     if(!state.staff) state.staff = [];
+        ensureStaffCredentials();
     if(!state.noteGivenOut) state.noteGivenOut = [];
     if(!state.duty) state.duty = {};
     if(!state.pouchBoxes) state.pouchBoxes = {};
@@ -2890,6 +3021,7 @@ async function loadFromServer(){
       if(!state.cash) state.cash = {};
       if(!state.sales) state.sales = {};
       if(!state.staff) state.staff = [];
+        ensureStaffCredentials();
       if(!state.noteGivenOut) state.noteGivenOut = [];
       if(!state.duty) state.duty = {};
       if(!state.pouchBoxes) state.pouchBoxes = {};
@@ -3085,6 +3217,7 @@ function loadAutosave(){
         if(!state.cash) state.cash = {};
         if(!state.sales) state.sales = {};
         if(!state.staff) state.staff = [];
+        ensureStaffCredentials();
         if(!state.noteGivenOut) state.noteGivenOut = [];
         if(!state.duty) state.duty = {};
         if(!state.tankUpdates) state.tankUpdates = [];
@@ -3109,7 +3242,7 @@ function toggleCcBlock(headerEl){
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
   finance:  ['cash','surplus','notestock','cashledger','buscash'],
-  staffops: ['staff','duty'],
+  staffops: ['staff','duty','admin'],
   addons:   ['addonreport']
 };
 function tabGroupOf(name){
@@ -3133,6 +3266,7 @@ function switchTab(name){
   if(name==='tanks') renderTankTab();
   if(name==='staff') renderStaffTab();
   if(name==='duty') renderDutyTab();
+  if(name==='admin') renderAdminTab();
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
   if(name==='notestock') renderNoteStockTab();
@@ -3145,6 +3279,7 @@ function switchTab(name){
 
 /* ============== STAFF TAB ============== */
 function renderStaffTab(){
+  if(!isAdmin()) return; // Manage Staff is admin-only; the tab button itself is hidden for staff logins too.
   const list = document.getElementById('staffList');
   if(state.staff.length===0){
     list.innerHTML = '<div class="empty">No staff added yet.</div>';
@@ -3160,7 +3295,10 @@ function addStaff(){
   const inp = document.getElementById('newStaffName');
   const name = inp.value.trim();
   if(!name){ return; }
-  state.staff.push({id:'s'+(sidCounter++), name});
+  const id = 's'+(sidCounter++);
+  // New staff get a working login the moment they're added — the admin can
+  // change the auto-generated ID/password afterwards from the Admin tab.
+  state.staff.push({id, name, username: slugifyUsername.call(id, name), password: randomPassword()});
   inp.value='';
   renderStaffTab();
   scheduleAutosave();
@@ -3177,6 +3315,59 @@ function deleteStaff(id){
   if(!confirm('Remove this staff member from future entry lists? Their past records are kept.')) return;
   state.staff = state.staff.filter(s=>s.id!==id);
   renderStaffTab();
+  scheduleAutosave();
+}
+
+/* ============== ADMIN TAB — staff login IDs & passwords ============== */
+// Tracks which staff rows currently have their password shown in plain
+// text (per session only — resets on reload), so passwords stay masked by
+// default even on the admin's own screen.
+let adminRevealedPw = {};
+function toggleAdminPwReveal(id){
+  adminRevealedPw[id] = !adminRevealedPw[id];
+  renderAdminTab();
+}
+function renderAdminTab(){
+  if(!isAdmin()) return; // Belt-and-braces: the tab button/section is hidden for non-admins already.
+  ensureStaffCredentials();
+  const list = document.getElementById('adminCredList');
+  if(list){
+    if(state.staff.length===0){
+      list.innerHTML = '<div class="empty">No staff added yet.</div>';
+    } else {
+      list.innerHTML = state.staff.map(s=>`
+        <div class="staff-row" style="flex-wrap:wrap;">
+          <span style="min-width:110px;font-weight:600;">${escapeHtml(s.name)}</span>
+          <input type="text" value="${escapeHtml(s.username||'')}" placeholder="Login ID" style="flex:1;min-width:100px;" onchange="updateStaffCredential('${s.id}','username',this.value)">
+          <input type="${adminRevealedPw[s.id] ? 'text' : 'password'}" value="${escapeHtml(s.password||'')}" placeholder="Password" style="flex:1;min-width:100px;" onchange="updateStaffCredential('${s.id}','password',this.value)">
+          <button type="button" class="btn ghost small" onclick="toggleAdminPwReveal('${s.id}')">${adminRevealedPw[s.id] ? '🙈 Hide' : '👁 Show'}</button>
+        </div>`).join('');
+    }
+  }
+  const uInp = document.getElementById('adminSelfUsername');
+  const pInp = document.getElementById('adminSelfPassword');
+  if(uInp) uInp.value = (state.adminAccount||{}).username || 'admin';
+  if(pInp) pInp.value = (state.adminAccount||{}).password || '';
+}
+function updateStaffCredential(id, field, value){
+  value = (value||'').trim();
+  if(!value) return renderAdminTab(); // don't allow blanking a login field
+  const s = state.staff.find(x=>x.id===id);
+  if(!s) return;
+  if(field==='username'){
+    const clash = findStaffByUsername(value);
+    if(clash && clash.id!==id){ alert('That login ID is already used by ' + clash.name + '.'); return renderAdminTab(); }
+    s.username = value;
+  } else if(field==='password'){
+    s.password = value;
+  }
+  renderAdminTab();
+  scheduleAutosave();
+}
+function updateAdminAccount(){
+  const u = (document.getElementById('adminSelfUsername').value||'').trim() || 'admin';
+  const p = (document.getElementById('adminSelfPassword').value||'').trim() || 'admin123';
+  state.adminAccount = {username:u, password:p};
   scheduleAutosave();
 }
 function escapeHtml(str){
@@ -3794,7 +3985,9 @@ function renderShiftReadouts(date, shift){
 }
 function renderShiftStaffTable(date, shift){
   const sd = state.sales[date] && state.sales[date][shift];
-  const assignedIds = sd ? [...new Set(Object.values(sd.assign).filter(Boolean))] : [];
+  // A staff login only ever sees their own row here — this table becomes
+  // "my shift totals" instead of the whole station's. Admin sees everyone.
+  const assignedIds = sd ? [...new Set(Object.values(sd.assign).filter(Boolean))].filter(isVisibleStaffId) : [];
   const body = document.getElementById('shiftStaffBody');
   if(assignedIds.length===0){
     body.innerHTML = '<tr><td colspan="6" class="empty">No staff assigned to any nozzle this shift yet.</td></tr>';
@@ -3843,7 +4036,10 @@ function resetDayTesting(){
 }
 function renderDaySummary(date){
   let totalDL=0,totalDA=0,totalPL=0,totalPA=0;
-  const ids = staffIdsForDate(date);
+  // Staff logins only ever see their own nozzle sale calculation here — the
+  // whole Daily Sale Report (rows + the totals/net-sale tiles below) scopes
+  // down to just their id. Admin still sees the full station report.
+  const ids = staffIdsForDate(date).filter(isVisibleStaffId);
   const rows = ids.map(sid=>{
     const t = computeStaffDayTotals(date, sid);
     totalDL+=t.dl; totalDA+=t.da; totalPL+=t.pl; totalPA+=t.pa;
@@ -4425,11 +4621,14 @@ function renderMonthlyTab(){
   let mDL=0,mDA=0,mPL=0,mPA=0;
   let dateRows='';
   const staffTotals = {};
-  state.staff.forEach(s=> staffTotals[s.id] = {name:s.name, da:0, pa:0, pl:0});
+  // Staff logins only ever build totals for their own id, so the whole
+  // Monthly Sale Report — date rows, readouts, and the staff-wise table —
+  // scopes down to "my monthly sales" instead of the whole station.
+  visibleStaffList().forEach(s=> staffTotals[s.id] = {name:s.name, da:0, pa:0, pl:0});
 
   dates.forEach(date=>{
     let dl=0,da=0,pl=0,pa=0;
-    staffIdsForDate(date).forEach(sid=>{
+    staffIdsForDate(date).filter(isVisibleStaffId).forEach(sid=>{
       const t = computeStaffDayTotals(date, sid);
       dl+=t.dl; da+=t.da; pl+=t.pl; pa+=t.pa;
       if(!staffTotals[sid]) staffTotals[sid] = {name: staffNameById(sid), da:0, pa:0, pl:0};
@@ -4502,8 +4701,13 @@ function renderPetrolRanking(staffTotals){
 function populateCashStaffSelect(){
   const sel = document.getElementById('cashStaff');
   const prev = sel.value;
-  sel.innerHTML = state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  if(prev && state.staff.some(s=>s.id===prev)) sel.value = prev;
+  const list = visibleStaffList();
+  sel.innerHTML = list.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  // A staff login only ever has their own name to pick — lock the dropdown
+  // so they can't switch to enter/view another staff member's cash record.
+  sel.disabled = isStaffUser();
+  if(isStaffUser() && list.length){ sel.value = list[0].id; }
+  else if(prev && list.some(s=>s.id===prev)) sel.value = prev;
 }
 
 function onTestingOptionChange(){
@@ -5105,8 +5309,11 @@ function populateAddonStaffSelect(){
   const sel = document.getElementById('addonStaff');
   if(!sel) return;
   const prev = sel.value;
-  sel.innerHTML = state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  if(prev && state.staff.some(s=>s.id===prev)) sel.value = prev;
+  const list = visibleStaffList();
+  sel.innerHTML = list.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  sel.disabled = isStaffUser();
+  if(isStaffUser() && list.length){ sel.value = list[0].id; }
+  else if(prev && list.some(s=>s.id===prev)) sel.value = prev;
 }
 
 // Master render for the whole "Add-on & Incentives" tab — populates the
@@ -5170,8 +5377,10 @@ function renderAddonDailyReport(){
 
   // Columns: current staff in their usual order, then any staff who sold
   // this month but are no longer in the staff list (e.g. deleted).
-  const staffCols = state.staff.map(s => s.id);
-  staffIdsWithSales.forEach(id => { if(!staffCols.includes(id)) staffCols.push(id); });
+  // A staff login only ever gets their own column — everyone else's
+  // add-on sales stay out of this report for them.
+  const staffCols = visibleStaffList().map(s => s.id);
+  staffIdsWithSales.forEach(id => { if(isVisibleStaffId(id) && !staffCols.includes(id)) staffCols.push(id); });
 
   thead.innerHTML = '<tr><th>Date</th>' +
     staffCols.map(id => `<th class="num">${escapeHtml(staffNameById(id))}</th>`).join('') +
@@ -5273,7 +5482,7 @@ function renderAddonStreakLeaderboard(){
   const body = document.getElementById('addonStreakBody');
   const emptyEl = document.getElementById('addonStreakEmpty');
   if(!body) return;
-  const rows = (state.staff||[]).map(s => ({ name: s.name, ...computeAddonStreak(s.id) }))
+  const rows = visibleStaffList().map(s => ({ name: s.name, ...computeAddonStreak(s.id) }))
     .filter(r => r.boxesClosed > 0)
     .sort((a,b) => b.current - a.current || b.best - a.best);
   body.innerHTML = rows.map(r => `
@@ -5287,7 +5496,7 @@ function computeAddonMonthlySummary(month){
   const rows = [];
   let grandTotal = 0;
   const byStaff = state.pouchBoxes || {};
-  (state.staff||[]).forEach(s=>{
+  visibleStaffList().forEach(s=>{
     const boxes = byStaff[s.id] || [];
     const closedThisMonth = boxes.filter(b => b.status === 'closed' && b.closedDate && b.closedDate.slice(0,7) === month);
     const total = closedThisMonth.reduce((sum,b)=> sum + (b.incentive||0), 0);
@@ -5512,7 +5721,7 @@ function computeLubeWaterMonthlySummary(month){
   let grandLubeLitres = 0;
   const litresPerUnit = getLubeLitresPerUnit();
   const byStaff = state.shiftPayout || {};
-  (state.staff||[]).forEach(s=>{
+  visibleStaffList().forEach(s=>{
     const byDate = byStaff[s.id] || {};
     let lubeQty = 0, waterQty = 0;
     Object.keys(byDate).forEach(date=>{
@@ -5681,6 +5890,15 @@ function stopQrScanner(){
 function populateCashHistoryStaffFilter(){
   const sel = document.getElementById('cashHistoryStaffFilter');
   const prev = sel.value;
+  if(isStaffUser()){
+    // No "All Staff" option for a staff login — there's only their own
+    // record to look at, and the dropdown is locked so it can't be changed.
+    const me = visibleStaffList()[0];
+    sel.innerHTML = me ? `<option value="${me.id}">${escapeHtml(me.name)}</option>` : '';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
   const opts = ['<option value="all">All Staff</option>'].concat(state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`));
   sel.innerHTML = opts.join('');
   if(prev) sel.value = prev;
@@ -5729,6 +5947,13 @@ function renderCashHistory(){
 /* ============== STAFF SURPLUS / SHORT DATA TAB ============== */
 function populateSurplusStaffFilter(){
   const sel = document.getElementById('surplusStaffFilter');
+  if(isStaffUser()){
+    const me = visibleStaffList()[0];
+    sel.innerHTML = me ? `<option value="${me.id}">${escapeHtml(me.name)}</option>` : '';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
   const opts = ['<option value="all">All Staff</option>'].concat(state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`));
   sel.innerHTML = opts.join('');
 }
@@ -5775,9 +6000,10 @@ function renderSurplusTab(){
   }
 
   const summary = {};
-  state.staff.forEach(s=> summary[s.id] = {name:s.name, surplus:0, shortfall:0});
+  visibleStaffList().forEach(s=> summary[s.id] = {name:s.name, surplus:0, shortfall:0});
   Object.keys(state.cash).filter(d=>d.startsWith(month)).forEach(date=>{
     Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      if(!isVisibleStaffId(sid)) return; // month-end summary never shows another staff member's totals to a staff login
       if(!summary[sid]) summary[sid] = {name:staffNameById(sid), surplus:0, shortfall:0};
       if(rec.difference>0) summary[sid].surplus += rec.difference;
       else if(rec.difference<0) summary[sid].shortfall += Math.abs(rec.difference);
