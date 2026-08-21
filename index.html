@@ -747,6 +747,47 @@
 
   .login-foot{ text-align:center; margin-top:18px; font-size:11px; color:var(--muted); letter-spacing:.3px; }
 
+  .login-forgot{ text-align:center; margin-top:12px; }
+  .login-forgot button{
+    background:none; border:none; padding:0; cursor:pointer;
+    font-size:12px; color:var(--muted); text-decoration:underline; letter-spacing:.2px;
+  }
+  .login-forgot button:hover{ color:var(--petrol-dark); }
+  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-forgot button{ color:var(--ink); opacity:.7; }
+  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .login-forgot button:hover{ opacity:1; }
+
+  /* ---- Forgot-password recovery modal ---- */
+  .recover-overlay{
+    display:none; position:fixed; inset:0; background:rgba(10,14,20,.55);
+    z-index:9999; align-items:center; justify-content:center; padding:16px;
+  }
+  .recover-overlay.show{ display:flex; }
+  .recover-box{
+    background:#fff; border-radius:14px; max-width:420px; width:100%;
+    padding:22px 22px 18px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+    max-height:80vh; overflow-y:auto;
+  }
+  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .recover-box{
+    background:#161327; color:var(--ink); border:1px solid var(--theme-border);
+  }
+  .recover-box h3{ margin:0 0 4px; font-size:16px; }
+  .recover-box .recover-note{ font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
+  .recover-list{ list-style:none; margin:0 0 14px; padding:0; }
+  .recover-list li{
+    display:flex; justify-content:space-between; gap:10px; padding:8px 0;
+    border-bottom:1px solid rgba(0,0,0,.08); font-size:13px;
+  }
+  [data-theme="cyan"], [data-theme="graphite"], [data-theme="neon-purple"] .recover-list li{ border-bottom-color:rgba(255,255,255,.1); }
+  .recover-list li .rl-name{ font-weight:600; }
+  .recover-list li .rl-creds{ font-family:monospace; text-align:right; color:var(--muted); }
+  .recover-actions{ display:flex; gap:8px; margin-top:10px; }
+  .recover-actions button{
+    flex:1; padding:9px 10px; border-radius:8px; border:1px solid rgba(0,0,0,.12);
+    background:#f4f4f4; cursor:pointer; font-size:12.5px; font-weight:600;
+  }
+  .recover-actions button.primary{ background:var(--petrol); color:#3a2205; border-color:transparent; }
+  .recover-actions button.primary:hover{ background:var(--petrol-dark); color:#fff; }
+
   .logout-btn{
     background:transparent; border:1px solid #3a5b74; color:#dfe8ee; padding:7px 12px;
     border-radius:6px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; margin-left:6px;
@@ -1102,7 +1143,20 @@
       </div>
       <button type="submit" class="btn login-submit">Unlock Console</button>
     </form>
+    <div class="login-forgot"><button type="button" id="forgotPasswordBtn">Forgot your password?</button></div>
     <div class="login-foot">Each staff member signs in with their own ID · Restricted access</div>
+  </div>
+</div>
+
+<div class="recover-overlay" id="recoverOverlay">
+  <div class="recover-box">
+    <h3>🔑 Recover a login</h3>
+    <div class="recover-note">This console's login is a casual-visitor lock, not real account security — so it's fine to show credentials here to whoever can already open this browser. Tap a name to copy its password, or reset it below.</div>
+    <ul class="recover-list" id="recoverList"></ul>
+    <div class="recover-actions">
+      <button type="button" id="recoverResetAdminBtn">Reset admin password</button>
+      <button type="button" class="primary" id="recoverCloseBtn">Close</button>
+    </div>
   </div>
 </div>
 
@@ -2723,6 +2777,58 @@ function authenticate(username, password){
     passInp.type = showing ? 'password' : 'text';
     toggleBtn.textContent = showing ? '👁' : '🙈';
   });
+})();
+
+/* ============== FORGOT PASSWORD / RECOVERY ==============
+   The login above is a casual-visitor lock, not real security (see the
+   note at the top of this script) — credentials already sit in plain text
+   in `state` before anyone signs in, and were always inspectable via the
+   browser console. This just surfaces that same information through a
+   proper UI instead of requiring DevTools, plus a way to reset the admin
+   password if it's been forgotten entirely. */
+function renderRecoverList(){
+  ensureStaffCredentials(); // guarantees state.adminAccount and every staff record has creds
+  const list = document.getElementById('recoverList');
+  if(!list) return;
+  const admin = state.adminAccount || {username:'admin', password:'admin123'};
+  const rows = [{label:'🔑 Admin', name: admin.username, pass: admin.password}]
+    .concat((state.staff||[]).map(s => ({label: s.name, name: s.username, pass: s.password})));
+  list.innerHTML = rows.map(r => `
+    <li>
+      <span class="rl-name">${escapeHtml(r.label)}</span>
+      <span class="rl-creds">${escapeHtml(r.name)} / ${escapeHtml(r.pass)}</span>
+    </li>
+  `).join('');
+}
+function openRecoverModal(){
+  renderRecoverList();
+  document.getElementById('recoverOverlay').classList.add('show');
+}
+function closeRecoverModal(){
+  document.getElementById('recoverOverlay').classList.remove('show');
+}
+function resetAdminPassword(){
+  ensureStaffCredentials();
+  const current = state.adminAccount.password;
+  const next = prompt('Set a new admin password (current one is "' + current + '" in case you just want to note it down instead):');
+  if(next === null) return; // cancelled
+  const trimmed = next.trim();
+  if(!trimmed){ alert('Password cannot be empty — nothing was changed.'); return; }
+  state.adminAccount.password = trimmed;
+  try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
+  if(typeof scheduleAutosave === 'function') scheduleAutosave();
+  renderRecoverList();
+  alert('Admin password updated to "' + trimmed + '". Use it to log in now.');
+}
+(function initRecoverModal(){
+  const forgotBtn = document.getElementById('forgotPasswordBtn');
+  const closeBtn = document.getElementById('recoverCloseBtn');
+  const resetBtn = document.getElementById('recoverResetAdminBtn');
+  const overlay = document.getElementById('recoverOverlay');
+  if(forgotBtn) forgotBtn.addEventListener('click', openRecoverModal);
+  if(closeBtn) closeBtn.addEventListener('click', closeRecoverModal);
+  if(resetBtn) resetBtn.addEventListener('click', resetAdminPassword);
+  if(overlay) overlay.addEventListener('click', function(e){ if(e.target === overlay) closeRecoverModal(); });
 })();
 
 /* ============== STATE ============== */
@@ -5971,6 +6077,7 @@ function renderSurplusTab(){
   let rows = [];
   Object.keys(state.cash).filter(d=>d.startsWith(month)).sort().forEach(date=>{
     Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      if(!isVisibleStaffId(sid)) return; // a staff login only ever sees their own reconciliation rows here, regardless of the filter dropdown
       if(staffFilter!=='all' && sid!==staffFilter) return;
       rows.push({date,sid,...rec});
     });
