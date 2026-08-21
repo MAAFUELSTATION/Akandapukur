@@ -2153,6 +2153,10 @@ const AUTH_STORAGE_KEY = 'maaFuelStationAuth_v2';
 let currentUser = null;
 function isAdmin(){ return !!currentUser && currentUser.role === 'admin'; }
 function isStaffUser(){ return !!currentUser && currentUser.role === 'staff'; }
+// A staff login only ever gets these two tabs — every other tab is hidden
+// from the nav AND refused by switchTab() below, so there's no button to
+// click and no way to force navigation into another tab's data either.
+const STAFF_ALLOWED_TABS = ['sales','cash'];
 function currentStaffId(){ return isStaffUser() ? currentUser.staffId : null; }
 // Whether the signed-in user is allowed to see data belonging to staff id `sid`.
 // Admin sees everyone; a staff login only ever sees their own id.
@@ -2646,25 +2650,37 @@ function unlockApp(){
 }
 
 // Shows/hides nav tabs and the "who's signed in" badge according to
-// currentUser.role. Staff logins never see admin-only tools (managing the
-// staff list, the Admin credentials tab, or device management) — those
-// buttons are removed from the DOM entirely rather than just visually
-// hidden, so there's nothing to click even via devtools.
+// currentUser.role. A staff login only ever gets the Nozzle Sale Report and
+// Cash Denomination Calculator tabs — every other tab button is removed
+// from the DOM entirely rather than just visually hidden, so there's
+// nothing to click even via devtools. switchTab() below is the second,
+// stronger layer: it refuses to render any other tab's data even if a tab
+// switch is triggered some other way (e.g. from the console).
 function applyRoleUI(){
   const admin = isAdmin();
-  const adminOnlyTabs = ['staff','devices','admin'];
-  adminOnlyTabs.forEach(t=>{
-    document.querySelectorAll('.tab-btn[data-tab="'+t+'"]').forEach(b=>{ b.style.display = admin ? '' : 'none'; });
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    const allowed = admin || STAFF_ALLOWED_TABS.indexOf(b.dataset.tab) !== -1;
+    b.style.display = allowed ? '' : 'none';
+  });
+  // A whole category button (e.g. "Staff & Ops") is hidden too once none of
+  // its tabs are reachable by this login, so there's no dead end to open.
+  document.querySelectorAll('.group-btn').forEach(gb=>{
+    const nav = document.querySelector('nav.tabs[data-group="'+gb.dataset.group+'"]');
+    const hasVisibleTab = nav && Array.from(nav.querySelectorAll('.tab-btn')).some(b=> b.style.display !== 'none');
+    gb.style.display = hasVisibleTab ? '' : 'none';
   });
   const whoEl = document.getElementById('signedInAs');
   if(whoEl){
     whoEl.textContent = admin ? '🔑 Admin' : ('👤 ' + (currentUser && currentUser.staffName || 'Staff'));
   }
   // If a staff login is sitting on (or lands on, via a stale bookmark/tab
-  // state) an admin-only tab, bounce them back to their own sales view.
+  // state) a tab outside their allowed list, bounce them back to their own
+  // sales view.
   if(!admin){
-    const activeAdminTab = document.querySelector('.tab-btn.active[data-tab="staff"], .tab-btn.active[data-tab="devices"], .tab-btn.active[data-tab="admin"]');
-    if(activeAdminTab) switchTab('sales');
+    const activeTab = document.querySelector('.tab-btn.active');
+    if(activeTab && STAFF_ALLOWED_TABS.indexOf(activeTab.dataset.tab) === -1){
+      switchTab('sales');
+    }
   }
 }
 
@@ -3363,6 +3379,13 @@ function switchTabGroup(group){
   document.querySelectorAll('nav.tabs[data-group]').forEach(n=>{ n.style.display = (n.dataset.group===group) ? 'flex' : 'none'; });
 }
 function switchTab(name){
+  // Second, stronger layer behind applyRoleUI() hiding the buttons: even if
+  // a staff login somehow triggers a switch to another tab (console, a
+  // stale bookmark, etc.), silently redirect to their own Sale Report
+  // instead of computing or rendering that other tab's data at all.
+  if(!isAdmin() && STAFF_ALLOWED_TABS.indexOf(name) === -1){
+    name = 'sales';
+  }
   switchTabGroup(tabGroupOf(name));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active', s.id==='tab-'+name));
