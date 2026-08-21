@@ -1103,6 +1103,95 @@
   padding:5px 12px; cursor:pointer; font-weight:700; font-size:0.78rem;
   letter-spacing:0.03em; text-transform:uppercase;
 }
+
+/* =====================================================================
+   RESPONSIVE SCALING OVERHAUL
+   A single, layered pass that makes the whole app scale cleanly from
+   small phones up through wide desktop monitors, without touching any
+   of the feature-specific rules above. Written mobile-first-safe: it
+   only adjusts spacing/sizing, never layout logic that other rules
+   already own (grid-template-columns switches etc. stay where they are).
+   ===================================================================== */
+
+/* ---- 1. Fluid root sizing: text and spacing scale smoothly with the
+   viewport instead of jumping at fixed breakpoints. Stays within a
+   sane range so nothing gets too small on a phone or too large on a
+   4K monitor. ---- */
+html{
+  font-size: clamp(14.5px, 0.85vw + 12px, 17px);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body{ overflow-x:hidden; } /* belt-and-braces: stop any stray wide element from creating horizontal page scroll */
+img, svg{ max-width:100%; height:auto; }
+
+/* ---- 2. Header: let brand/date/controls wrap gracefully instead of
+   overflowing on narrow phones. ---- */
+header.top{ padding: clamp(12px,3vw,18px) clamp(14px,4vw,28px); }
+header.top h1{ font-size: clamp(19px,4.4vw,26px); }
+header.top .brand svg{ width: clamp(30px,7vw,42px); height:auto; }
+header.top .right{ justify-content:flex-end; }
+@media (max-width:560px){
+  header.top{ flex-direction:column; align-items:flex-start; }
+  header.top .right{ width:100%; justify-content:flex-start; }
+  header.top .date-live, .autosave-indicator{ font-size:11px; padding:6px 10px; }
+}
+
+/* ---- 3. Nav strips: comfortable touch targets, no clipped labels,
+   smooth momentum scroll on iOS when they overflow. ---- */
+nav.tab-groups, nav.tabs{ -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+nav.tab-groups button{ padding: 9px clamp(10px,2.6vw,14px); font-size: clamp(11.5px,2.6vw,12.5px); }
+nav.tabs button{ padding: 12px clamp(12px,3vw,18px); font-size: clamp(13px,3vw,14px); }
+
+/* ---- 4. Page shell: padding scales down on phones so content isn't
+   crushed against the edges, and content doesn't over-stretch on very
+   wide screens. ---- */
+main{ padding: clamp(14px,3.4vw,26px) clamp(12px,3.4vw,20px); max-width:1280px; }
+@media (min-width:1600px){ main{ max-width:1400px; } }
+.card{ padding: clamp(14px,3vw,20px); }
+.card h2{ font-size: clamp(16.5px,3.6vw,19px); }
+
+/* ---- 5. Forms: 16px minimum on inputs/selects prevents iOS Safari's
+   automatic zoom-on-focus, which is the single biggest cause of a
+   mobile layout feeling "broken" the moment someone taps a field. ---- */
+.field input, .field select, .field textarea,
+input[type=text], input[type=number], input[type=tel],
+input[type=date], input[type=password], select, textarea{
+  font-size: max(16px, 0.95rem);
+}
+.row{ row-gap:12px; }
+
+/* ---- 6. Buttons: comfortable tap targets (44px) on touch screens
+   without changing desktop sizing, which stays exactly as before. ---- */
+@media (max-width:760px){
+  button.btn{ padding:11px 16px; min-height:44px; }
+  button.btn.small{ min-height:38px; padding:8px 12px; }
+  .iobtns button, #themeSelect{ min-height:40px; }
+}
+
+/* ---- 7. Tables: every table gets a horizontal-scroll safety net even
+   if it isn't already wrapped in a scroll container in the markup, so
+   wide ledgers/reports never force the whole page to scroll sideways.
+   (Tables already inside a .duty-table-wrap or overflow-x:auto div are
+   unaffected — this only engages for the rare unwrapped ones.) ---- */
+.table-autoscroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+@media (max-width:700px){
+  table{ font-size:12.5px; }
+  th, td{ padding:7px 8px; }
+}
+
+/* ---- 8. Generic .field rows: they already wrap (flex-wrap:wrap), this
+   just gives each field a sensible minimum width so wrapping kicks in
+   at a sane point instead of squeezing fields illegibly thin first. ---- */
+@media (max-width:640px){
+  .row > .field{ flex:1 1 140px; min-width:0; }
+}
+
+/* ---- 9. Large-desktop polish: on very wide monitors, cap how far
+   text-heavy panels stretch so lines stay readable. ---- */
+@media (min-width:1400px){
+  .card h2{ font-size:20px; }
+}
 </style>
 </head>
 <body class="app-locked">
@@ -2953,6 +3042,12 @@ let state = {
   sales: {},   
   rates: {},   
   cash: {},    
+  // Which Cash Denomination records are currently unlocked for correction,
+  // and by whom/why — keyed by "date::staffId" (see cashRecordKey()). This
+  // lives in the synced `state` (not a local-only variable) specifically so
+  // that when an admin approves a correction on one device, every other
+  // device — including the staff member's — sees the record unlock too.
+  cashUnlocks: {},
   noteGivenOut: [],
   duty: {},
   tankUpdates: [],
@@ -3184,6 +3279,7 @@ function initServerSync(retryCount){
     state = payload.state;
     if(!state.rates) state.rates = {};
     if(!state.cash) state.cash = {};
+    if(!state.cashUnlocks) state.cashUnlocks = {};
     if(!state.sales) state.sales = {};
     if(!state.staff) state.staff = [];
         ensureStaffCredentials();
@@ -3231,6 +3327,7 @@ async function loadFromServer(){
       state = doc.state;
       if(!state.rates) state.rates = {};
       if(!state.cash) state.cash = {};
+      if(!state.cashUnlocks) state.cashUnlocks = {};
       if(!state.sales) state.sales = {};
       if(!state.staff) state.staff = [];
         ensureStaffCredentials();
@@ -3291,6 +3388,40 @@ let saveConflictPending = false;
 // the status stuck on "Saving…" while the backend is slow or waking up.
 let saveInProgress = false;
 let saveQueued = false;
+
+// This whole app syncs by pushing the ENTIRE `state` blob with an
+// optimistic-concurrency check (baseUpdatedAt). That's fine for most tabs,
+// but the Cash Denomination tab is the one most likely to have two people
+// (a staff member entering their count, someone else on another device)
+// touching the shared state around the same time — which is exactly when a
+// 409 conflict happens. Previously a genuine conflict just froze all
+// further autosaving on that device until the person noticed a small
+// status-bar warning and manually reloaded — during which time anything
+// they kept typing into the Cash Denomination form silently never made it
+// to the server. This merge step is the fix: on a real conflict, pull the
+// server's latest copy, but for each individual Cash Denomination record
+// (keyed by date+staff), keep whichever side looks like the real edit
+// instead of blindly keeping one whole side or the other.
+function mergeCashRecords(serverCash, localCash){
+  const merged = JSON.parse(JSON.stringify(serverCash || {}));
+  Object.keys(localCash || {}).forEach(date=>{
+    Object.keys(localCash[date] || {}).forEach(staffId=>{
+      const localRec = localCash[date][staffId];
+      const serverRec = merged[date] && merged[date][staffId];
+      let keepLocal;
+      if(!serverRec) keepLocal = true;                              // server has nothing for this record yet
+      else if(localRec.savedAt && !serverRec.savedAt) keepLocal = true;   // local was actually Saved, server's is just a stray live draft
+      else if(!localRec.savedAt && serverRec.savedAt) keepLocal = false;  // server already has a real Saved record, local is just a live draft
+      else if(localRec.savedAt && serverRec.savedAt) keepLocal = localRec.savedAt >= serverRec.savedAt; // both saved — keep the more recent Save
+      else keepLocal = true;                                        // neither saved yet — trust what's actively open in this tab
+      if(keepLocal){
+        if(!merged[date]) merged[date] = {};
+        merged[date][staffId] = localRec;
+      }
+    });
+  });
+  return merged;
+}
 async function pushToServer(){
   if(!serverSyncEnabled || applyingRemoteUpdate) return;
   // Don't push until we've at least tried to load the server's current
@@ -3356,12 +3487,33 @@ async function pushToServer(){
           }
         });
       } else {
-        // A genuine conflict: this device DID load successfully before, so
-        // it may hold real edits made since then. Saving over the newer
-        // server copy would silently erase someone else's entries, so
-        // refuse and make it visible instead — pause autosave until the
-        // person reloads to pick up the latest data themselves.
-        setAutosaveStatus('⚠ Newer data exists from another device — reload now to avoid losing your latest entry (data is safe in this browser meanwhile)', true);
+        // A genuine conflict: another device saved newer data since this
+        // one last loaded. Blindly overwriting it would erase their
+        // entries; blindly discarding this device's edits would erase
+        // this person's. Instead, pull the server's latest copy and merge
+        // the Cash Denomination records specifically (see
+        // mergeCashRecords above) — the tab where this collision is most
+        // likely to actually happen — then retry automatically, rather
+        // than leaving the person silently stuck until they notice a
+        // status message and reload by hand.
+        setAutosaveStatus('Newer data from another device — merging…', true);
+        const localCashSnapshot = state.cash;
+        loadFromServer().then(function(loaded){
+          if(!loaded){
+            // Couldn't even fetch the latest copy — nothing safe to merge
+            // yet. Leave saveConflictPending set so autosave stays paused
+            // (data is still intact locally) instead of retrying blind.
+            setAutosaveStatus('⚠ Could not reach server to merge — your data is safe locally, will retry', true);
+            setTimeout(()=>{ saveConflictPending = false; scheduleAutosave(); }, 5000);
+            return;
+          }
+          state.cash = mergeCashRecords(state.cash, localCashSnapshot);
+          saveConflictPending = false;
+          lastSyncedStateSignature = null; // the merge changed state again — make sure the next push isn't skipped as "already synced"
+          const activeTab = document.querySelector('.tab-btn.active');
+          if(activeTab) switchTab(activeTab.dataset.tab);
+          scheduleAutosave();
+        });
       }
       return;
     }
@@ -3428,6 +3580,7 @@ function loadAutosave(){
         state = parsed.state;
         if(!state.rates) state.rates = {};
         if(!state.cash) state.cash = {};
+        if(!state.cashUnlocks) state.cashUnlocks = {};
         if(!state.sales) state.sales = {};
         if(!state.staff) state.staff = [];
         ensureStaffCredentials();
@@ -4963,14 +5116,31 @@ function onTestingOptionChange(){
 }
 
 // Tracks, per date+staff key, whether a saved cash record has been
-// explicitly unlocked for correction this session (see openCorrectionModal /
+// explicitly unlocked for correction (see openCorrectionModal /
 // submitCorrectionUnlock). A record with no key here — i.e. every record
 // the very first time it's viewed — renders read-only if it has a savedAt.
-// This is intentionally in-memory only (not persisted): re-loading the app
-// or switching away and back should require unlocking again, so an
-// unlocked-but-forgotten record doesn't stay editable indefinitely.
-let unlockedCashKeys = {};
+// This lives in state.cashUnlocks (synced to the server and broadcast over
+// the socket like everything else in `state`) rather than a local-only
+// variable — so when whoever has the PIN unlocks a record, every device,
+// including the staff member's who requested the correction, sees it
+// unlock too, instead of only the browser the PIN was typed into.
+function unlockedCashKeys(){ return state.cashUnlocks || (state.cashUnlocks = {}); }
 function cashRecordKey(date, staffId){ return date + '::' + staffId; }
+// Marks a record unlocked and pushes the change out immediately so other
+// devices don't have to wait for the person to type something else first.
+function setCashUnlock(key, info){
+  unlockedCashKeys()[key] = info;
+  scheduleAutosave();
+}
+// Clears an unlock (record re-locked, e.g. after Save) and syncs that too —
+// otherwise a device that missed the "Save" broadcast could still show the
+// record as unlocked/editable after someone else already saved it.
+function clearCashUnlock(key){
+  if(unlockedCashKeys()[key]){
+    delete unlockedCashKeys()[key];
+    scheduleAutosave();
+  }
+}
 
 function renderCashTab(){
   populateCashStaffSelect();
@@ -4993,7 +5163,7 @@ function renderCashTab(){
   // someone typed into it once and never hit Save. Only today's date
   // stays freely editable while it's actively being entered.
   const isPastDate = date < todayStr();
-  const isLockedRecord = !!(existing && (existing.savedAt || isPastDate)) && !unlockedCashKeys[cashRecordKey(date, staffId)];
+  const isLockedRecord = !!(existing && (existing.savedAt || isPastDate)) && !unlockedCashKeys()[cashRecordKey(date, staffId)];
   applyCashLockState(isLockedRecord, existing);
 
   document.getElementById('denomGrid').innerHTML = NOTES.map(d=>`
@@ -5105,7 +5275,7 @@ function renderCashCorrectionHistory(existing){
 // must never silently put it into an editable state that a stray
 // keystroke or the autosave could overwrite.
 function loadCashRecordReadOnly(date, sid){
-  delete unlockedCashKeys[cashRecordKey(date, sid)];
+  clearCashUnlock(cashRecordKey(date, sid));
   document.getElementById('cashDate').value = date;
   document.getElementById('cashStaff').value = sid;
   renderCashTab();
@@ -5140,7 +5310,10 @@ function submitCorrectionUnlock(){
   }
   const date = document.getElementById('cashDate').value;
   const staffId = document.getElementById('cashStaff').value;
-  unlockedCashKeys[cashRecordKey(date, staffId)] = { reason, at: new Date().toISOString() };
+  // Record who unlocked it, not just when — helps trace an approval back
+  // to whoever actually entered the PIN, since the PIN itself is shared.
+  const approver = currentUser ? (currentUser.role === 'admin' ? 'Admin' : (currentUser.staffName || 'Staff')) : '';
+  setCashUnlock(cashRecordKey(date, staffId), { reason, at: new Date().toISOString(), approvedBy: approver || undefined });
   closeCorrectionModal();
   renderCashTab();
 }
@@ -5270,7 +5443,7 @@ function calcCash(){
   // this guard it would just re-save the same values right back — which
   // defeats the point of a distinct, logged correction step.
   const existingRec = state.cash[date] && state.cash[date][staffId];
-  const isLockedForSync = !!(existingRec && (existingRec.savedAt || date < todayStr())) && !unlockedCashKeys[cashRecordKey(date, staffId)];
+  const isLockedForSync = !!(existingRec && (existingRec.savedAt || date < todayStr())) && !unlockedCashKeys()[cashRecordKey(date, staffId)];
   if(hasData && !isLockedForSync){
     if(!state.cash[date]) state.cash[date] = {};
     // Preserve the existing savedAt timestamp (set only by the explicit
@@ -5317,7 +5490,7 @@ function saveCash(){
   const staffId = document.getElementById('cashStaff').value;
   const key = cashRecordKey(date, staffId);
   const priorRec = state.cash[date] && state.cash[date][staffId];
-  const wasCorrection = !!(priorRec && priorRec.savedAt) && !!unlockedCashKeys[key];
+  const wasCorrection = !!(priorRec && priorRec.savedAt) && !!unlockedCashKeys()[key];
 
   const c = calcCash();
   // calcCash() above already writes the live entry into state.cash; this
@@ -5333,7 +5506,7 @@ function saveCash(){
   // entry with the old values, the reason given, and when the correction
   // was made — rather than silently discarding what it used to say.
   if(wasCorrection){
-    const corrInfo = unlockedCashKeys[key];
+    const corrInfo = unlockedCashKeys()[key];
     rec.savedAt = priorRec.savedAt;
     rec.corrections = (priorRec.corrections || []).concat([{
       reason: corrInfo.reason,
@@ -5355,8 +5528,11 @@ function saveCash(){
 
   state.cash[date][staffId] = rec;
   // Saving re-locks the record — a correction is a one-time, logged
-  // action, not a standing "editable" state to leave open.
-  delete unlockedCashKeys[key];
+  // action, not a standing "editable" state to leave open. This is folded
+  // into the very same autosave as the record itself (not a separate
+  // scheduleAutosave() call from clearCashUnlock) so the "record saved" +
+  // "unlock cleared" always land on the server together, atomically.
+  delete unlockedCashKeys()[key];
 
   const savedTimeStr = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.getElementById('cashSavedHint').textContent = wasCorrection
@@ -6996,6 +7172,49 @@ window.addEventListener('message', function(ev){
 // added and a deadline assigned, the countdown/alert keeps running in the
 // background even if the user switches to another tab of the app.
 initBusCashFrame();
+</script>
+
+<script>
+// ---- Responsive safety net: auto-wrap any <table> in the main document
+// that isn't already inside a horizontally-scrollable container, so a
+// wide table can never force the whole page to scroll sideways on a
+// phone. Tables inside the embedded Cash Ledger / Bus Cash iframes are
+// separate documents and untouched by this. Runs once, after the DOM
+// (including all the dynamically-rendered tabs) is in place.
+(function(){
+  function isInScrollWrap(el){
+    var node = el.parentElement;
+    while(node && node !== document.body){
+      var cs = window.getComputedStyle(node);
+      if (cs.overflowX === 'auto' || cs.overflowX === 'scroll') return true;
+      if (node.classList && (node.classList.contains('duty-table-wrap') || node.classList.contains('table-autoscroll'))) return true;
+      node = node.parentElement;
+    }
+    return false;
+  }
+  function wrapTables(){
+    document.querySelectorAll('table').forEach(function(t){
+      if (t.closest('.table-autoscroll, .duty-table-wrap')) return;
+      if (isInScrollWrap(t)) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'table-autoscroll';
+      t.parentNode.insertBefore(wrap, t);
+      wrap.appendChild(t);
+    });
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', wrapTables);
+  } else {
+    wrapTables();
+  }
+  // Some tabs/tables are rendered dynamically after initial load — catch
+  // those too, lightly debounced so it doesn't run on every tiny change.
+  var t;
+  new MutationObserver(function(){
+    clearTimeout(t);
+    t = setTimeout(wrapTables, 300);
+  }).observe(document.body, {childList:true, subtree:true});
+})();
 </script>
 
 </body>
