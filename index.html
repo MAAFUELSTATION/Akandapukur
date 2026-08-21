@@ -1150,8 +1150,8 @@
 
 <div class="recover-overlay" id="recoverOverlay">
   <div class="recover-box">
-    <h3>🔑 Recover a login</h3>
-    <div class="recover-note">This console's login is a casual-visitor lock, not real account security — so it's fine to show credentials here to whoever can already open this browser. Tap a name to copy its password, or reset it below.</div>
+    <h3>🔑 Recover a login ID</h3>
+    <div class="recover-note">Passwords aren't shown here — only login IDs. Admin can look up (and reveal) any staff password after signing in, from the Admin tab. If it's the admin password itself that's forgotten, reset it below.</div>
     <ul class="recover-list" id="recoverList"></ul>
     <div class="recover-actions">
       <button type="button" id="recoverResetAdminBtn">Reset admin password</button>
@@ -2781,22 +2781,24 @@ function authenticate(username, password){
 
 /* ============== FORGOT PASSWORD / RECOVERY ==============
    The login above is a casual-visitor lock, not real security (see the
-   note at the top of this script) — credentials already sit in plain text
-   in `state` before anyone signs in, and were always inspectable via the
-   browser console. This just surfaces that same information through a
-   proper UI instead of requiring DevTools, plus a way to reset the admin
-   password if it's been forgotten entirely. */
+   note at the top of this script). This modal helps someone recall their
+   *login ID* without opening DevTools — but passwords are intentionally
+   NOT shown here, even though they're technically visible in `state` to
+   anyone who knows to look. Only the Admin tab (which requires actually
+   being logged in as admin) reveals passwords — see "Staff Login IDs &
+   Passwords" there. If admin's own password is forgotten, it can be reset
+   below (no old password needed, matching the casual-lock model). */
 function renderRecoverList(){
   ensureStaffCredentials(); // guarantees state.adminAccount and every staff record has creds
   const list = document.getElementById('recoverList');
   if(!list) return;
   const admin = state.adminAccount || {username:'admin', password:'admin123'};
-  const rows = [{label:'🔑 Admin', name: admin.username, pass: admin.password}]
-    .concat((state.staff||[]).map(s => ({label: s.name, name: s.username, pass: s.password})));
+  const rows = [{label:'🔑 Admin', name: admin.username}]
+    .concat((state.staff||[]).map(s => ({label: s.name, name: s.username})));
   list.innerHTML = rows.map(r => `
     <li>
       <span class="rl-name">${escapeHtml(r.label)}</span>
-      <span class="rl-creds">${escapeHtml(r.name)} / ${escapeHtml(r.pass)}</span>
+      <span class="rl-creds">${escapeHtml(r.name)}</span>
     </li>
   `).join('');
 }
@@ -2809,16 +2811,14 @@ function closeRecoverModal(){
 }
 function resetAdminPassword(){
   ensureStaffCredentials();
-  const current = state.adminAccount.password;
-  const next = prompt('Set a new admin password (current one is "' + current + '" in case you just want to note it down instead):');
+  const next = prompt('Set a new admin password:');
   if(next === null) return; // cancelled
   const trimmed = next.trim();
   if(!trimmed){ alert('Password cannot be empty — nothing was changed.'); return; }
   state.adminAccount.password = trimmed;
   try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
   if(typeof scheduleAutosave === 'function') scheduleAutosave();
-  renderRecoverList();
-  alert('Admin password updated to "' + trimmed + '". Use it to log in now.');
+  alert('Admin password updated. Use it to log in now.');
 }
 (function initRecoverModal(){
   const forgotBtn = document.getElementById('forgotPasswordBtn');
