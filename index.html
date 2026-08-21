@@ -5304,7 +5304,15 @@ function submitCorrectionUnlock(){
   const pin = document.getElementById('correctionPin').value.trim();
   const reason = document.getElementById('correctionReason').value.trim();
   const errEl = document.getElementById('correctionModalError');
-  if(pin !== getCashEditPin() || !reason){
+  const pinOk = pin === getCashEditPin();
+  if(!pinOk || !reason){
+    // Distinct messages: a correct PIN with a blank Reason field used to
+    // show the exact same "Incorrect PIN..." text as a wrong PIN, which
+    // made a valid PIN look rejected. Tell the person exactly what's
+    // missing instead.
+    if(!pinOk && !reason) errEl.textContent = 'Incorrect PIN, and a reason is required. Please try again.';
+    else if(!pinOk) errEl.textContent = 'Incorrect PIN. Please check the PIN and try again.';
+    else errEl.textContent = 'Please enter a reason for the correction.';
     errEl.classList.add('show');
     return;
   }
