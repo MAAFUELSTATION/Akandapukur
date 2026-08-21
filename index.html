@@ -2179,10 +2179,10 @@ const AUTH_STORAGE_KEY = 'maaFuelStationAuth_v2';
 let currentUser = null;
 function isAdmin(){ return !!currentUser && currentUser.role === 'admin'; }
 function isStaffUser(){ return !!currentUser && currentUser.role === 'staff'; }
-// A staff login only ever gets these two tabs — every other tab is hidden
-// from the nav AND refused by switchTab() below, so there's no button to
-// click and no way to force navigation into another tab's data either.
-const STAFF_ALLOWED_TABS = ['sales','cash'];
+// Staff logins get these tabs — every other tab is hidden from the nav
+// AND refused by switchTab() below, so there's no button to click and no
+// way to force navigation into another tab's data either.
+const STAFF_ALLOWED_TABS = ['sales','cash','dipchart'];
 function currentStaffId(){ return isStaffUser() ? currentUser.staffId : null; }
 // Whether the signed-in user is allowed to see data belonging to staff id `sid`.
 // Admin sees everyone; a staff login only ever sees their own id.
