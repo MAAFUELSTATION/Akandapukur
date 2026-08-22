@@ -94,40 +94,6 @@
   header.top .right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   header.top .date-live{font-family:'JetBrains Mono',monospace;background:var(--navy2);padding:8px 14px;border-radius:6px;font-size:13px;border:1px solid #2a4d68;}
 
-  /* ---- Top news marquee: horizontal scrolling ticker of oil/fuel headlines ---- */
-  .news-marquee{
-    background:var(--navy2); color:#fff; border-bottom:1px solid #2a4d68;
-    display:flex; align-items:center; overflow:hidden; position:relative;
-  }
-  .news-marquee .nm-label{
-    flex-shrink:0; display:flex; align-items:center; gap:6px;
-    background:var(--petrol); color:#fff; font-weight:700; font-size:12px;
-    letter-spacing:0.5px; text-transform:uppercase; padding:8px 14px;
-    white-space:nowrap; z-index:2; box-shadow:2px 0 8px rgba(0,0,0,0.15);
-  }
-  .news-marquee .nm-track-wrap{ flex:1; overflow:hidden; position:relative; height:34px; }
-  .news-marquee .nm-track{
-    position:absolute; top:0; left:0; display:flex; align-items:center; height:34px;
-    white-space:nowrap; will-change:transform;
-    animation:nm-scroll 45s linear infinite;
-  }
-  .news-marquee .nm-track:hover{ animation-play-state:paused; }
-  .news-marquee .nm-item{
-    display:inline-flex; align-items:center; gap:8px; padding:0 28px;
-    font-size:13px; color:#E7EEF3; text-decoration:none; white-space:nowrap;
-  }
-  .news-marquee .nm-item:hover{ color:#fff; text-decoration:underline; }
-  .news-marquee .nm-item .nm-dot{ color:var(--petrol); font-size:10px; }
-  .news-marquee .nm-refresh{
-    flex-shrink:0; background:none; border:none; color:#C9D6DF; cursor:pointer;
-    font-size:14px; padding:8px 12px; z-index:2;
-  }
-  .news-marquee .nm-refresh:hover{ color:#fff; }
-  @keyframes nm-scroll{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
-  @media (max-width:640px){
-    .news-marquee .nm-label{ padding:8px 10px; font-size:11px; }
-    .news-marquee .nm-item{ font-size:12px; padding:0 20px; }
-  }
   .autosave-indicator{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9FD6C4;background:var(--navy2);padding:7px 12px;border-radius:6px;border:1px solid #2a4d68;white-space:nowrap;}
   /* ---- Server status badge (Active / Sleeping / Waking / Unreachable) ---- */
   .autosave-indicator.server-status-active{color:#8FE3B0;}
@@ -358,8 +324,11 @@
   #tab-sales .readouts .digit-box.petrol{border-left-color:var(--petrol);}
   #tab-sales .readouts .digit-box.petrol .val{color:var(--petrol-dark);text-shadow:none;}
   #tab-sales .readouts .digit-box.shortfall{border-left-color:var(--shortfall);background:#FDF2F1;}
-  /* Testing totals need extra room: show the complete label and both 20 L prices. */
-  #tab-sales .readouts .digit-box.shortfall{flex:1.45 1 290px;min-width:290px;}
+  /* Testing totals need extra room: show the complete label and both 20 L prices.
+     .readouts is a CSS grid, so use grid-column spanning (not flex/min-width,
+     which don't apply to grid items and were causing this card to overflow
+     its column and overlap the next one). */
+  #tab-sales .readouts .digit-box.shortfall{grid-column:span 2;min-width:0;}
   #tab-sales .readouts .digit-box.shortfall .lbl{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35;min-height:27px;}
   #tab-sales .readouts .digit-box.shortfall .val{color:var(--shortfall);font-size:14px;text-shadow:none;line-height:1.5;}
   #tab-sales .readouts .digit-box.total{
@@ -679,6 +648,7 @@
     #tab-sales .fds-net-strip{grid-template-columns:1fr;display:grid;gap:10px;padding:14px;}
     #tab-sales .readouts .digit-box,
     #tab-sales .fds-net-tile{min-width:0;width:100%;flex-basis:auto;}
+    #tab-sales .readouts .digit-box.shortfall{grid-column:auto;}
     #tab-sales .readouts .digit-box.total .val{font-size:23px;}
     #tab-dipchart .readouts{grid-template-columns:1fr;display:grid;gap:10px;padding:14px;}
     #tab-dipchart .readouts .digit-box{min-width:0;width:100%;flex-basis:auto;}
@@ -1371,19 +1341,6 @@ input[type=date], input[type=password], select, textarea{
     </div>
   </div>
 </header>
-
-<!-- Top news marquee: horizontal scrolling ticker of live petrol/diesel &
-     petroleum ministry headlines, pulled from the same feed as the Oil
-     Market News tab, so it's visible no matter which tab is open. -->
-<div class="news-marquee" id="newsMarquee">
-  <div class="nm-label">📰 Top News</div>
-  <div class="nm-track-wrap">
-    <div class="nm-track" id="newsMarqueeTrack">
-      <span class="nm-item">Loading latest petrol/diesel &amp; petroleum ministry headlines…</span>
-    </div>
-  </div>
-  <button class="nm-refresh" onclick="loadOilNews()" title="Refresh top news">🔄</button>
-</div>
 
 <!-- Grouped navigation: pick a category, then a tab within it — keeps every
      row short instead of one 13-item strip. switchTab() auto-expands the
