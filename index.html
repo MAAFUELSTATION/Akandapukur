@@ -16,7 +16,7 @@
   try{
     var t = window.localStorage.getItem('maaFuelStationTheme_v1');
     if(!t){ t = 'stone'; try{ window.localStorage.setItem('maaFuelStationTheme_v1', t); }catch(e){} }
-    if(t === 'stone' || t === 'neon-purple') document.documentElement.setAttribute('data-theme', t);
+    if(t === 'stone' || t === 'citrus' || t === 'neon-purple') document.documentElement.setAttribute('data-theme', t);
   }catch(e){}
 })();
 </script>
@@ -195,7 +195,7 @@
   }
   .nav-crumb .crumb-sep{opacity:.5;}
   .nav-crumb .crumb-current{color:var(--navy); font-weight:700;}
-  [data-theme="stone"] .nav-crumb .crumb-current, [data-theme="neon-purple"] .nav-crumb .crumb-current{color:var(--ink);}
+ [data-theme="stone"] .nav-crumb .crumb-current, [data-theme="neon-purple"] .nav-crumb .crumb-current, [data-theme="citrus"] .nav-crumb .crumb-current{color:var(--ink);}
 
   main{max-width:1220px;margin:0 auto;padding:26px 20px;}
   section.tab{display:none;}
@@ -807,8 +807,8 @@
     font-size:12px; color:var(--muted); text-decoration:underline; letter-spacing:.2px;
   }
   .login-forgot button:hover{ color:var(--petrol-dark); }
-  [data-theme="stone"] .login-forgot button, [data-theme="neon-purple"] .login-forgot button{ color:var(--ink); opacity:.7; }
-  [data-theme="stone"] .login-forgot button:hover, [data-theme="neon-purple"] .login-forgot button:hover{ opacity:1; }
+ [data-theme="stone"] .login-forgot button, [data-theme="neon-purple"] .login-forgot button, [data-theme="citrus"] .login-forgot button{ color:var(--ink); opacity:.7; }
+ [data-theme="stone"] .login-forgot button:hover, [data-theme="neon-purple"] .login-forgot button:hover, [data-theme="citrus"] .login-forgot button:hover{ opacity:1; }
 
   /* ---- Forgot-password recovery modal ---- */
   .recover-overlay{
@@ -821,7 +821,7 @@
     padding:22px 22px 18px; box-shadow:0 20px 60px rgba(0,0,0,.35);
     max-height:80vh; overflow-y:auto;
   }
-  [data-theme="stone"] .recover-box, [data-theme="neon-purple"] .recover-box{
+ [data-theme="stone"] .recover-box, [data-theme="neon-purple"] .recover-box, [data-theme="citrus"] .recover-box{
     background:#161327; color:var(--ink); border:1px solid var(--theme-border);
   }
   .recover-box h3{ margin:0 0 4px; font-size:16px; }
@@ -831,7 +831,7 @@
     display:flex; justify-content:space-between; gap:10px; padding:8px 0;
     border-bottom:1px solid rgba(0,0,0,.08); font-size:13px;
   }
-  [data-theme="stone"] .recover-list li, [data-theme="neon-purple"] .recover-list li{ border-bottom-color:rgba(255,255,255,.1); }
+ [data-theme="stone"] .recover-list li, [data-theme="neon-purple"] .recover-list li, [data-theme="citrus"] .recover-list li{ border-bottom-color:rgba(255,255,255,.1); }
   .recover-list li .rl-name{ font-weight:600; }
   .recover-list li .rl-creds{ font-family:monospace; text-align:right; color:var(--muted); }
   .recover-actions{ display:flex; gap:8px; margin-top:10px; }
@@ -966,134 +966,156 @@
     --theme-border:rgba(199,125,255,.20);
     --theme-bg-tint-1:rgba(199,125,255,.14); --theme-bg-tint-2:rgba(255,79,216,.12);
   }
- [data-theme="stone"] body, [data-theme="neon-purple"] body{
+  /* ================================================================
+     CITRUS BURGER THEME
+     Toggled by setting data-theme="citrus" on <html>. Palette lifted
+     from a burger-joint landing page: a punchy yellow-green
+     background, deep forest-green chrome and text, a burnt-orange
+     accent (from the "See our menu!" starburst badge) for buttons
+     and active states, and a golden-brown secondary accent (from
+     the bun crust). Bright, high-contrast, playful. Shares every
+     structural override rule with the neon-purple theme (both use
+     the same selector list) — only the palette variables differ.
+     ================================================================ */
+  [data-theme="citrus"]{
+    --navy:#193F27; --navy2:#2A4F35; --cream:#EFF483; --paper:#FFFDF0;
+    --ink:#193F27; --muted:#5C7259; --line:rgba(25,63,39,.16);
+    --diesel:#E9A417; --diesel-dark:#BD830F; --diesel-glow:#F4C463;
+    --petrol:#ED6B2D; --petrol-dark:#C2551E; --petrol-glow:#FF9A63;
+    --morning:#E9A417; --afternoon:#ED6B2D; --night:#2A4F35;
+    --surplus:#3F7A4A; --shortfall:#C2551E;
+    --theme-glow-a:rgba(237,107,45,.35); --theme-glow-b:rgba(233,164,23,.28);
+    --theme-border:rgba(25,63,39,.16);
+    --theme-bg-tint-1:rgba(239,244,131,.35); --theme-bg-tint-2:rgba(237,107,45,.08);
+  }
+ [data-theme="stone"] body, [data-theme="neon-purple"] body, [data-theme="citrus"] body{
     background:
       radial-gradient(1200px 700px at 8% -8%, var(--theme-bg-tint-1), transparent 55%),
       radial-gradient(1000px 650px at 105% 0%, var(--theme-bg-tint-2), transparent 55%),
       var(--cream);
     color:var(--ink);
   }
- [data-theme="stone"] h1, [data-theme="neon-purple"] h1, [data-theme="stone"] h2, [data-theme="neon-purple"] h2, [data-theme="stone"] h3, [data-theme="neon-purple"] h3{color:var(--ink);}
- [data-theme="stone"] header.top h1, [data-theme="stone"] header.top .sub{color:#fff;}
- [data-theme="stone"] header.top, [data-theme="neon-purple"] header.top{box-shadow:0 2px 24px color-mix(in srgb, var(--petrol) 18%, transparent);}
- [data-theme="stone"] header.top .date-live, [data-theme="neon-purple"] header.top .date-live, [data-theme="stone"] .autosave-indicator, [data-theme="neon-purple"] .autosave-indicator{border-color:var(--theme-border);}
- [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active{text-shadow:0 0 12px var(--theme-glow-a);}
- [data-theme="stone"] nav.tab-groups button.active, [data-theme="neon-purple"] nav.tab-groups button.active{text-shadow:0 0 12px var(--theme-glow-a);}
- [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active{
+ [data-theme="stone"] h1, [data-theme="neon-purple"] h1, [data-theme="stone"] h2, [data-theme="neon-purple"] h2, [data-theme="stone"] h3, [data-theme="neon-purple"] h3, [data-theme="citrus"] h1, [data-theme="citrus"] h2, [data-theme="citrus"] h3{color:var(--ink);}
+ [data-theme="stone"] header.top h1, [data-theme="stone"] header.top .sub, [data-theme="citrus"] header.top h1, [data-theme="citrus"] header.top .sub{color:#fff;}
+ [data-theme="stone"] header.top, [data-theme="neon-purple"] header.top, [data-theme="citrus"] header.top{box-shadow:0 2px 24px color-mix(in srgb, var(--petrol) 18%, transparent);}
+ [data-theme="stone"] header.top .date-live, [data-theme="neon-purple"] header.top .date-live, [data-theme="stone"] .autosave-indicator, [data-theme="neon-purple"] .autosave-indicator, [data-theme="citrus"] header.top .date-live, [data-theme="citrus"] .autosave-indicator{border-color:var(--theme-border);}
+ [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active, [data-theme="citrus"] nav.tabs button.active{text-shadow:0 0 12px var(--theme-glow-a);}
+ [data-theme="stone"] nav.tab-groups button.active, [data-theme="neon-purple"] nav.tab-groups button.active, [data-theme="citrus"] nav.tab-groups button.active{text-shadow:0 0 12px var(--theme-glow-a);}
+ [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active, [data-theme="citrus"] nav.tabs button.active{
     background:var(--petrol); color:#fff; box-shadow:0 2px 10px color-mix(in srgb, var(--petrol) 45%, transparent);
   }
-  [data-theme="stone"] nav.tabs button.active:hover, [data-theme="neon-purple"] nav.tabs button.active:hover{background:var(--petrol); color:#fff;}
- [data-theme="stone"] #themeSelect, [data-theme="neon-purple"] #themeSelect{background:color-mix(in srgb, var(--petrol) 15%, transparent);border-color:var(--petrol);}
- [data-theme="stone"] #themeSelect option, [data-theme="neon-purple"] #themeSelect option{color:var(--ink);background:var(--paper);}
+ [data-theme="stone"] nav.tabs button.active:hover, [data-theme="neon-purple"] nav.tabs button.active:hover, [data-theme="citrus"] nav.tabs button.active:hover{background:var(--petrol); color:#fff;}
+ [data-theme="stone"] #themeSelect, [data-theme="neon-purple"] #themeSelect, [data-theme="citrus"] #themeSelect{background:color-mix(in srgb, var(--petrol) 15%, transparent);border-color:var(--petrol);}
+ [data-theme="stone"] #themeSelect option, [data-theme="neon-purple"] #themeSelect option, [data-theme="citrus"] #themeSelect option{color:var(--ink);background:var(--paper);}
 
- [data-theme="stone"] .card, [data-theme="neon-purple"] .card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);}
- [data-theme="stone"] .card h2, [data-theme="neon-purple"] .card h2{color:var(--ink);}
- [data-theme="stone"] th, [data-theme="neon-purple"] th{color:var(--ink);}
- [data-theme="stone"] tfoot td, [data-theme="neon-purple"] tfoot td{background:rgba(255,255,255,.045);color:var(--ink);}
- [data-theme="stone"] tr.duty-today td, [data-theme="neon-purple"] tr.duty-today td{background:rgba(255,199,95,.09);}
+ [data-theme="stone"] .card, [data-theme="neon-purple"] .card, [data-theme="citrus"] .card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);}
+ [data-theme="stone"] .card h2, [data-theme="neon-purple"] .card h2, [data-theme="citrus"] .card h2{color:var(--ink);}
+ [data-theme="stone"] th, [data-theme="neon-purple"] th, [data-theme="citrus"] th{color:var(--ink);}
+ [data-theme="stone"] tfoot td, [data-theme="neon-purple"] tfoot td, [data-theme="citrus"] tfoot td{background:rgba(255,255,255,.045);color:var(--ink);}
+ [data-theme="stone"] tr.duty-today td, [data-theme="neon-purple"] tr.duty-today td, [data-theme="citrus"] tr.duty-today td{background:rgba(255,199,95,.09);}
 
- [data-theme="stone"] .field input, [data-theme="neon-purple"] .field input, [data-theme="stone"] .field select, [data-theme="neon-purple"] .field select, [data-theme="stone"] td input, [data-theme="neon-purple"] td input, [data-theme="stone"] .staff-row input, [data-theme="neon-purple"] .staff-row input, [data-theme="stone"] .nozzle-row select, [data-theme="neon-purple"] .nozzle-row select{
+ [data-theme="stone"] .field input, [data-theme="neon-purple"] .field input, [data-theme="stone"] .field select, [data-theme="neon-purple"] .field select, [data-theme="stone"] td input, [data-theme="neon-purple"] td input, [data-theme="stone"] .staff-row input, [data-theme="neon-purple"] .staff-row input, [data-theme="stone"] .nozzle-row select, [data-theme="neon-purple"] .nozzle-row select, [data-theme="citrus"] .field input, [data-theme="citrus"] .field select, [data-theme="citrus"] td input, [data-theme="citrus"] .staff-row input, [data-theme="citrus"] .nozzle-row select{
     background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);
   }
- [data-theme="stone"] .field input:focus, [data-theme="neon-purple"] .field input:focus, [data-theme="stone"] .field select:focus, [data-theme="neon-purple"] .field select:focus{outline-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
- [data-theme="stone"] ::placeholder, [data-theme="neon-purple"] ::placeholder{color:rgba(236,233,251,.35);}
+ [data-theme="stone"] .field input:focus, [data-theme="neon-purple"] .field input:focus, [data-theme="stone"] .field select:focus, [data-theme="neon-purple"] .field select:focus, [data-theme="citrus"] .field input:focus, [data-theme="citrus"] .field select:focus{outline-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
+ [data-theme="stone"] ::placeholder, [data-theme="neon-purple"] ::placeholder, [data-theme="citrus"] ::placeholder{color:rgba(236,233,251,.35);}
 
- [data-theme="stone"] button.btn.amber, [data-theme="neon-purple"] button.btn.amber{color:#fff;box-shadow:0 0 18px var(--theme-glow-a);}
- [data-theme="stone"] button.btn.amber:hover, [data-theme="neon-purple"] button.btn.amber:hover{box-shadow:0 0 26px var(--theme-glow-a);}
- [data-theme="stone"] button.btn.ghost, [data-theme="neon-purple"] button.btn.ghost{border-color:var(--theme-border);}
- [data-theme="stone"] button.btn.ghost:hover, [data-theme="neon-purple"] button.btn.ghost:hover{border-color:var(--petrol);}
- [data-theme="stone"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="neon-purple"] button.btn:not(.amber):not(.ghost):not(.danger){box-shadow:0 0 14px var(--theme-glow-b);}
+ [data-theme="stone"] button.btn.amber, [data-theme="neon-purple"] button.btn.amber, [data-theme="citrus"] button.btn.amber{color:#fff;box-shadow:0 0 18px var(--theme-glow-a);}
+ [data-theme="stone"] button.btn.amber:hover, [data-theme="neon-purple"] button.btn.amber:hover, [data-theme="citrus"] button.btn.amber:hover{box-shadow:0 0 26px var(--theme-glow-a);}
+ [data-theme="stone"] button.btn.ghost, [data-theme="neon-purple"] button.btn.ghost, [data-theme="citrus"] button.btn.ghost{border-color:var(--theme-border);}
+ [data-theme="stone"] button.btn.ghost:hover, [data-theme="neon-purple"] button.btn.ghost:hover, [data-theme="citrus"] button.btn.ghost:hover{border-color:var(--petrol);}
+ [data-theme="stone"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="neon-purple"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="citrus"] button.btn:not(.amber):not(.ghost):not(.danger){box-shadow:0 0 14px var(--theme-glow-b);}
 
- [data-theme="stone"] .duty-chip, [data-theme="neon-purple"] .duty-chip{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
- [data-theme="stone"] .duty-chip.manual, [data-theme="neon-purple"] .duty-chip.manual{color:#fff;}
- [data-theme="stone"] .duty-add, [data-theme="neon-purple"] .duty-add{color:var(--muted);}
+ [data-theme="stone"] .duty-chip, [data-theme="neon-purple"] .duty-chip, [data-theme="citrus"] .duty-chip{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
+ [data-theme="stone"] .duty-chip.manual, [data-theme="neon-purple"] .duty-chip.manual, [data-theme="citrus"] .duty-chip.manual{color:#fff;}
+ [data-theme="stone"] .duty-add, [data-theme="neon-purple"] .duty-add, [data-theme="citrus"] .duty-add{color:var(--muted);}
 
  [data-theme="neon-purple"] .digit-box{background:#0A0716;border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.65),0 0 16px color-mix(in srgb, var(--petrol) 10%, transparent);}
- [data-theme="stone"] .digit-box{background:var(--navy);border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.35);}
- [data-theme="stone"] .digit-box .val{color:#fff;}
+ [data-theme="stone"] .digit-box, [data-theme="citrus"] .digit-box{background:var(--navy);border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.35);}
+ [data-theme="stone"] .digit-box .val, [data-theme="citrus"] .digit-box .val{color:#fff;}
 
- [data-theme="stone"] .stat-card, [data-theme="neon-purple"] .stat-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 2px 10px rgba(0,0,0,.4);}
- [data-theme="stone"] .stat-card .val, [data-theme="neon-purple"] .stat-card .val{color:var(--ink);}
- [data-theme="stone"] .stat-card.diesel, [data-theme="neon-purple"] .stat-card.diesel{background:color-mix(in srgb, var(--diesel) 7%, transparent);}
- [data-theme="stone"] .stat-card.petrol, [data-theme="neon-purple"] .stat-card.petrol{background:color-mix(in srgb, var(--petrol) 7%, transparent);}
- [data-theme="stone"] .stat-card.total, [data-theme="neon-purple"] .stat-card.total{background:rgba(140,124,255,.09);}
- [data-theme="stone"] .stat-card.total .val, [data-theme="neon-purple"] .stat-card.total .val{color:var(--ink);}
- [data-theme="stone"] .stat-card.shortfall, [data-theme="neon-purple"] .stat-card.shortfall{background:rgba(255,77,109,.08);}
+ [data-theme="stone"] .stat-card, [data-theme="neon-purple"] .stat-card, [data-theme="citrus"] .stat-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 2px 10px rgba(0,0,0,.4);}
+ [data-theme="stone"] .stat-card .val, [data-theme="neon-purple"] .stat-card .val, [data-theme="citrus"] .stat-card .val{color:var(--ink);}
+ [data-theme="stone"] .stat-card.diesel, [data-theme="neon-purple"] .stat-card.diesel, [data-theme="citrus"] .stat-card.diesel{background:color-mix(in srgb, var(--diesel) 7%, transparent);}
+ [data-theme="stone"] .stat-card.petrol, [data-theme="neon-purple"] .stat-card.petrol, [data-theme="citrus"] .stat-card.petrol{background:color-mix(in srgb, var(--petrol) 7%, transparent);}
+ [data-theme="stone"] .stat-card.total, [data-theme="neon-purple"] .stat-card.total, [data-theme="citrus"] .stat-card.total{background:rgba(140,124,255,.09);}
+ [data-theme="stone"] .stat-card.total .val, [data-theme="neon-purple"] .stat-card.total .val, [data-theme="citrus"] .stat-card.total .val{color:var(--ink);}
+ [data-theme="stone"] .stat-card.shortfall, [data-theme="neon-purple"] .stat-card.shortfall, [data-theme="citrus"] .stat-card.shortfall{background:rgba(255,77,109,.08);}
 
- [data-theme="stone"] #tab-sales .card, [data-theme="neon-purple"] #tab-sales .card{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .card > h2, [data-theme="neon-purple"] #tab-sales .card > h2{color:var(--ink);}
- [data-theme="stone"] #tab-sales .divider, [data-theme="neon-purple"] #tab-sales .divider{background:var(--theme-border);}
- [data-theme="stone"] #tab-sales .rate-card, [data-theme="neon-purple"] #tab-sales .rate-card{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 7%, transparent) 0%,color-mix(in srgb, var(--petrol) 6%, transparent) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .rate-card::before, [data-theme="neon-purple"] #tab-sales .rate-card::before{color:var(--muted);}
- [data-theme="stone"] #tab-sales .rate-card .field input, [data-theme="neon-purple"] #tab-sales .rate-card .field input{border-bottom-color:rgba(255,255,255,.25);}
- [data-theme="stone"] #tab-sales nav.shift-tabs, [data-theme="neon-purple"] #tab-sales nav.shift-tabs{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .shift-btn::before, [data-theme="neon-purple"] #tab-sales .shift-btn::before{background:rgba(255,255,255,.25);}
- [data-theme="stone"] #tab-sales .shift-btn:hover:not(.active), [data-theme="neon-purple"] #tab-sales .shift-btn:hover:not(.active){background:rgba(255,255,255,.06);color:var(--ink);}
- [data-theme="stone"] #tab-sales .readouts, [data-theme="neon-purple"] #tab-sales .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .readouts .digit-box, [data-theme="neon-purple"] #tab-sales .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .readouts .digit-box .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box .val{color:var(--ink);}
- [data-theme="stone"] #tab-sales .readouts .digit-box.shortfall, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.shortfall{background:rgba(255,77,109,.08);}
- [data-theme="stone"] #tab-sales .readouts .digit-box.total, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
- [data-theme="stone"] #tab-sales .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total .val{color:var(--ink);}
+ [data-theme="stone"] #tab-sales .card, [data-theme="neon-purple"] #tab-sales .card, [data-theme="citrus"] #tab-sales .card{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .card > h2, [data-theme="neon-purple"] #tab-sales .card > h2, [data-theme="citrus"] #tab-sales .card > h2{color:var(--ink);}
+ [data-theme="stone"] #tab-sales .divider, [data-theme="neon-purple"] #tab-sales .divider, [data-theme="citrus"] #tab-sales .divider{background:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .rate-card, [data-theme="neon-purple"] #tab-sales .rate-card, [data-theme="citrus"] #tab-sales .rate-card{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 7%, transparent) 0%,color-mix(in srgb, var(--petrol) 6%, transparent) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .rate-card::before, [data-theme="neon-purple"] #tab-sales .rate-card::before, [data-theme="citrus"] #tab-sales .rate-card::before{color:var(--muted);}
+ [data-theme="stone"] #tab-sales .rate-card .field input, [data-theme="neon-purple"] #tab-sales .rate-card .field input, [data-theme="citrus"] #tab-sales .rate-card .field input{border-bottom-color:rgba(255,255,255,.25);}
+ [data-theme="stone"] #tab-sales nav.shift-tabs, [data-theme="neon-purple"] #tab-sales nav.shift-tabs, [data-theme="citrus"] #tab-sales nav.shift-tabs{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .shift-btn::before, [data-theme="neon-purple"] #tab-sales .shift-btn::before, [data-theme="citrus"] #tab-sales .shift-btn::before{background:rgba(255,255,255,.25);}
+ [data-theme="stone"] #tab-sales .shift-btn:hover:not(.active), [data-theme="neon-purple"] #tab-sales .shift-btn:hover:not(.active), [data-theme="citrus"] #tab-sales .shift-btn:hover:not(.active){background:rgba(255,255,255,.06);color:var(--ink);}
+ [data-theme="stone"] #tab-sales .readouts, [data-theme="neon-purple"] #tab-sales .readouts, [data-theme="citrus"] #tab-sales .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box, [data-theme="neon-purple"] #tab-sales .readouts .digit-box, [data-theme="citrus"] #tab-sales .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box .val, [data-theme="citrus"] #tab-sales .readouts .digit-box .val{color:var(--ink);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box.shortfall, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.shortfall, [data-theme="citrus"] #tab-sales .readouts .digit-box.shortfall{background:rgba(255,77,109,.08);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box.total, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total, [data-theme="citrus"] #tab-sales .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
+ [data-theme="stone"] #tab-sales .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total .val, [data-theme="citrus"] #tab-sales .readouts .digit-box.total .val{color:var(--ink);}
 
- [data-theme="stone"] #tab-dipchart .readouts, [data-theme="neon-purple"] #tab-dipchart .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box .val{color:var(--ink);}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box.total, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total .val{color:var(--ink);}
+ [data-theme="stone"] #tab-dipchart .readouts, [data-theme="neon-purple"] #tab-dipchart .readouts, [data-theme="citrus"] #tab-dipchart .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box, [data-theme="citrus"] #tab-dipchart .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box .val, [data-theme="citrus"] #tab-dipchart .readouts .digit-box .val{color:var(--ink);}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box.total, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total, [data-theme="citrus"] #tab-dipchart .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="citrus"] #tab-dipchart .readouts .digit-box.total .val{color:var(--ink);}
 
- [data-theme="stone"] .unit-panel, [data-theme="neon-purple"] .unit-panel{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] .unit-head, [data-theme="neon-purple"] .unit-head{border-bottom-color:var(--theme-border);}
- [data-theme="stone"] .unit-head .unit-machine, [data-theme="neon-purple"] .unit-head .unit-machine{color:var(--ink);}
- [data-theme="stone"] .fuel-group.diesel, [data-theme="neon-purple"] .fuel-group.diesel{background:color-mix(in srgb, var(--diesel) 8%, transparent);}
- [data-theme="stone"] .fuel-group.petrol, [data-theme="neon-purple"] .fuel-group.petrol{background:color-mix(in srgb, var(--petrol) 8%, transparent);}
- [data-theme="stone"] .nozzle-row .meter-input, [data-theme="neon-purple"] .nozzle-row .meter-input{background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);}
- [data-theme="stone"] .nozzle-row .meter-input:disabled, [data-theme="neon-purple"] .nozzle-row .meter-input:disabled{background:rgba(255,255,255,.03);}
- [data-theme="stone"] .nz-chip, [data-theme="neon-purple"] .nz-chip{background:rgba(255,255,255,.04);}
- [data-theme="stone"] .fuel-group.diesel .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.diesel .nz-chip.litres{background:color-mix(in srgb, var(--diesel) 12%, transparent);border-color:color-mix(in srgb, var(--diesel) 25%, transparent);}
- [data-theme="stone"] .fuel-group.petrol .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.petrol .nz-chip.litres{background:color-mix(in srgb, var(--petrol) 12%, transparent);border-color:color-mix(in srgb, var(--petrol) 25%, transparent);}
- [data-theme="stone"] .nz-chip.amount, [data-theme="neon-purple"] .nz-chip.amount{color:var(--ink);background:rgba(255,255,255,.05);border-color:var(--theme-border);}
+ [data-theme="stone"] .unit-panel, [data-theme="neon-purple"] .unit-panel, [data-theme="citrus"] .unit-panel{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] .unit-head, [data-theme="neon-purple"] .unit-head, [data-theme="citrus"] .unit-head{border-bottom-color:var(--theme-border);}
+ [data-theme="stone"] .unit-head .unit-machine, [data-theme="neon-purple"] .unit-head .unit-machine, [data-theme="citrus"] .unit-head .unit-machine{color:var(--ink);}
+ [data-theme="stone"] .fuel-group.diesel, [data-theme="neon-purple"] .fuel-group.diesel, [data-theme="citrus"] .fuel-group.diesel{background:color-mix(in srgb, var(--diesel) 8%, transparent);}
+ [data-theme="stone"] .fuel-group.petrol, [data-theme="neon-purple"] .fuel-group.petrol, [data-theme="citrus"] .fuel-group.petrol{background:color-mix(in srgb, var(--petrol) 8%, transparent);}
+ [data-theme="stone"] .nozzle-row .meter-input, [data-theme="neon-purple"] .nozzle-row .meter-input, [data-theme="citrus"] .nozzle-row .meter-input{background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);}
+ [data-theme="stone"] .nozzle-row .meter-input:disabled, [data-theme="neon-purple"] .nozzle-row .meter-input:disabled, [data-theme="citrus"] .nozzle-row .meter-input:disabled{background:rgba(255,255,255,.03);}
+ [data-theme="stone"] .nz-chip, [data-theme="neon-purple"] .nz-chip, [data-theme="citrus"] .nz-chip{background:rgba(255,255,255,.04);}
+ [data-theme="stone"] .fuel-group.diesel .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.diesel .nz-chip.litres, [data-theme="citrus"] .fuel-group.diesel .nz-chip.litres{background:color-mix(in srgb, var(--diesel) 12%, transparent);border-color:color-mix(in srgb, var(--diesel) 25%, transparent);}
+ [data-theme="stone"] .fuel-group.petrol .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.petrol .nz-chip.litres, [data-theme="citrus"] .fuel-group.petrol .nz-chip.litres{background:color-mix(in srgb, var(--petrol) 12%, transparent);border-color:color-mix(in srgb, var(--petrol) 25%, transparent);}
+ [data-theme="stone"] .nz-chip.amount, [data-theme="neon-purple"] .nz-chip.amount, [data-theme="citrus"] .nz-chip.amount{color:var(--ink);background:rgba(255,255,255,.05);border-color:var(--theme-border);}
 
- [data-theme="stone"] #tab-sales #testingBlock, [data-theme="neon-purple"] #tab-sales #testingBlock{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.25);}
- [data-theme="stone"] #tab-sales .fds-testing-row, [data-theme="neon-purple"] #tab-sales .fds-testing-row{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,rgba(255,199,95,.06) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] .rate-card, [data-theme="neon-purple"] .rate-card, [data-theme="stone"] .fds-testing-row, [data-theme="neon-purple"] .fds-testing-row{background:rgba(255,199,95,.06);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales #testingBlock, [data-theme="neon-purple"] #tab-sales #testingBlock, [data-theme="citrus"] #tab-sales #testingBlock{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.25);}
+ [data-theme="stone"] #tab-sales .fds-testing-row, [data-theme="neon-purple"] #tab-sales .fds-testing-row, [data-theme="citrus"] #tab-sales .fds-testing-row{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,rgba(255,199,95,.06) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] .rate-card, [data-theme="neon-purple"] .rate-card, [data-theme="stone"] .fds-testing-row, [data-theme="neon-purple"] .fds-testing-row, [data-theme="citrus"] .rate-card, [data-theme="citrus"] .fds-testing-row{background:rgba(255,199,95,.06);border-color:var(--theme-border);}
 
- [data-theme="stone"] #tab-sales .ledger-wrap, [data-theme="neon-purple"] #tab-sales .ledger-wrap{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .ledger-wrap th, [data-theme="neon-purple"] #tab-sales .ledger-wrap th{color:#fff;}
- [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td{background:rgba(255,255,255,.025);}
- [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:hover td{background:color-mix(in srgb, var(--diesel) 6%, transparent);}
+ [data-theme="stone"] #tab-sales .ledger-wrap, [data-theme="neon-purple"] #tab-sales .ledger-wrap, [data-theme="citrus"] #tab-sales .ledger-wrap{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .ledger-wrap th, [data-theme="neon-purple"] #tab-sales .ledger-wrap th, [data-theme="citrus"] #tab-sales .ledger-wrap th{color:#fff;}
+ [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="citrus"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td{background:rgba(255,255,255,.025);}
+ [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="citrus"] #tab-sales .ledger-wrap tbody tr:hover td{background:color-mix(in srgb, var(--diesel) 6%, transparent);}
 
- [data-theme="stone"] .badge.surplus, [data-theme="neon-purple"] .badge.surplus{background:rgba(51,240,168,.12);}
- [data-theme="stone"] .badge.shortfall, [data-theme="neon-purple"] .badge.shortfall{background:rgba(255,77,109,.14);}
- [data-theme="stone"] .badge.matched, [data-theme="neon-purple"] .badge.matched{background:rgba(255,255,255,.06);}
+ [data-theme="stone"] .badge.surplus, [data-theme="neon-purple"] .badge.surplus, [data-theme="citrus"] .badge.surplus{background:rgba(51,240,168,.12);}
+ [data-theme="stone"] .badge.shortfall, [data-theme="neon-purple"] .badge.shortfall, [data-theme="citrus"] .badge.shortfall{background:rgba(255,77,109,.14);}
+ [data-theme="stone"] .badge.matched, [data-theme="neon-purple"] .badge.matched, [data-theme="citrus"] .badge.matched{background:rgba(255,255,255,.06);}
 
- [data-theme="stone"] .denom-cell, [data-theme="neon-purple"] .denom-cell{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
- [data-theme="stone"] .denom-cell:focus-within, [data-theme="neon-purple"] .denom-cell:focus-within{border-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
- [data-theme="stone"] .denom-cell.tier-high, [data-theme="neon-purple"] .denom-cell.tier-high{border-left-color:var(--diesel-dark);}
- [data-theme="stone"] .denom-cell.tier-high .note, [data-theme="neon-purple"] .denom-cell.tier-high .note{color:var(--diesel-dark);}
- [data-theme="stone"] .cc-ico, [data-theme="neon-purple"] .cc-ico{background:rgba(255,255,255,.06);}
- [data-theme="stone"] .cc-block-title, [data-theme="neon-purple"] .cc-block-title{color:var(--ink);}
- [data-theme="stone"] .cc-receipt, [data-theme="neon-purple"] .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);box-shadow:0 10px 30px color-mix(in srgb, var(--petrol) 15%, transparent);}
- [data-theme="stone"] .staff-fuel-item, [data-theme="neon-purple"] .staff-fuel-item{background:rgba(255,255,255,.05);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-cash .cc-header-card, [data-theme="neon-purple"] #tab-cash .cc-header-card{background:linear-gradient(118deg,color-mix(in srgb, var(--petrol) 8%, transparent) 0%,color-mix(in srgb, var(--diesel) 6%, transparent) 100%);}
- [data-theme="stone"] #tab-cash .cc-header-card h2, [data-theme="neon-purple"] #tab-cash .cc-header-card h2{color:var(--ink);}
- [data-theme="stone"] #tab-cash .cc-header-card .tag, [data-theme="neon-purple"] #tab-cash .cc-header-card .tag{background:rgba(255,199,95,.14);color:#FFC75F;}
- [data-theme="stone"] #tab-cash .cc-block, [data-theme="neon-purple"] #tab-cash .cc-block{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-cash .cc-block-title, [data-theme="neon-purple"] #tab-cash .cc-block-title{border-bottom-color:var(--theme-border);}
- [data-theme="stone"] #tab-cash .cc-block-title .tag, [data-theme="neon-purple"] #tab-cash .cc-block-title .tag{background:rgba(255,255,255,.06);}
- [data-theme="stone"] #tab-cash .denom-cell, [data-theme="neon-purple"] #tab-cash .denom-cell{background:rgba(255,255,255,.04);}
- [data-theme="stone"] #tab-cash .denom-cell:focus-within, [data-theme="neon-purple"] #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 3px var(--theme-glow-a);}
- [data-theme="stone"] #tab-cash .cash-counted-coins, [data-theme="neon-purple"] #tab-cash .cash-counted-coins{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.22);}
- [data-theme="stone"] #tab-cash .cc-receipt, [data-theme="neon-purple"] #tab-cash .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);}
- [data-theme="stone"] #tab-cash .cc-receipt-subtitle, [data-theme="neon-purple"] #tab-cash .cc-receipt-subtitle{color:var(--muted);}
+ [data-theme="stone"] .denom-cell, [data-theme="neon-purple"] .denom-cell, [data-theme="citrus"] .denom-cell{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
+ [data-theme="stone"] .denom-cell:focus-within, [data-theme="neon-purple"] .denom-cell:focus-within, [data-theme="citrus"] .denom-cell:focus-within{border-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
+ [data-theme="stone"] .denom-cell.tier-high, [data-theme="neon-purple"] .denom-cell.tier-high, [data-theme="citrus"] .denom-cell.tier-high{border-left-color:var(--diesel-dark);}
+ [data-theme="stone"] .denom-cell.tier-high .note, [data-theme="neon-purple"] .denom-cell.tier-high .note, [data-theme="citrus"] .denom-cell.tier-high .note{color:var(--diesel-dark);}
+ [data-theme="stone"] .cc-ico, [data-theme="neon-purple"] .cc-ico, [data-theme="citrus"] .cc-ico{background:rgba(255,255,255,.06);}
+ [data-theme="stone"] .cc-block-title, [data-theme="neon-purple"] .cc-block-title, [data-theme="citrus"] .cc-block-title{color:var(--ink);}
+ [data-theme="stone"] .cc-receipt, [data-theme="neon-purple"] .cc-receipt, [data-theme="citrus"] .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);box-shadow:0 10px 30px color-mix(in srgb, var(--petrol) 15%, transparent);}
+ [data-theme="stone"] .staff-fuel-item, [data-theme="neon-purple"] .staff-fuel-item, [data-theme="citrus"] .staff-fuel-item{background:rgba(255,255,255,.05);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-cash .cc-header-card, [data-theme="neon-purple"] #tab-cash .cc-header-card, [data-theme="citrus"] #tab-cash .cc-header-card{background:linear-gradient(118deg,color-mix(in srgb, var(--petrol) 8%, transparent) 0%,color-mix(in srgb, var(--diesel) 6%, transparent) 100%);}
+ [data-theme="stone"] #tab-cash .cc-header-card h2, [data-theme="neon-purple"] #tab-cash .cc-header-card h2, [data-theme="citrus"] #tab-cash .cc-header-card h2{color:var(--ink);}
+ [data-theme="stone"] #tab-cash .cc-header-card .tag, [data-theme="neon-purple"] #tab-cash .cc-header-card .tag, [data-theme="citrus"] #tab-cash .cc-header-card .tag{background:rgba(255,199,95,.14);color:#FFC75F;}
+ [data-theme="stone"] #tab-cash .cc-block, [data-theme="neon-purple"] #tab-cash .cc-block, [data-theme="citrus"] #tab-cash .cc-block{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-cash .cc-block-title, [data-theme="neon-purple"] #tab-cash .cc-block-title, [data-theme="citrus"] #tab-cash .cc-block-title{border-bottom-color:var(--theme-border);}
+ [data-theme="stone"] #tab-cash .cc-block-title .tag, [data-theme="neon-purple"] #tab-cash .cc-block-title .tag, [data-theme="citrus"] #tab-cash .cc-block-title .tag{background:rgba(255,255,255,.06);}
+ [data-theme="stone"] #tab-cash .denom-cell, [data-theme="neon-purple"] #tab-cash .denom-cell, [data-theme="citrus"] #tab-cash .denom-cell{background:rgba(255,255,255,.04);}
+ [data-theme="stone"] #tab-cash .denom-cell:focus-within, [data-theme="neon-purple"] #tab-cash .denom-cell:focus-within, [data-theme="citrus"] #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 3px var(--theme-glow-a);}
+ [data-theme="stone"] #tab-cash .cash-counted-coins, [data-theme="neon-purple"] #tab-cash .cash-counted-coins, [data-theme="citrus"] #tab-cash .cash-counted-coins{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.22);}
+ [data-theme="stone"] #tab-cash .cc-receipt, [data-theme="neon-purple"] #tab-cash .cc-receipt, [data-theme="citrus"] #tab-cash .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);}
+ [data-theme="stone"] #tab-cash .cc-receipt-subtitle, [data-theme="neon-purple"] #tab-cash .cc-receipt-subtitle, [data-theme="citrus"] #tab-cash .cc-receipt-subtitle{color:var(--muted);}
 
- [data-theme="stone"] .fds-net-tile, [data-theme="neon-purple"] .fds-net-tile{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] .fds-net-tile.diesel, [data-theme="neon-purple"] .fds-net-tile.diesel{background:linear-gradient(180deg,color-mix(in srgb, var(--diesel) 10%, transparent) 0%,var(--paper) 65%);}
- [data-theme="stone"] .fds-net-tile.petrol, [data-theme="neon-purple"] .fds-net-tile.petrol{background:linear-gradient(180deg,color-mix(in srgb, var(--petrol) 10%, transparent) 0%,var(--paper) 65%);}
- [data-theme="stone"] .fds-net-tile.total, [data-theme="neon-purple"] .fds-net-tile.total{background:linear-gradient(180deg,rgba(140,124,255,.12) 0%,var(--paper) 65%);}
- [data-theme="stone"] .fds-net-tile.total .amount, [data-theme="neon-purple"] .fds-net-tile.total .amount{color:var(--ink);}
- [data-theme="stone"] .shift-btn, [data-theme="neon-purple"] .shift-btn{background:rgba(255,255,255,.05);color:var(--ink);}
- [data-theme="stone"] .ssc-head h3, [data-theme="neon-purple"] .ssc-head h3, [data-theme="stone"] .ssc-head .ssc-total, [data-theme="neon-purple"] .ssc-head .ssc-total{color:var(--ink);}
+ [data-theme="stone"] .fds-net-tile, [data-theme="neon-purple"] .fds-net-tile, [data-theme="citrus"] .fds-net-tile{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] .fds-net-tile.diesel, [data-theme="neon-purple"] .fds-net-tile.diesel, [data-theme="citrus"] .fds-net-tile.diesel{background:linear-gradient(180deg,color-mix(in srgb, var(--diesel) 10%, transparent) 0%,var(--paper) 65%);}
+ [data-theme="stone"] .fds-net-tile.petrol, [data-theme="neon-purple"] .fds-net-tile.petrol, [data-theme="citrus"] .fds-net-tile.petrol{background:linear-gradient(180deg,color-mix(in srgb, var(--petrol) 10%, transparent) 0%,var(--paper) 65%);}
+ [data-theme="stone"] .fds-net-tile.total, [data-theme="neon-purple"] .fds-net-tile.total, [data-theme="citrus"] .fds-net-tile.total{background:linear-gradient(180deg,rgba(140,124,255,.12) 0%,var(--paper) 65%);}
+ [data-theme="stone"] .fds-net-tile.total .amount, [data-theme="neon-purple"] .fds-net-tile.total .amount, [data-theme="citrus"] .fds-net-tile.total .amount{color:var(--ink);}
+ [data-theme="stone"] .shift-btn, [data-theme="neon-purple"] .shift-btn, [data-theme="citrus"] .shift-btn{background:rgba(255,255,255,.05);color:var(--ink);}
+ [data-theme="stone"] .ssc-head h3, [data-theme="neon-purple"] .ssc-head h3, [data-theme="stone"] .ssc-head .ssc-total, [data-theme="neon-purple"] .ssc-head .ssc-total, [data-theme="citrus"] .ssc-head h3, [data-theme="citrus"] .ssc-head .ssc-total{color:var(--ink);}
 
  [data-theme="neon-purple"] #loginGate{
     background:
@@ -1107,23 +1129,31 @@
       radial-gradient(900px 700px at 110% 110%, color-mix(in srgb, var(--petrol) 14%, transparent), transparent 55%),
       linear-gradient(160deg, var(--navy) 0%, #262b1f 60%, #191d14 100%);
   }
+ [data-theme="citrus"] #loginGate{
+    background:
+      radial-gradient(1100px 600px at 15% -10%, color-mix(in srgb, var(--petrol) 24%, transparent), transparent 60%),
+      radial-gradient(900px 700px at 110% 110%, color-mix(in srgb, var(--diesel) 20%, transparent), transparent 55%),
+      linear-gradient(160deg, var(--navy) 0%, #12291b 60%, #0B1C12 100%);
+  }
  [data-theme="neon-purple"] .login-card{background:rgba(20,17,44,.96);border-color:var(--theme-border);}
  [data-theme="stone"] .login-card{background:rgba(251,246,236,.98);border-color:rgba(26,26,26,.08);}
- [data-theme="stone"] .login-card h2, [data-theme="neon-purple"] .login-card h2{color:var(--ink);}
+ [data-theme="citrus"] .login-card{background:rgba(255,253,240,.98);border-color:rgba(25,63,39,.10);}
+ [data-theme="stone"] .login-card h2, [data-theme="neon-purple"] .login-card h2, [data-theme="citrus"] .login-card h2{color:var(--ink);}
  [data-theme="neon-purple"] .login-field input, [data-theme="neon-purple"] .login-field select{background:rgba(255,255,255,.05);color:var(--ink);border-color:var(--theme-border);}
  [data-theme="stone"] .login-field input, [data-theme="stone"] .login-field select{background:#fff;color:var(--ink);border-color:rgba(26,26,26,.15);}
- [data-theme="stone"] .login-field .toggle-eye:hover, [data-theme="neon-purple"] .login-field .toggle-eye:hover{color:var(--ink);}
- [data-theme="stone"] button.btn.login-submit, [data-theme="neon-purple"] button.btn.login-submit{color:#fff;box-shadow:0 0 20px var(--theme-glow-a);}
- [data-theme="stone"] .login-error, [data-theme="neon-purple"] .login-error{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3);}
+ [data-theme="citrus"] .login-field input, [data-theme="citrus"] .login-field select{background:#fff;color:var(--ink);border-color:rgba(25,63,39,.18);}
+ [data-theme="stone"] .login-field .toggle-eye:hover, [data-theme="neon-purple"] .login-field .toggle-eye:hover, [data-theme="citrus"] .login-field .toggle-eye:hover{color:var(--ink);}
+ [data-theme="stone"] button.btn.login-submit, [data-theme="neon-purple"] button.btn.login-submit, [data-theme="citrus"] button.btn.login-submit{color:#fff;box-shadow:0 0 20px var(--theme-glow-a);}
+ [data-theme="stone"] .login-error, [data-theme="neon-purple"] .login-error, [data-theme="citrus"] .login-error{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3);}
 
- [data-theme="stone"] #idleCountdown, [data-theme="neon-purple"] #idleCountdown{border-color:var(--theme-border);box-shadow:0 4px 20px color-mix(in srgb, var(--petrol) 20%, transparent);}
+ [data-theme="stone"] #idleCountdown, [data-theme="neon-purple"] #idleCountdown, [data-theme="citrus"] #idleCountdown{border-color:var(--theme-border);box-shadow:0 4px 20px color-mix(in srgb, var(--petrol) 20%, transparent);}
 
- [data-theme="stone"] .tank-status-card, [data-theme="neon-purple"] .tank-status-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 20px rgba(0,0,0,.4);}
- [data-theme="stone"] .tank-status-card.urgent, [data-theme="neon-purple"] .tank-status-card.urgent{background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.35);}
- [data-theme="stone"] .tank-title, [data-theme="neon-purple"] .tank-title, [data-theme="stone"] .tank-left, [data-theme="neon-purple"] .tank-left{color:var(--ink);}
- [data-theme="stone"] .tank-meter, [data-theme="neon-purple"] .tank-meter{background:rgba(255,255,255,.08);}
- [data-theme="stone"] .tank-forecast, [data-theme="neon-purple"] .tank-forecast{background:rgba(140,124,255,.14);color:var(--ink);}
- [data-theme="stone"] .tank-status-card.urgent .tank-forecast, [data-theme="neon-purple"] .tank-status-card.urgent .tank-forecast{background:rgba(255,77,109,.18);color:#FF9AB3;}
+ [data-theme="stone"] .tank-status-card, [data-theme="neon-purple"] .tank-status-card, [data-theme="citrus"] .tank-status-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 20px rgba(0,0,0,.4);}
+ [data-theme="stone"] .tank-status-card.urgent, [data-theme="neon-purple"] .tank-status-card.urgent, [data-theme="citrus"] .tank-status-card.urgent{background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.35);}
+ [data-theme="stone"] .tank-title, [data-theme="neon-purple"] .tank-title, [data-theme="stone"] .tank-left, [data-theme="neon-purple"] .tank-left, [data-theme="citrus"] .tank-title, [data-theme="citrus"] .tank-left{color:var(--ink);}
+ [data-theme="stone"] .tank-meter, [data-theme="neon-purple"] .tank-meter, [data-theme="citrus"] .tank-meter{background:rgba(255,255,255,.08);}
+ [data-theme="stone"] .tank-forecast, [data-theme="neon-purple"] .tank-forecast, [data-theme="citrus"] .tank-forecast{background:rgba(140,124,255,.14);color:var(--ink);}
+ [data-theme="stone"] .tank-status-card.urgent .tank-forecast, [data-theme="neon-purple"] .tank-status-card.urgent .tank-forecast, [data-theme="citrus"] .tank-status-card.urgent .tank-forecast{background:rgba(255,77,109,.18);color:#FF9AB3;}
 /* Global Bus Cash Tracker alert banner: shown fixed at the very top of the
    page, on top of whichever tab is currently open, so an overdue cash
    handover is never missed just because the user is on a different tab. */
@@ -1327,6 +1357,7 @@ input[type=date], input[type=password], select, textarea{
       <select id="themeSelect" onchange="setTheme(this.value)" title="Switch the interface theme">
         <option value="light">☀️ Light</option>
         <option value="stone">🫒 Olive Stone</option>
+        <option value="citrus">🍔 Citrus Burger</option>
         <option value="neon-purple">💜 Neon Purple</option>
       </select>
       <button onclick="configureServerUrl()" title="Set the backend server URL for live multi-device sync">🔗 Server</button>
@@ -7036,12 +7067,14 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 /* ============== THEME SWITCHER ============== */
-// Three interfaces: 'light' (default), 'stone' (olive/stone editorial
-// palette), 'neon-purple' (vivid dark). Selecting one sets data-theme on
-// <html>, which the CSS above reads via
-// [data-theme="stone"]/[data-theme="neon-purple"] selectors.
+// Four interfaces: 'light' (default), 'stone' (olive/stone editorial
+// palette), 'citrus' (yellow-green/burger-joint palette), 'neon-purple'
+// (vivid dark). Selecting one sets data-theme on <html>, which the CSS
+// above reads via
+// [data-theme="stone"]/[data-theme="citrus"]/[data-theme="neon-purple"]
+// selectors.
 var THEME_STORAGE_KEY = 'maaFuelStationTheme_v1';
-var VALID_THEMES = ['light','stone','neon-purple'];
+var VALID_THEMES = ['light','stone','citrus','neon-purple'];
 function applyTheme(theme){
   if(VALID_THEMES.indexOf(theme) === -1) theme = 'light';
   if(theme === 'light'){
