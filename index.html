@@ -2951,8 +2951,25 @@ function onLoginStaffPick(username){
   const passInp = document.getElementById('loginPass');
   const toggleBtn = document.getElementById('togglePass');
 
-  form.addEventListener('submit', function(e){
+  form.addEventListener('submit', async function(e){
     e.preventDefault();
+
+    // Guard against a race with the initial server load: on a fresh
+    // browser (no local autosave yet), `state` still holds the built-in
+    // default admin/staff credentials until loadFromServer() finishes —
+    // which can take 30-60s if a free-tier backend is waking up. Signing
+    // in before that finishes would silently check the typed password
+    // against those stale defaults and wrongly reject a correct password.
+    // So: if a server load is in flight (or hasn't started/finished yet)
+    // and hasn't reported in, wait for it (briefly) before validating.
+    const submitBtn = form.querySelector('.login-submit');
+    const originalBtnText = submitBtn ? submitBtn.textContent : '';
+    if(!initialLoadDone && serverSyncEnabled){
+      if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Checking latest data…'; }
+      try{ await loadFromServer(); }catch(err){ /* fall through — loadFromServer already handles its own errors */ }
+      if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+    }
+
     ensureStaffCredentials();
     const session = authenticate(userInp.value, passInp.value);
     if(session){
