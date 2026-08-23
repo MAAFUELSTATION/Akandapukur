@@ -1509,31 +1509,6 @@ input[type=date], input[type=password], select, textarea{
 
   <!-- ===================== SALES REPORT TAB (Daily + Monthly) ===================== -->
   <section id="tab-salesreport" class="tab">
-    <div class="card" id="weatherCard">
-      <h2>🌦️ Weather Forecast <span class="tag">Live forecast from Open-Meteo — helps anticipate rush/quiet days</span></h2>
-      <div class="row" style="align-items:end;">
-        <div class="field">
-          <label>Station Latitude</label>
-          <input type="number" id="weatherLat" step="0.0001" placeholder="e.g. 22.5726">
-        </div>
-        <div class="field">
-          <label>Station Longitude</label>
-          <input type="number" id="weatherLon" step="0.0001" placeholder="e.g. 88.3639">
-        </div>
-        <button class="btn ghost small" onclick="useMyLocationForWeather()">📍 Use My Location</button>
-        <button class="btn amber small" onclick="loadWeatherForecast()">↻ Refresh Forecast</button>
-      </div>
-      <div class="hint" id="weatherHint">Set the station's coordinates once (or tap "Use My Location") — saved automatically for next time.</div>
-      <div class="readouts" id="weatherCurrentReadouts" style="margin-top:12px;"></div>
-      <div style="overflow-x:auto; margin-top:14px;">
-      <table>
-        <thead><tr><th>Day</th><th class="num">Condition</th><th class="num">High / Low</th><th class="num">Rain Chance</th></tr></thead>
-        <tbody id="weatherForecastBody"></tbody>
-      </table>
-      </div>
-      <div class="empty" id="weatherEmpty">Set the station's coordinates above and tap Refresh Forecast to load a live 6-day outlook.</div>
-    </div>
-
     <div class="card">
       <h2>🧾 Daily Sale Report <span class="tag">Morning + Afternoon + Night combined · for date <span id="salesReportDateLabel"></span></span></h2>
 
@@ -1553,13 +1528,6 @@ input[type=date], input[type=password], select, textarea{
       <div class="readouts" id="salesReadouts"></div>
 
       <div class="fds-net-strip" id="salesNetStrip"></div>
-
-      <div class="ledger-wrap">
-      <table>
-        <thead><tr><th>Staff</th><th class="num">Diesel ₹</th><th class="num">Petrol ₹</th><th class="num">Day Total ₹</th></tr></thead>
-        <tbody id="dayStaffBody"></tbody>
-      </table>
-      </div>
     </div>
 
     <div class="card">
@@ -3166,8 +3134,7 @@ let state = {
   shiftPayout: {}, // { staffId: { date: {lube, water, breakfast} } } — EOD Shift Payout tracking
   qrScanLog: [],   // [{code, type, staffId, date, ts}] — every QR serial ever scanned, for dedup
   lubeLitresPerUnit: 1, // litres in one lube unit/bottle sold — used to convert Lube Sold (units) into litres
-  pouchStockChecks: {}, // { staffId: [ {id, date, systemRemaining, counted, diff, checkedAt} ] } — Add-on Pouch physical stock counter checks
-  weatherLocation: null // { lat, lon } — station coordinates saved for the Weather Forecast widget
+  pouchStockChecks: {} // { staffId: [ {id, date, systemRemaining, counted, diff, checkedAt} ] } — Add-on Pouch physical stock counter checks
 };
 const ADDON_BOX_SIZE = 50;
 const ADDON_SAME_DAY_INCENTIVE = 25;
@@ -4549,12 +4516,10 @@ function renderDaySummary(date){
   // whole Daily Sale Report (rows + the totals/net-sale tiles below) scopes
   // down to just their id. Admin still sees the full station report.
   const ids = staffIdsForDate(date).filter(isVisibleStaffId);
-  const rows = ids.map(sid=>{
+  ids.forEach(sid=>{
     const t = computeStaffDayTotals(date, sid);
     totalDL+=t.dl; totalDA+=t.da; totalPL+=t.pl; totalPA+=t.pa;
-    return `<tr><td class="staff-name-cell" data-label="Staff">${escapeHtml(staffNameById(sid))}</td><td class="num" data-label="Diesel ₹">${fmtNum(t.da)}</td><td class="num" data-label="Petrol ₹">${fmtNum(t.pa)}</td><td class="num" data-label="Day Total ₹">${fmtNum(t.da+t.pa)}</td></tr>`;
-  }).join('');
-  document.getElementById('dayStaffBody').innerHTML = rows || '<tr><td colspan="4" class="empty">No staff assigned to any nozzle today yet.</td></tr>';
+  });
 
   const dt = ensureDayTesting(date);
   document.getElementById('dayTestHSDL').value = dt.hsdL;
@@ -4600,7 +4565,6 @@ function renderSalesReportTab(){
   renderDaySummary(date);
   renderMonthlyTab();
   renderHighestSaleCard();
-  initWeatherWidget();
 }
 
 // Scans every date that has any sales recorded and finds the single best
@@ -4641,121 +4605,6 @@ function renderHighestSaleCard(){
     <div class="digit-box total"><div class="lbl">Highest Day Sale (Net of Testing)</div><div class="val">${fmt(best.net)}</div></div>
     <div class="digit-box diesel"><div class="lbl">Date Achieved</div><div class="val">${best.date}</div></div>
     <div class="digit-box petrol"><div class="lbl">Gross (Before Testing Deduction)</div><div class="val">${fmt(best.gross)}</div></div>`;
-}
-
-/* ============== WEATHER FORECAST ============== */
-// Uses Open-Meteo's free public forecast API — no key needed, CORS-enabled,
-// and blends several national weather models, so it comfortably clears the
-// requested 70–80% short-range accuracy bar (well above it for 1–3 days
-// out). Coordinates are saved to state.weatherLocation so every device that
-// syncs sees the same station location without re-entering it.
-const WEATHER_CODE_INFO = {
-  0:['Clear sky','☀️'], 1:['Mainly clear','🌤️'], 2:['Partly cloudy','⛅'], 3:['Overcast','☁️'],
-  45:['Fog','🌫️'], 48:['Rime fog','🌫️'],
-  51:['Light drizzle','🌦️'], 53:['Drizzle','🌦️'], 55:['Dense drizzle','🌧️'],
-  56:['Freezing drizzle','🌧️'], 57:['Freezing drizzle','🌧️'],
-  61:['Light rain','🌦️'], 63:['Rain','🌧️'], 65:['Heavy rain','🌧️'],
-  66:['Freezing rain','🌧️'], 67:['Freezing rain','🌧️'],
-  71:['Light snow','🌨️'], 73:['Snow','🌨️'], 75:['Heavy snow','🌨️'], 77:['Snow grains','🌨️'],
-  80:['Light showers','🌦️'], 81:['Showers','🌧️'], 82:['Violent showers','⛈️'],
-  85:['Light snow showers','🌨️'], 86:['Snow showers','🌨️'],
-  95:['Thunderstorm','⛈️'], 96:['Thunderstorm, hail','⛈️'], 99:['Thunderstorm, hail','⛈️']
-};
-function weatherCodeInfo(code){ return WEATHER_CODE_INFO[code] || ['—','🌡️']; }
-
-let weatherLastFetchedAt = 0;
-let weatherFetchInFlight = false;
-
-// Populates the lat/lon fields from saved state (if any) and auto-refreshes
-// at most once every 20 minutes per page session, so switching tabs back
-// and forth doesn't hammer the API.
-function initWeatherWidget(){
-  const latInp = document.getElementById('weatherLat');
-  const lonInp = document.getElementById('weatherLon');
-  if(!latInp || !lonInp) return;
-  const loc = state.weatherLocation;
-  if(loc && loc.lat != null && loc.lon != null){
-    if(!latInp.value) latInp.value = loc.lat;
-    if(!lonInp.value) lonInp.value = loc.lon;
-  }
-  if(latInp.value && lonInp.value && (Date.now() - weatherLastFetchedAt > 20*60*1000)){
-    loadWeatherForecast();
-  }
-}
-
-function useMyLocationForWeather(){
-  const hint = document.getElementById('weatherHint');
-  if(!navigator.geolocation){
-    hint.textContent = 'This browser does not support location detection — enter coordinates manually.';
-    return;
-  }
-  hint.textContent = 'Detecting your location…';
-  navigator.geolocation.getCurrentPosition(
-    pos=>{
-      document.getElementById('weatherLat').value = pos.coords.latitude.toFixed(4);
-      document.getElementById('weatherLon').value = pos.coords.longitude.toFixed(4);
-      loadWeatherForecast();
-    },
-    err=>{ hint.textContent = 'Could not detect location (' + err.message + '). Enter coordinates manually.'; },
-    { timeout: 10000 }
-  );
-}
-
-async function loadWeatherForecast(){
-  const latInp = document.getElementById('weatherLat');
-  const lonInp = document.getElementById('weatherLon');
-  const hint = document.getElementById('weatherHint');
-  const currentBox = document.getElementById('weatherCurrentReadouts');
-  const body = document.getElementById('weatherForecastBody');
-  const emptyEl = document.getElementById('weatherEmpty');
-  if(!latInp || !lonInp) return;
-  const lat = parseFloat(latInp.value);
-  const lon = parseFloat(lonInp.value);
-  if(isNaN(lat) || isNaN(lon)){
-    hint.textContent = 'Enter the station\'s latitude and longitude first, or tap "Use My Location".';
-    return;
-  }
-  if(weatherFetchInFlight) return;
-  weatherFetchInFlight = true;
-  hint.textContent = 'Loading live forecast…';
-  try{
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
-      '&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
-      '&timezone=auto&forecast_days=6';
-    const res = await fetch(url);
-    if(!res.ok) throw new Error('service returned ' + res.status);
-    const data = await res.json();
-
-    state.weatherLocation = { lat, lon };
-    scheduleAutosave();
-
-    const cur = data.current;
-    if(cur && currentBox){
-      const [curLabel, curIcon] = weatherCodeInfo(cur.weather_code);
-      currentBox.innerHTML = `
-        <div class="digit-box total"><div class="lbl">Right Now</div><div class="val">${curIcon} ${curLabel} · ${Math.round(cur.temperature_2m)}°C</div></div>
-        <div class="digit-box diesel"><div class="lbl">Humidity / Wind</div><div class="val">${Math.round(cur.relative_humidity_2m)}% · ${Math.round(cur.wind_speed_10m)} km/h</div></div>`;
-    }
-
-    const daily = data.daily;
-    if(daily && daily.time && body){
-      body.innerHTML = daily.time.map((d,i)=>{
-        const [label, icon] = weatherCodeInfo(daily.weather_code[i]);
-        const dayName = i===0 ? 'Today' : new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short', day:'numeric', month:'short'});
-        const rainPct = daily.precipitation_probability_max[i];
-        return `<tr><td>${dayName}</td><td class="num">${icon} ${label}</td><td class="num">${Math.round(daily.temperature_2m_max[i])}° / ${Math.round(daily.temperature_2m_min[i])}°</td><td class="num">${rainPct!=null ? rainPct+'%' : '—'}</td></tr>`;
-      }).join('');
-      if(emptyEl) emptyEl.style.display = 'none';
-    }
-
-    weatherLastFetchedAt = Date.now();
-    hint.textContent = 'Live forecast from Open-Meteo · updated ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) + '.';
-  }catch(err){
-    hint.textContent = 'Could not load forecast (' + err.message + '). Check the internet connection and try again.';
-  }finally{
-    weatherFetchInFlight = false;
-  }
 }
 
 /* ============== OIL MARKET NEWS TAB ============== */
