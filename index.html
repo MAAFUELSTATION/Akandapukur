@@ -1715,6 +1715,28 @@ input[type=date], input[type=password], select, textarea{
       </div>
     </div>
 
+    <div class="card">
+      <h2>Remaining Note Stock <span class="tag">Tracking Today's Note Stock Only</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Today's Date</label>
+          <input type="date" id="stockAsOfDate" onchange="renderNoteStockTab()">
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Denomination</th><th class="num">Received (pcs)</th><th class="num">Given Out (pcs)</th><th class="num">Remaining (pcs)</th><th class="num">Remaining Value ₹</th></tr>
+        </thead>
+        <tbody id="stockRemainingBody"></tbody>
+      </table>
+      </div>
+      <div class="readouts" style="margin-top:16px;">
+        <div class="digit-box total"><div class="lbl">Total Remaining Pieces</div><div class="val" id="stockTotalPieces">0</div></div>
+        <div class="digit-box surplus"><div class="lbl">Total Remaining Value</div><div class="val" id="stockTotalValue">₹0.00</div></div>
+      </div>
+    </div>
+
     <div id="cashLockBanner">
       <div class="lock-msg">🔒 <span id="cashLockBannerText">Viewing a saved record — read only.</span></div>
       <div class="lock-actions">
@@ -1950,28 +1972,6 @@ input[type=date], input[type=password], select, textarea{
       </table>
       </div>
       <div class="empty" id="noteGivenEmpty" style="display:none;">No notes given out yet.</div>
-    </div>
-
-    <div class="card">
-      <h2>Remaining Note Stock <span class="tag">Tracking Today's Note Stock Only</span></h2>
-      <div class="row">
-        <div class="field">
-          <label>Today's Date</label>
-          <input type="date" id="stockAsOfDate" onchange="renderNoteStockTab()">
-        </div>
-      </div>
-      <div style="overflow-x:auto;">
-      <table>
-        <thead>
-          <tr><th>Denomination</th><th class="num">Received (pcs)</th><th class="num">Given Out (pcs)</th><th class="num">Remaining (pcs)</th><th class="num">Remaining Value ₹</th></tr>
-        </thead>
-        <tbody id="stockRemainingBody"></tbody>
-      </table>
-      </div>
-      <div class="readouts" style="margin-top:16px;">
-        <div class="digit-box total"><div class="lbl">Total Remaining Pieces</div><div class="val" id="stockTotalPieces">0</div></div>
-        <div class="digit-box surplus"><div class="lbl">Total Remaining Value</div><div class="val" id="stockTotalValue">₹0.00</div></div>
-      </div>
     </div>
   </section>
 
