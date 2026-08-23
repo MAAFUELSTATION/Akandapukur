@@ -9,14 +9,15 @@
 <!-- jsQR — used only by the EOD Shift Payout QR scanner to decode Lube/Water QR tags from the camera feed. -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
-// Apply the saved interface theme (Light, Olive Stone, or Neon Purple) as
-// early as possible, before the page paints, so switching themes never
-// causes a flash of the wrong colors on reload.
+// Apply the saved interface theme (Light, Olive Stone, Citrus Burger,
+// Neon Purple, Arclight, or Velocity) as early as possible, before the
+// page paints, so switching themes never causes a flash of the wrong
+// colors on reload.
 (function(){
   try{
     var t = window.localStorage.getItem('maaFuelStationTheme_v1');
     if(!t){ t = 'stone'; try{ window.localStorage.setItem('maaFuelStationTheme_v1', t); }catch(e){} }
-    if(t === 'stone' || t === 'citrus' || t === 'neon-purple') document.documentElement.setAttribute('data-theme', t);
+    if(t === 'stone' || t === 'citrus' || t === 'neon-purple' || t === 'arclight' || t === 'velocity') document.documentElement.setAttribute('data-theme', t);
   }catch(e){}
 })();
 </script>
@@ -161,7 +162,7 @@
   }
   .nav-crumb .crumb-sep{opacity:.5;}
   .nav-crumb .crumb-current{color:var(--navy); font-weight:700;}
- [data-theme="stone"] .nav-crumb .crumb-current, [data-theme="neon-purple"] .nav-crumb .crumb-current, [data-theme="citrus"] .nav-crumb .crumb-current{color:var(--ink);}
+ [data-theme="stone"] .nav-crumb .crumb-current, [data-theme="neon-purple"] .nav-crumb .crumb-current, [data-theme="citrus"] .nav-crumb .crumb-current, [data-theme="velocity"] .nav-crumb .crumb-current, [data-theme="arclight"] .nav-crumb .crumb-current{color:var(--ink);}
 
   main{max-width:1220px;margin:0 auto;padding:26px 20px;}
   section.tab{display:none;}
@@ -777,8 +778,8 @@
     font-size:12px; color:var(--muted); text-decoration:underline; letter-spacing:.2px;
   }
   .login-forgot button:hover{ color:var(--petrol-dark); }
- [data-theme="stone"] .login-forgot button, [data-theme="neon-purple"] .login-forgot button, [data-theme="citrus"] .login-forgot button{ color:var(--ink); opacity:.7; }
- [data-theme="stone"] .login-forgot button:hover, [data-theme="neon-purple"] .login-forgot button:hover, [data-theme="citrus"] .login-forgot button:hover{ opacity:1; }
+ [data-theme="stone"] .login-forgot button, [data-theme="neon-purple"] .login-forgot button, [data-theme="citrus"] .login-forgot button, [data-theme="velocity"] .login-forgot button, [data-theme="arclight"] .login-forgot button{ color:var(--ink); opacity:.7; }
+ [data-theme="stone"] .login-forgot button:hover, [data-theme="neon-purple"] .login-forgot button:hover, [data-theme="citrus"] .login-forgot button:hover, [data-theme="velocity"] .login-forgot button:hover, [data-theme="arclight"] .login-forgot button:hover{ opacity:1; }
 
   /* ---- Forgot-password recovery modal ---- */
   .recover-overlay{
@@ -791,7 +792,7 @@
     padding:22px 22px 18px; box-shadow:0 20px 60px rgba(0,0,0,.35);
     max-height:80vh; overflow-y:auto;
   }
- [data-theme="stone"] .recover-box, [data-theme="neon-purple"] .recover-box, [data-theme="citrus"] .recover-box{
+ [data-theme="stone"] .recover-box, [data-theme="neon-purple"] .recover-box, [data-theme="citrus"] .recover-box, [data-theme="velocity"] .recover-box, [data-theme="arclight"] .recover-box{
     background:#161327; color:var(--ink); border:1px solid var(--theme-border);
   }
   .recover-box h3{ margin:0 0 4px; font-size:16px; }
@@ -801,7 +802,7 @@
     display:flex; justify-content:space-between; gap:10px; padding:8px 0;
     border-bottom:1px solid rgba(0,0,0,.08); font-size:13px;
   }
- [data-theme="stone"] .recover-list li, [data-theme="neon-purple"] .recover-list li, [data-theme="citrus"] .recover-list li{ border-bottom-color:rgba(255,255,255,.1); }
+ [data-theme="stone"] .recover-list li, [data-theme="neon-purple"] .recover-list li, [data-theme="citrus"] .recover-list li, [data-theme="velocity"] .recover-list li, [data-theme="arclight"] .recover-list li{ border-bottom-color:rgba(255,255,255,.1); }
   .recover-list li .rl-name{ font-weight:600; }
   .recover-list li .rl-creds{ font-family:monospace; text-align:right; color:var(--muted); }
   .recover-actions{ display:flex; gap:8px; margin-top:10px; }
@@ -958,134 +959,179 @@
     --theme-border:rgba(25,63,39,.16);
     --theme-bg-tint-1:rgba(239,244,131,.35); --theme-bg-tint-2:rgba(237,107,45,.08);
   }
- [data-theme="stone"] body, [data-theme="neon-purple"] body, [data-theme="citrus"] body{
+  /* ================================================================
+     ARCLIGHT THEME
+     Toggled by setting data-theme="arclight" on <html>. Palette lifted
+     from the Arclight landing page: near-black chrome and page
+     background, warm off-white text, and a refined gold accent
+     (from the "Request access" button and headline italics) as the
+     primary color, with a deeper bronze secondary accent for
+     contrast between fuel types. Shares every structural override
+     rule with the other dark themes (stone/neon-purple/citrus) —
+     only the palette variables here differ.
+     ================================================================ */
+  [data-theme="arclight"]{
+    --navy:#100E0A; --navy2:#1C170F; --cream:#0A0908; --paper:#16130D;
+    --ink:#F2ECDF; --muted:#9C978C; --line:rgba(232,184,75,.16);
+    --diesel:#E8B84B; --diesel-dark:#C79A32; --diesel-glow:#F4D488;
+    --petrol:#B8863C; --petrol-dark:#8F6829; --petrol-glow:#D9AD5F;
+    --morning:#E8B84B; --afternoon:#C77D2E; --night:#5C5646;
+    --surplus:#5FBE8A; --shortfall:#D9534F;
+    --theme-glow-a:rgba(232,184,75,.40); --theme-glow-b:rgba(199,154,50,.28);
+    --theme-border:rgba(232,184,75,.16);
+    --theme-bg-tint-1:rgba(232,184,75,.07); --theme-bg-tint-2:rgba(199,154,50,.05);
+  }
+  /* ================================================================
+     VELOCITY THEME
+     Toggled by setting data-theme="velocity" on <html>. Palette lifted
+     from the VeloCity fitness-app landing page: pure-black chrome and
+     page background, bold white headline text, and an electric
+     lime-green accent (from "YESTERDAY.", the stat rings, and the
+     "Join the movement" button) as the primary color, with a deeper
+     olive-green secondary accent for contrast between fuel types.
+     Shares every structural override rule with the other dark themes
+     (stone/neon-purple/citrus/arclight) — only the palette variables
+     here differ.
+     ================================================================ */
+  [data-theme="velocity"]{
+    --navy:#0A0A0A; --navy2:#161616; --cream:#000000; --paper:#121212;
+    --ink:#F5F5F5; --muted:#9C9C9C; --line:rgba(198,255,0,.16);
+    --diesel:#C6FF00; --diesel-dark:#9ECC00; --diesel-glow:#E0FF66;
+    --petrol:#7CB100; --petrol-dark:#5E8600; --petrol-glow:#A6E23D;
+    --morning:#C6FF00; --afternoon:#7CB100; --night:#3A3A3A;
+    --surplus:#C6FF00; --shortfall:#FF4D4D;
+    --theme-glow-a:rgba(198,255,0,.40); --theme-glow-b:rgba(159,204,0,.30);
+    --theme-border:rgba(198,255,0,.18);
+    --theme-bg-tint-1:rgba(198,255,0,.06); --theme-bg-tint-2:rgba(159,204,0,.04);
+  }
+ [data-theme="stone"] body, [data-theme="neon-purple"] body, [data-theme="citrus"] body, [data-theme="velocity"] body, [data-theme="arclight"] body{
     background:
       radial-gradient(1200px 700px at 8% -8%, var(--theme-bg-tint-1), transparent 55%),
       radial-gradient(1000px 650px at 105% 0%, var(--theme-bg-tint-2), transparent 55%),
       var(--cream);
     color:var(--ink);
   }
- [data-theme="stone"] h1, [data-theme="neon-purple"] h1, [data-theme="stone"] h2, [data-theme="neon-purple"] h2, [data-theme="stone"] h3, [data-theme="neon-purple"] h3, [data-theme="citrus"] h1, [data-theme="citrus"] h2, [data-theme="citrus"] h3{color:var(--ink);}
- [data-theme="stone"] header.top h1, [data-theme="stone"] header.top .sub, [data-theme="citrus"] header.top h1, [data-theme="citrus"] header.top .sub{color:#fff;}
- [data-theme="stone"] header.top, [data-theme="neon-purple"] header.top, [data-theme="citrus"] header.top{box-shadow:0 2px 24px color-mix(in srgb, var(--petrol) 18%, transparent);}
- [data-theme="stone"] header.top .date-live, [data-theme="neon-purple"] header.top .date-live, [data-theme="stone"] .autosave-indicator, [data-theme="neon-purple"] .autosave-indicator, [data-theme="citrus"] header.top .date-live, [data-theme="citrus"] .autosave-indicator{border-color:var(--theme-border);}
- [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active, [data-theme="citrus"] nav.tabs button.active{text-shadow:0 0 12px var(--theme-glow-a);}
- [data-theme="stone"] nav.tab-groups button.active, [data-theme="neon-purple"] nav.tab-groups button.active, [data-theme="citrus"] nav.tab-groups button.active{text-shadow:0 0 12px var(--theme-glow-a);}
- [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active, [data-theme="citrus"] nav.tabs button.active{
+ [data-theme="stone"] h1, [data-theme="neon-purple"] h1, [data-theme="stone"] h2, [data-theme="neon-purple"] h2, [data-theme="stone"] h3, [data-theme="neon-purple"] h3, [data-theme="citrus"] h1, [data-theme="velocity"] h1, [data-theme="arclight"] h1, [data-theme="citrus"] h2, [data-theme="velocity"] h2, [data-theme="arclight"] h2, [data-theme="citrus"] h3, [data-theme="velocity"] h3, [data-theme="arclight"] h3{color:var(--ink);}
+ [data-theme="stone"] header.top h1, [data-theme="stone"] header.top .sub, [data-theme="citrus"] header.top h1, [data-theme="velocity"] header.top h1, [data-theme="arclight"] header.top h1, [data-theme="citrus"] header.top .sub, [data-theme="velocity"] header.top .sub, [data-theme="arclight"] header.top .sub{color:#fff;}
+ [data-theme="stone"] header.top, [data-theme="neon-purple"] header.top, [data-theme="citrus"] header.top, [data-theme="velocity"] header.top, [data-theme="arclight"] header.top{box-shadow:0 2px 24px color-mix(in srgb, var(--petrol) 18%, transparent);}
+ [data-theme="stone"] header.top .date-live, [data-theme="neon-purple"] header.top .date-live, [data-theme="stone"] .autosave-indicator, [data-theme="neon-purple"] .autosave-indicator, [data-theme="citrus"] header.top .date-live, [data-theme="velocity"] header.top .date-live, [data-theme="arclight"] header.top .date-live, [data-theme="citrus"] .autosave-indicator, [data-theme="velocity"] .autosave-indicator, [data-theme="arclight"] .autosave-indicator{border-color:var(--theme-border);}
+ [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active, [data-theme="citrus"] nav.tabs button.active, [data-theme="velocity"] nav.tabs button.active, [data-theme="arclight"] nav.tabs button.active{text-shadow:0 0 12px var(--theme-glow-a);}
+ [data-theme="stone"] nav.tab-groups button.active, [data-theme="neon-purple"] nav.tab-groups button.active, [data-theme="citrus"] nav.tab-groups button.active, [data-theme="velocity"] nav.tab-groups button.active, [data-theme="arclight"] nav.tab-groups button.active{text-shadow:0 0 12px var(--theme-glow-a);}
+ [data-theme="stone"] nav.tabs button.active, [data-theme="neon-purple"] nav.tabs button.active, [data-theme="citrus"] nav.tabs button.active, [data-theme="velocity"] nav.tabs button.active, [data-theme="arclight"] nav.tabs button.active{
     background:var(--petrol); color:#fff; box-shadow:0 2px 10px color-mix(in srgb, var(--petrol) 45%, transparent);
   }
- [data-theme="stone"] nav.tabs button.active:hover, [data-theme="neon-purple"] nav.tabs button.active:hover, [data-theme="citrus"] nav.tabs button.active:hover{background:var(--petrol); color:#fff;}
- [data-theme="stone"] #themeSelect, [data-theme="neon-purple"] #themeSelect, [data-theme="citrus"] #themeSelect{background:color-mix(in srgb, var(--petrol) 15%, transparent);border-color:var(--petrol);}
- [data-theme="stone"] #themeSelect option, [data-theme="neon-purple"] #themeSelect option, [data-theme="citrus"] #themeSelect option{color:var(--ink);background:var(--paper);}
+ [data-theme="stone"] nav.tabs button.active:hover, [data-theme="neon-purple"] nav.tabs button.active:hover, [data-theme="citrus"] nav.tabs button.active:hover, [data-theme="velocity"] nav.tabs button.active:hover, [data-theme="arclight"] nav.tabs button.active:hover{background:var(--petrol); color:#fff;}
+ [data-theme="stone"] #themeSelect, [data-theme="neon-purple"] #themeSelect, [data-theme="citrus"] #themeSelect, [data-theme="velocity"] #themeSelect, [data-theme="arclight"] #themeSelect{background:color-mix(in srgb, var(--petrol) 15%, transparent);border-color:var(--petrol);}
+ [data-theme="stone"] #themeSelect option, [data-theme="neon-purple"] #themeSelect option, [data-theme="citrus"] #themeSelect option, [data-theme="velocity"] #themeSelect option, [data-theme="arclight"] #themeSelect option{color:var(--ink);background:var(--paper);}
 
- [data-theme="stone"] .card, [data-theme="neon-purple"] .card, [data-theme="citrus"] .card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);}
- [data-theme="stone"] .card h2, [data-theme="neon-purple"] .card h2, [data-theme="citrus"] .card h2{color:var(--ink);}
- [data-theme="stone"] th, [data-theme="neon-purple"] th, [data-theme="citrus"] th{color:var(--ink);}
- [data-theme="stone"] tfoot td, [data-theme="neon-purple"] tfoot td, [data-theme="citrus"] tfoot td{background:rgba(255,255,255,.045);color:var(--ink);}
- [data-theme="stone"] tr.duty-today td, [data-theme="neon-purple"] tr.duty-today td, [data-theme="citrus"] tr.duty-today td{background:rgba(255,199,95,.09);}
+ [data-theme="stone"] .card, [data-theme="neon-purple"] .card, [data-theme="citrus"] .card, [data-theme="velocity"] .card, [data-theme="arclight"] .card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);}
+ [data-theme="stone"] .card h2, [data-theme="neon-purple"] .card h2, [data-theme="citrus"] .card h2, [data-theme="velocity"] .card h2, [data-theme="arclight"] .card h2{color:var(--ink);}
+ [data-theme="stone"] th, [data-theme="neon-purple"] th, [data-theme="citrus"] th, [data-theme="velocity"] th, [data-theme="arclight"] th{color:var(--ink);}
+ [data-theme="stone"] tfoot td, [data-theme="neon-purple"] tfoot td, [data-theme="citrus"] tfoot td, [data-theme="velocity"] tfoot td, [data-theme="arclight"] tfoot td{background:rgba(255,255,255,.045);color:var(--ink);}
+ [data-theme="stone"] tr.duty-today td, [data-theme="neon-purple"] tr.duty-today td, [data-theme="citrus"] tr.duty-today td, [data-theme="velocity"] tr.duty-today td, [data-theme="arclight"] tr.duty-today td{background:rgba(255,199,95,.09);}
 
- [data-theme="stone"] .field input, [data-theme="neon-purple"] .field input, [data-theme="stone"] .field select, [data-theme="neon-purple"] .field select, [data-theme="stone"] td input, [data-theme="neon-purple"] td input, [data-theme="stone"] .staff-row input, [data-theme="neon-purple"] .staff-row input, [data-theme="stone"] .nozzle-row select, [data-theme="neon-purple"] .nozzle-row select, [data-theme="citrus"] .field input, [data-theme="citrus"] .field select, [data-theme="citrus"] td input, [data-theme="citrus"] .staff-row input, [data-theme="citrus"] .nozzle-row select{
+ [data-theme="stone"] .field input, [data-theme="neon-purple"] .field input, [data-theme="stone"] .field select, [data-theme="neon-purple"] .field select, [data-theme="stone"] td input, [data-theme="neon-purple"] td input, [data-theme="stone"] .staff-row input, [data-theme="neon-purple"] .staff-row input, [data-theme="stone"] .nozzle-row select, [data-theme="neon-purple"] .nozzle-row select, [data-theme="citrus"] .field input, [data-theme="velocity"] .field input, [data-theme="arclight"] .field input, [data-theme="citrus"] .field select, [data-theme="velocity"] .field select, [data-theme="arclight"] .field select, [data-theme="citrus"] td input, [data-theme="velocity"] td input, [data-theme="arclight"] td input, [data-theme="citrus"] .staff-row input, [data-theme="velocity"] .staff-row input, [data-theme="arclight"] .staff-row input, [data-theme="citrus"] .nozzle-row select, [data-theme="velocity"] .nozzle-row select, [data-theme="arclight"] .nozzle-row select{
     background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);
   }
- [data-theme="stone"] .field input:focus, [data-theme="neon-purple"] .field input:focus, [data-theme="stone"] .field select:focus, [data-theme="neon-purple"] .field select:focus, [data-theme="citrus"] .field input:focus, [data-theme="citrus"] .field select:focus{outline-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
- [data-theme="stone"] ::placeholder, [data-theme="neon-purple"] ::placeholder, [data-theme="citrus"] ::placeholder{color:rgba(236,233,251,.35);}
+ [data-theme="stone"] .field input:focus, [data-theme="neon-purple"] .field input:focus, [data-theme="stone"] .field select:focus, [data-theme="neon-purple"] .field select:focus, [data-theme="citrus"] .field input:focus, [data-theme="velocity"] .field input:focus, [data-theme="arclight"] .field input:focus, [data-theme="citrus"] .field select:focus, [data-theme="velocity"] .field select:focus, [data-theme="arclight"] .field select:focus{outline-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
+ [data-theme="stone"] ::placeholder, [data-theme="neon-purple"] ::placeholder, [data-theme="citrus"] ::placeholder, [data-theme="velocity"] ::placeholder, [data-theme="arclight"] ::placeholder{color:rgba(236,233,251,.35);}
 
- [data-theme="stone"] button.btn.amber, [data-theme="neon-purple"] button.btn.amber, [data-theme="citrus"] button.btn.amber{color:#fff;box-shadow:0 0 18px var(--theme-glow-a);}
- [data-theme="stone"] button.btn.amber:hover, [data-theme="neon-purple"] button.btn.amber:hover, [data-theme="citrus"] button.btn.amber:hover{box-shadow:0 0 26px var(--theme-glow-a);}
- [data-theme="stone"] button.btn.ghost, [data-theme="neon-purple"] button.btn.ghost, [data-theme="citrus"] button.btn.ghost{border-color:var(--theme-border);}
- [data-theme="stone"] button.btn.ghost:hover, [data-theme="neon-purple"] button.btn.ghost:hover, [data-theme="citrus"] button.btn.ghost:hover{border-color:var(--petrol);}
- [data-theme="stone"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="neon-purple"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="citrus"] button.btn:not(.amber):not(.ghost):not(.danger){box-shadow:0 0 14px var(--theme-glow-b);}
+ [data-theme="stone"] button.btn.amber, [data-theme="neon-purple"] button.btn.amber, [data-theme="citrus"] button.btn.amber, [data-theme="velocity"] button.btn.amber, [data-theme="arclight"] button.btn.amber{color:#fff;box-shadow:0 0 18px var(--theme-glow-a);}
+ [data-theme="stone"] button.btn.amber:hover, [data-theme="neon-purple"] button.btn.amber:hover, [data-theme="citrus"] button.btn.amber:hover, [data-theme="velocity"] button.btn.amber:hover, [data-theme="arclight"] button.btn.amber:hover{box-shadow:0 0 26px var(--theme-glow-a);}
+ [data-theme="stone"] button.btn.ghost, [data-theme="neon-purple"] button.btn.ghost, [data-theme="citrus"] button.btn.ghost, [data-theme="velocity"] button.btn.ghost, [data-theme="arclight"] button.btn.ghost{border-color:var(--theme-border);}
+ [data-theme="stone"] button.btn.ghost:hover, [data-theme="neon-purple"] button.btn.ghost:hover, [data-theme="citrus"] button.btn.ghost:hover, [data-theme="velocity"] button.btn.ghost:hover, [data-theme="arclight"] button.btn.ghost:hover{border-color:var(--petrol);}
+ [data-theme="stone"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="neon-purple"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="citrus"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="velocity"] button.btn:not(.amber):not(.ghost):not(.danger), [data-theme="arclight"] button.btn:not(.amber):not(.ghost):not(.danger){box-shadow:0 0 14px var(--theme-glow-b);}
 
- [data-theme="stone"] .duty-chip, [data-theme="neon-purple"] .duty-chip, [data-theme="citrus"] .duty-chip{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
- [data-theme="stone"] .duty-chip.manual, [data-theme="neon-purple"] .duty-chip.manual, [data-theme="citrus"] .duty-chip.manual{color:#fff;}
- [data-theme="stone"] .duty-add, [data-theme="neon-purple"] .duty-add, [data-theme="citrus"] .duty-add{color:var(--muted);}
+ [data-theme="stone"] .duty-chip, [data-theme="neon-purple"] .duty-chip, [data-theme="citrus"] .duty-chip, [data-theme="velocity"] .duty-chip, [data-theme="arclight"] .duty-chip{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
+ [data-theme="stone"] .duty-chip.manual, [data-theme="neon-purple"] .duty-chip.manual, [data-theme="citrus"] .duty-chip.manual, [data-theme="velocity"] .duty-chip.manual, [data-theme="arclight"] .duty-chip.manual{color:#fff;}
+ [data-theme="stone"] .duty-add, [data-theme="neon-purple"] .duty-add, [data-theme="citrus"] .duty-add, [data-theme="velocity"] .duty-add, [data-theme="arclight"] .duty-add{color:var(--muted);}
 
  [data-theme="neon-purple"] .digit-box{background:#0A0716;border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.65),0 0 16px color-mix(in srgb, var(--petrol) 10%, transparent);}
- [data-theme="stone"] .digit-box, [data-theme="citrus"] .digit-box{background:var(--navy);border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.35);}
- [data-theme="stone"] .digit-box .val, [data-theme="citrus"] .digit-box .val{color:#fff;}
+ [data-theme="stone"] .digit-box, [data-theme="citrus"] .digit-box, [data-theme="velocity"] .digit-box, [data-theme="arclight"] .digit-box{background:var(--navy);border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.35);}
+ [data-theme="stone"] .digit-box .val, [data-theme="citrus"] .digit-box .val, [data-theme="velocity"] .digit-box .val, [data-theme="arclight"] .digit-box .val{color:#fff;}
 
- [data-theme="stone"] .stat-card, [data-theme="neon-purple"] .stat-card, [data-theme="citrus"] .stat-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 2px 10px rgba(0,0,0,.4);}
- [data-theme="stone"] .stat-card .val, [data-theme="neon-purple"] .stat-card .val, [data-theme="citrus"] .stat-card .val{color:var(--ink);}
- [data-theme="stone"] .stat-card.diesel, [data-theme="neon-purple"] .stat-card.diesel, [data-theme="citrus"] .stat-card.diesel{background:color-mix(in srgb, var(--diesel) 7%, transparent);}
- [data-theme="stone"] .stat-card.petrol, [data-theme="neon-purple"] .stat-card.petrol, [data-theme="citrus"] .stat-card.petrol{background:color-mix(in srgb, var(--petrol) 7%, transparent);}
- [data-theme="stone"] .stat-card.total, [data-theme="neon-purple"] .stat-card.total, [data-theme="citrus"] .stat-card.total{background:rgba(140,124,255,.09);}
- [data-theme="stone"] .stat-card.total .val, [data-theme="neon-purple"] .stat-card.total .val, [data-theme="citrus"] .stat-card.total .val{color:var(--ink);}
- [data-theme="stone"] .stat-card.shortfall, [data-theme="neon-purple"] .stat-card.shortfall, [data-theme="citrus"] .stat-card.shortfall{background:rgba(255,77,109,.08);}
+ [data-theme="stone"] .stat-card, [data-theme="neon-purple"] .stat-card, [data-theme="citrus"] .stat-card, [data-theme="velocity"] .stat-card, [data-theme="arclight"] .stat-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 2px 10px rgba(0,0,0,.4);}
+ [data-theme="stone"] .stat-card .val, [data-theme="neon-purple"] .stat-card .val, [data-theme="citrus"] .stat-card .val, [data-theme="velocity"] .stat-card .val, [data-theme="arclight"] .stat-card .val{color:var(--ink);}
+ [data-theme="stone"] .stat-card.diesel, [data-theme="neon-purple"] .stat-card.diesel, [data-theme="citrus"] .stat-card.diesel, [data-theme="velocity"] .stat-card.diesel, [data-theme="arclight"] .stat-card.diesel{background:color-mix(in srgb, var(--diesel) 7%, transparent);}
+ [data-theme="stone"] .stat-card.petrol, [data-theme="neon-purple"] .stat-card.petrol, [data-theme="citrus"] .stat-card.petrol, [data-theme="velocity"] .stat-card.petrol, [data-theme="arclight"] .stat-card.petrol{background:color-mix(in srgb, var(--petrol) 7%, transparent);}
+ [data-theme="stone"] .stat-card.total, [data-theme="neon-purple"] .stat-card.total, [data-theme="citrus"] .stat-card.total, [data-theme="velocity"] .stat-card.total, [data-theme="arclight"] .stat-card.total{background:rgba(140,124,255,.09);}
+ [data-theme="stone"] .stat-card.total .val, [data-theme="neon-purple"] .stat-card.total .val, [data-theme="citrus"] .stat-card.total .val, [data-theme="velocity"] .stat-card.total .val, [data-theme="arclight"] .stat-card.total .val{color:var(--ink);}
+ [data-theme="stone"] .stat-card.shortfall, [data-theme="neon-purple"] .stat-card.shortfall, [data-theme="citrus"] .stat-card.shortfall, [data-theme="velocity"] .stat-card.shortfall, [data-theme="arclight"] .stat-card.shortfall{background:rgba(255,77,109,.08);}
 
- [data-theme="stone"] #tab-sales .card, [data-theme="neon-purple"] #tab-sales .card, [data-theme="citrus"] #tab-sales .card{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .card > h2, [data-theme="neon-purple"] #tab-sales .card > h2, [data-theme="citrus"] #tab-sales .card > h2{color:var(--ink);}
- [data-theme="stone"] #tab-sales .divider, [data-theme="neon-purple"] #tab-sales .divider, [data-theme="citrus"] #tab-sales .divider{background:var(--theme-border);}
- [data-theme="stone"] #tab-sales .rate-card, [data-theme="neon-purple"] #tab-sales .rate-card, [data-theme="citrus"] #tab-sales .rate-card{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 7%, transparent) 0%,color-mix(in srgb, var(--petrol) 6%, transparent) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .rate-card::before, [data-theme="neon-purple"] #tab-sales .rate-card::before, [data-theme="citrus"] #tab-sales .rate-card::before{color:var(--muted);}
- [data-theme="stone"] #tab-sales .rate-card .field input, [data-theme="neon-purple"] #tab-sales .rate-card .field input, [data-theme="citrus"] #tab-sales .rate-card .field input{border-bottom-color:rgba(255,255,255,.25);}
- [data-theme="stone"] #tab-sales nav.shift-tabs, [data-theme="neon-purple"] #tab-sales nav.shift-tabs, [data-theme="citrus"] #tab-sales nav.shift-tabs{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .shift-btn::before, [data-theme="neon-purple"] #tab-sales .shift-btn::before, [data-theme="citrus"] #tab-sales .shift-btn::before{background:rgba(255,255,255,.25);}
- [data-theme="stone"] #tab-sales .shift-btn:hover:not(.active), [data-theme="neon-purple"] #tab-sales .shift-btn:hover:not(.active), [data-theme="citrus"] #tab-sales .shift-btn:hover:not(.active){background:rgba(255,255,255,.06);color:var(--ink);}
- [data-theme="stone"] #tab-sales .readouts, [data-theme="neon-purple"] #tab-sales .readouts, [data-theme="citrus"] #tab-sales .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .readouts .digit-box, [data-theme="neon-purple"] #tab-sales .readouts .digit-box, [data-theme="citrus"] #tab-sales .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .readouts .digit-box .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box .val, [data-theme="citrus"] #tab-sales .readouts .digit-box .val{color:var(--ink);}
- [data-theme="stone"] #tab-sales .readouts .digit-box.shortfall, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.shortfall, [data-theme="citrus"] #tab-sales .readouts .digit-box.shortfall{background:rgba(255,77,109,.08);}
- [data-theme="stone"] #tab-sales .readouts .digit-box.total, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total, [data-theme="citrus"] #tab-sales .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
- [data-theme="stone"] #tab-sales .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total .val, [data-theme="citrus"] #tab-sales .readouts .digit-box.total .val{color:var(--ink);}
+ [data-theme="stone"] #tab-sales .card, [data-theme="neon-purple"] #tab-sales .card, [data-theme="citrus"] #tab-sales .card, [data-theme="velocity"] #tab-sales .card, [data-theme="arclight"] #tab-sales .card{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .card > h2, [data-theme="neon-purple"] #tab-sales .card > h2, [data-theme="citrus"] #tab-sales .card > h2, [data-theme="velocity"] #tab-sales .card > h2, [data-theme="arclight"] #tab-sales .card > h2{color:var(--ink);}
+ [data-theme="stone"] #tab-sales .divider, [data-theme="neon-purple"] #tab-sales .divider, [data-theme="citrus"] #tab-sales .divider, [data-theme="velocity"] #tab-sales .divider, [data-theme="arclight"] #tab-sales .divider{background:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .rate-card, [data-theme="neon-purple"] #tab-sales .rate-card, [data-theme="citrus"] #tab-sales .rate-card, [data-theme="velocity"] #tab-sales .rate-card, [data-theme="arclight"] #tab-sales .rate-card{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 7%, transparent) 0%,color-mix(in srgb, var(--petrol) 6%, transparent) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .rate-card::before, [data-theme="neon-purple"] #tab-sales .rate-card::before, [data-theme="citrus"] #tab-sales .rate-card::before, [data-theme="velocity"] #tab-sales .rate-card::before, [data-theme="arclight"] #tab-sales .rate-card::before{color:var(--muted);}
+ [data-theme="stone"] #tab-sales .rate-card .field input, [data-theme="neon-purple"] #tab-sales .rate-card .field input, [data-theme="citrus"] #tab-sales .rate-card .field input, [data-theme="velocity"] #tab-sales .rate-card .field input, [data-theme="arclight"] #tab-sales .rate-card .field input{border-bottom-color:rgba(255,255,255,.25);}
+ [data-theme="stone"] #tab-sales nav.shift-tabs, [data-theme="neon-purple"] #tab-sales nav.shift-tabs, [data-theme="citrus"] #tab-sales nav.shift-tabs, [data-theme="velocity"] #tab-sales nav.shift-tabs, [data-theme="arclight"] #tab-sales nav.shift-tabs{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .shift-btn::before, [data-theme="neon-purple"] #tab-sales .shift-btn::before, [data-theme="citrus"] #tab-sales .shift-btn::before, [data-theme="velocity"] #tab-sales .shift-btn::before, [data-theme="arclight"] #tab-sales .shift-btn::before{background:rgba(255,255,255,.25);}
+ [data-theme="stone"] #tab-sales .shift-btn:hover:not(.active), [data-theme="neon-purple"] #tab-sales .shift-btn:hover:not(.active), [data-theme="citrus"] #tab-sales .shift-btn:hover:not(.active), [data-theme="velocity"] #tab-sales .shift-btn:hover:not(.active), [data-theme="arclight"] #tab-sales .shift-btn:hover:not(.active){background:rgba(255,255,255,.06);color:var(--ink);}
+ [data-theme="stone"] #tab-sales .readouts, [data-theme="neon-purple"] #tab-sales .readouts, [data-theme="citrus"] #tab-sales .readouts, [data-theme="velocity"] #tab-sales .readouts, [data-theme="arclight"] #tab-sales .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box, [data-theme="neon-purple"] #tab-sales .readouts .digit-box, [data-theme="citrus"] #tab-sales .readouts .digit-box, [data-theme="velocity"] #tab-sales .readouts .digit-box, [data-theme="arclight"] #tab-sales .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box .val, [data-theme="citrus"] #tab-sales .readouts .digit-box .val, [data-theme="velocity"] #tab-sales .readouts .digit-box .val, [data-theme="arclight"] #tab-sales .readouts .digit-box .val{color:var(--ink);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box.shortfall, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.shortfall, [data-theme="citrus"] #tab-sales .readouts .digit-box.shortfall, [data-theme="velocity"] #tab-sales .readouts .digit-box.shortfall, [data-theme="arclight"] #tab-sales .readouts .digit-box.shortfall{background:rgba(255,77,109,.08);}
+ [data-theme="stone"] #tab-sales .readouts .digit-box.total, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total, [data-theme="citrus"] #tab-sales .readouts .digit-box.total, [data-theme="velocity"] #tab-sales .readouts .digit-box.total, [data-theme="arclight"] #tab-sales .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
+ [data-theme="stone"] #tab-sales .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-sales .readouts .digit-box.total .val, [data-theme="citrus"] #tab-sales .readouts .digit-box.total .val, [data-theme="velocity"] #tab-sales .readouts .digit-box.total .val, [data-theme="arclight"] #tab-sales .readouts .digit-box.total .val{color:var(--ink);}
 
- [data-theme="stone"] #tab-dipchart .readouts, [data-theme="neon-purple"] #tab-dipchart .readouts, [data-theme="citrus"] #tab-dipchart .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box, [data-theme="citrus"] #tab-dipchart .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box .val, [data-theme="citrus"] #tab-dipchart .readouts .digit-box .val{color:var(--ink);}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box.total, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total, [data-theme="citrus"] #tab-dipchart .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
- [data-theme="stone"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="citrus"] #tab-dipchart .readouts .digit-box.total .val{color:var(--ink);}
+ [data-theme="stone"] #tab-dipchart .readouts, [data-theme="neon-purple"] #tab-dipchart .readouts, [data-theme="citrus"] #tab-dipchart .readouts, [data-theme="velocity"] #tab-dipchart .readouts, [data-theme="arclight"] #tab-dipchart .readouts{background:linear-gradient(155deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,color-mix(in srgb, var(--petrol) 5%, transparent) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box, [data-theme="citrus"] #tab-dipchart .readouts .digit-box, [data-theme="velocity"] #tab-dipchart .readouts .digit-box, [data-theme="arclight"] #tab-dipchart .readouts .digit-box{background:rgba(255,255,255,.03);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box .val, [data-theme="citrus"] #tab-dipchart .readouts .digit-box .val, [data-theme="velocity"] #tab-dipchart .readouts .digit-box .val, [data-theme="arclight"] #tab-dipchart .readouts .digit-box .val{color:var(--ink);}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box.total, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total, [data-theme="citrus"] #tab-dipchart .readouts .digit-box.total, [data-theme="velocity"] #tab-dipchart .readouts .digit-box.total, [data-theme="arclight"] #tab-dipchart .readouts .digit-box.total{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 10%, transparent),color-mix(in srgb, var(--petrol) 10%, transparent));}
+ [data-theme="stone"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="neon-purple"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="citrus"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="velocity"] #tab-dipchart .readouts .digit-box.total .val, [data-theme="arclight"] #tab-dipchart .readouts .digit-box.total .val{color:var(--ink);}
 
- [data-theme="stone"] .unit-panel, [data-theme="neon-purple"] .unit-panel, [data-theme="citrus"] .unit-panel{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] .unit-head, [data-theme="neon-purple"] .unit-head, [data-theme="citrus"] .unit-head{border-bottom-color:var(--theme-border);}
- [data-theme="stone"] .unit-head .unit-machine, [data-theme="neon-purple"] .unit-head .unit-machine, [data-theme="citrus"] .unit-head .unit-machine{color:var(--ink);}
- [data-theme="stone"] .fuel-group.diesel, [data-theme="neon-purple"] .fuel-group.diesel, [data-theme="citrus"] .fuel-group.diesel{background:color-mix(in srgb, var(--diesel) 8%, transparent);}
- [data-theme="stone"] .fuel-group.petrol, [data-theme="neon-purple"] .fuel-group.petrol, [data-theme="citrus"] .fuel-group.petrol{background:color-mix(in srgb, var(--petrol) 8%, transparent);}
- [data-theme="stone"] .nozzle-row .meter-input, [data-theme="neon-purple"] .nozzle-row .meter-input, [data-theme="citrus"] .nozzle-row .meter-input{background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);}
- [data-theme="stone"] .nozzle-row .meter-input:disabled, [data-theme="neon-purple"] .nozzle-row .meter-input:disabled, [data-theme="citrus"] .nozzle-row .meter-input:disabled{background:rgba(255,255,255,.03);}
- [data-theme="stone"] .nz-chip, [data-theme="neon-purple"] .nz-chip, [data-theme="citrus"] .nz-chip{background:rgba(255,255,255,.04);}
- [data-theme="stone"] .fuel-group.diesel .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.diesel .nz-chip.litres, [data-theme="citrus"] .fuel-group.diesel .nz-chip.litres{background:color-mix(in srgb, var(--diesel) 12%, transparent);border-color:color-mix(in srgb, var(--diesel) 25%, transparent);}
- [data-theme="stone"] .fuel-group.petrol .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.petrol .nz-chip.litres, [data-theme="citrus"] .fuel-group.petrol .nz-chip.litres{background:color-mix(in srgb, var(--petrol) 12%, transparent);border-color:color-mix(in srgb, var(--petrol) 25%, transparent);}
- [data-theme="stone"] .nz-chip.amount, [data-theme="neon-purple"] .nz-chip.amount, [data-theme="citrus"] .nz-chip.amount{color:var(--ink);background:rgba(255,255,255,.05);border-color:var(--theme-border);}
+ [data-theme="stone"] .unit-panel, [data-theme="neon-purple"] .unit-panel, [data-theme="citrus"] .unit-panel, [data-theme="velocity"] .unit-panel, [data-theme="arclight"] .unit-panel{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] .unit-head, [data-theme="neon-purple"] .unit-head, [data-theme="citrus"] .unit-head, [data-theme="velocity"] .unit-head, [data-theme="arclight"] .unit-head{border-bottom-color:var(--theme-border);}
+ [data-theme="stone"] .unit-head .unit-machine, [data-theme="neon-purple"] .unit-head .unit-machine, [data-theme="citrus"] .unit-head .unit-machine, [data-theme="velocity"] .unit-head .unit-machine, [data-theme="arclight"] .unit-head .unit-machine{color:var(--ink);}
+ [data-theme="stone"] .fuel-group.diesel, [data-theme="neon-purple"] .fuel-group.diesel, [data-theme="citrus"] .fuel-group.diesel, [data-theme="velocity"] .fuel-group.diesel, [data-theme="arclight"] .fuel-group.diesel{background:color-mix(in srgb, var(--diesel) 8%, transparent);}
+ [data-theme="stone"] .fuel-group.petrol, [data-theme="neon-purple"] .fuel-group.petrol, [data-theme="citrus"] .fuel-group.petrol, [data-theme="velocity"] .fuel-group.petrol, [data-theme="arclight"] .fuel-group.petrol{background:color-mix(in srgb, var(--petrol) 8%, transparent);}
+ [data-theme="stone"] .nozzle-row .meter-input, [data-theme="neon-purple"] .nozzle-row .meter-input, [data-theme="citrus"] .nozzle-row .meter-input, [data-theme="velocity"] .nozzle-row .meter-input, [data-theme="arclight"] .nozzle-row .meter-input{background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);}
+ [data-theme="stone"] .nozzle-row .meter-input:disabled, [data-theme="neon-purple"] .nozzle-row .meter-input:disabled, [data-theme="citrus"] .nozzle-row .meter-input:disabled, [data-theme="velocity"] .nozzle-row .meter-input:disabled, [data-theme="arclight"] .nozzle-row .meter-input:disabled{background:rgba(255,255,255,.03);}
+ [data-theme="stone"] .nz-chip, [data-theme="neon-purple"] .nz-chip, [data-theme="citrus"] .nz-chip, [data-theme="velocity"] .nz-chip, [data-theme="arclight"] .nz-chip{background:rgba(255,255,255,.04);}
+ [data-theme="stone"] .fuel-group.diesel .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.diesel .nz-chip.litres, [data-theme="citrus"] .fuel-group.diesel .nz-chip.litres, [data-theme="velocity"] .fuel-group.diesel .nz-chip.litres, [data-theme="arclight"] .fuel-group.diesel .nz-chip.litres{background:color-mix(in srgb, var(--diesel) 12%, transparent);border-color:color-mix(in srgb, var(--diesel) 25%, transparent);}
+ [data-theme="stone"] .fuel-group.petrol .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.petrol .nz-chip.litres, [data-theme="citrus"] .fuel-group.petrol .nz-chip.litres, [data-theme="velocity"] .fuel-group.petrol .nz-chip.litres, [data-theme="arclight"] .fuel-group.petrol .nz-chip.litres{background:color-mix(in srgb, var(--petrol) 12%, transparent);border-color:color-mix(in srgb, var(--petrol) 25%, transparent);}
+ [data-theme="stone"] .nz-chip.amount, [data-theme="neon-purple"] .nz-chip.amount, [data-theme="citrus"] .nz-chip.amount, [data-theme="velocity"] .nz-chip.amount, [data-theme="arclight"] .nz-chip.amount{color:var(--ink);background:rgba(255,255,255,.05);border-color:var(--theme-border);}
 
- [data-theme="stone"] #tab-sales #testingBlock, [data-theme="neon-purple"] #tab-sales #testingBlock, [data-theme="citrus"] #tab-sales #testingBlock{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.25);}
- [data-theme="stone"] #tab-sales .fds-testing-row, [data-theme="neon-purple"] #tab-sales .fds-testing-row, [data-theme="citrus"] #tab-sales .fds-testing-row{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,rgba(255,199,95,.06) 100%);border-color:var(--theme-border);}
- [data-theme="stone"] .rate-card, [data-theme="neon-purple"] .rate-card, [data-theme="stone"] .fds-testing-row, [data-theme="neon-purple"] .fds-testing-row, [data-theme="citrus"] .rate-card, [data-theme="citrus"] .fds-testing-row{background:rgba(255,199,95,.06);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales #testingBlock, [data-theme="neon-purple"] #tab-sales #testingBlock, [data-theme="citrus"] #tab-sales #testingBlock, [data-theme="velocity"] #tab-sales #testingBlock, [data-theme="arclight"] #tab-sales #testingBlock{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.25);}
+ [data-theme="stone"] #tab-sales .fds-testing-row, [data-theme="neon-purple"] #tab-sales .fds-testing-row, [data-theme="citrus"] #tab-sales .fds-testing-row, [data-theme="velocity"] #tab-sales .fds-testing-row, [data-theme="arclight"] #tab-sales .fds-testing-row{background:linear-gradient(120deg,color-mix(in srgb, var(--diesel) 6%, transparent) 0%,rgba(255,199,95,.06) 100%);border-color:var(--theme-border);}
+ [data-theme="stone"] .rate-card, [data-theme="neon-purple"] .rate-card, [data-theme="stone"] .fds-testing-row, [data-theme="neon-purple"] .fds-testing-row, [data-theme="citrus"] .rate-card, [data-theme="velocity"] .rate-card, [data-theme="arclight"] .rate-card, [data-theme="citrus"] .fds-testing-row, [data-theme="velocity"] .fds-testing-row, [data-theme="arclight"] .fds-testing-row{background:rgba(255,199,95,.06);border-color:var(--theme-border);}
 
- [data-theme="stone"] #tab-sales .ledger-wrap, [data-theme="neon-purple"] #tab-sales .ledger-wrap, [data-theme="citrus"] #tab-sales .ledger-wrap{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-sales .ledger-wrap th, [data-theme="neon-purple"] #tab-sales .ledger-wrap th, [data-theme="citrus"] #tab-sales .ledger-wrap th{color:#fff;}
- [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="citrus"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td{background:rgba(255,255,255,.025);}
- [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="citrus"] #tab-sales .ledger-wrap tbody tr:hover td{background:color-mix(in srgb, var(--diesel) 6%, transparent);}
+ [data-theme="stone"] #tab-sales .ledger-wrap, [data-theme="neon-purple"] #tab-sales .ledger-wrap, [data-theme="citrus"] #tab-sales .ledger-wrap, [data-theme="velocity"] #tab-sales .ledger-wrap, [data-theme="arclight"] #tab-sales .ledger-wrap{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-sales .ledger-wrap th, [data-theme="neon-purple"] #tab-sales .ledger-wrap th, [data-theme="citrus"] #tab-sales .ledger-wrap th, [data-theme="velocity"] #tab-sales .ledger-wrap th, [data-theme="arclight"] #tab-sales .ledger-wrap th{color:#fff;}
+ [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="citrus"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="velocity"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td, [data-theme="arclight"] #tab-sales .ledger-wrap tbody tr:nth-child(even) td{background:rgba(255,255,255,.025);}
+ [data-theme="stone"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="neon-purple"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="citrus"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="velocity"] #tab-sales .ledger-wrap tbody tr:hover td, [data-theme="arclight"] #tab-sales .ledger-wrap tbody tr:hover td{background:color-mix(in srgb, var(--diesel) 6%, transparent);}
 
- [data-theme="stone"] .badge.surplus, [data-theme="neon-purple"] .badge.surplus, [data-theme="citrus"] .badge.surplus{background:rgba(51,240,168,.12);}
- [data-theme="stone"] .badge.shortfall, [data-theme="neon-purple"] .badge.shortfall, [data-theme="citrus"] .badge.shortfall{background:rgba(255,77,109,.14);}
- [data-theme="stone"] .badge.matched, [data-theme="neon-purple"] .badge.matched, [data-theme="citrus"] .badge.matched{background:rgba(255,255,255,.06);}
+ [data-theme="stone"] .badge.surplus, [data-theme="neon-purple"] .badge.surplus, [data-theme="citrus"] .badge.surplus, [data-theme="velocity"] .badge.surplus, [data-theme="arclight"] .badge.surplus{background:rgba(51,240,168,.12);}
+ [data-theme="stone"] .badge.shortfall, [data-theme="neon-purple"] .badge.shortfall, [data-theme="citrus"] .badge.shortfall, [data-theme="velocity"] .badge.shortfall, [data-theme="arclight"] .badge.shortfall{background:rgba(255,77,109,.14);}
+ [data-theme="stone"] .badge.matched, [data-theme="neon-purple"] .badge.matched, [data-theme="citrus"] .badge.matched, [data-theme="velocity"] .badge.matched, [data-theme="arclight"] .badge.matched{background:rgba(255,255,255,.06);}
 
- [data-theme="stone"] .denom-cell, [data-theme="neon-purple"] .denom-cell, [data-theme="citrus"] .denom-cell{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
- [data-theme="stone"] .denom-cell:focus-within, [data-theme="neon-purple"] .denom-cell:focus-within, [data-theme="citrus"] .denom-cell:focus-within{border-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
- [data-theme="stone"] .denom-cell.tier-high, [data-theme="neon-purple"] .denom-cell.tier-high, [data-theme="citrus"] .denom-cell.tier-high{border-left-color:var(--diesel-dark);}
- [data-theme="stone"] .denom-cell.tier-high .note, [data-theme="neon-purple"] .denom-cell.tier-high .note, [data-theme="citrus"] .denom-cell.tier-high .note{color:var(--diesel-dark);}
- [data-theme="stone"] .cc-ico, [data-theme="neon-purple"] .cc-ico, [data-theme="citrus"] .cc-ico{background:rgba(255,255,255,.06);}
- [data-theme="stone"] .cc-block-title, [data-theme="neon-purple"] .cc-block-title, [data-theme="citrus"] .cc-block-title{color:var(--ink);}
- [data-theme="stone"] .cc-receipt, [data-theme="neon-purple"] .cc-receipt, [data-theme="citrus"] .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);box-shadow:0 10px 30px color-mix(in srgb, var(--petrol) 15%, transparent);}
- [data-theme="stone"] .staff-fuel-item, [data-theme="neon-purple"] .staff-fuel-item, [data-theme="citrus"] .staff-fuel-item{background:rgba(255,255,255,.05);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-cash .cc-header-card, [data-theme="neon-purple"] #tab-cash .cc-header-card, [data-theme="citrus"] #tab-cash .cc-header-card{background:linear-gradient(118deg,color-mix(in srgb, var(--petrol) 8%, transparent) 0%,color-mix(in srgb, var(--diesel) 6%, transparent) 100%);}
- [data-theme="stone"] #tab-cash .cc-header-card h2, [data-theme="neon-purple"] #tab-cash .cc-header-card h2, [data-theme="citrus"] #tab-cash .cc-header-card h2{color:var(--ink);}
- [data-theme="stone"] #tab-cash .cc-header-card .tag, [data-theme="neon-purple"] #tab-cash .cc-header-card .tag, [data-theme="citrus"] #tab-cash .cc-header-card .tag{background:rgba(255,199,95,.14);color:#FFC75F;}
- [data-theme="stone"] #tab-cash .cc-block, [data-theme="neon-purple"] #tab-cash .cc-block, [data-theme="citrus"] #tab-cash .cc-block{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] #tab-cash .cc-block-title, [data-theme="neon-purple"] #tab-cash .cc-block-title, [data-theme="citrus"] #tab-cash .cc-block-title{border-bottom-color:var(--theme-border);}
- [data-theme="stone"] #tab-cash .cc-block-title .tag, [data-theme="neon-purple"] #tab-cash .cc-block-title .tag, [data-theme="citrus"] #tab-cash .cc-block-title .tag{background:rgba(255,255,255,.06);}
- [data-theme="stone"] #tab-cash .denom-cell, [data-theme="neon-purple"] #tab-cash .denom-cell, [data-theme="citrus"] #tab-cash .denom-cell{background:rgba(255,255,255,.04);}
- [data-theme="stone"] #tab-cash .denom-cell:focus-within, [data-theme="neon-purple"] #tab-cash .denom-cell:focus-within, [data-theme="citrus"] #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 3px var(--theme-glow-a);}
- [data-theme="stone"] #tab-cash .cash-counted-coins, [data-theme="neon-purple"] #tab-cash .cash-counted-coins, [data-theme="citrus"] #tab-cash .cash-counted-coins{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.22);}
- [data-theme="stone"] #tab-cash .cc-receipt, [data-theme="neon-purple"] #tab-cash .cc-receipt, [data-theme="citrus"] #tab-cash .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);}
- [data-theme="stone"] #tab-cash .cc-receipt-subtitle, [data-theme="neon-purple"] #tab-cash .cc-receipt-subtitle, [data-theme="citrus"] #tab-cash .cc-receipt-subtitle{color:var(--muted);}
+ [data-theme="stone"] .denom-cell, [data-theme="neon-purple"] .denom-cell, [data-theme="citrus"] .denom-cell, [data-theme="velocity"] .denom-cell, [data-theme="arclight"] .denom-cell{background:rgba(255,255,255,.04);border-color:var(--theme-border);}
+ [data-theme="stone"] .denom-cell:focus-within, [data-theme="neon-purple"] .denom-cell:focus-within, [data-theme="citrus"] .denom-cell:focus-within, [data-theme="velocity"] .denom-cell:focus-within, [data-theme="arclight"] .denom-cell:focus-within{border-color:var(--petrol);box-shadow:0 0 0 3px var(--theme-glow-a);}
+ [data-theme="stone"] .denom-cell.tier-high, [data-theme="neon-purple"] .denom-cell.tier-high, [data-theme="citrus"] .denom-cell.tier-high, [data-theme="velocity"] .denom-cell.tier-high, [data-theme="arclight"] .denom-cell.tier-high{border-left-color:var(--diesel-dark);}
+ [data-theme="stone"] .denom-cell.tier-high .note, [data-theme="neon-purple"] .denom-cell.tier-high .note, [data-theme="citrus"] .denom-cell.tier-high .note, [data-theme="velocity"] .denom-cell.tier-high .note, [data-theme="arclight"] .denom-cell.tier-high .note{color:var(--diesel-dark);}
+ [data-theme="stone"] .cc-ico, [data-theme="neon-purple"] .cc-ico, [data-theme="citrus"] .cc-ico, [data-theme="velocity"] .cc-ico, [data-theme="arclight"] .cc-ico{background:rgba(255,255,255,.06);}
+ [data-theme="stone"] .cc-block-title, [data-theme="neon-purple"] .cc-block-title, [data-theme="citrus"] .cc-block-title, [data-theme="velocity"] .cc-block-title, [data-theme="arclight"] .cc-block-title{color:var(--ink);}
+ [data-theme="stone"] .cc-receipt, [data-theme="neon-purple"] .cc-receipt, [data-theme="citrus"] .cc-receipt, [data-theme="velocity"] .cc-receipt, [data-theme="arclight"] .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);box-shadow:0 10px 30px color-mix(in srgb, var(--petrol) 15%, transparent);}
+ [data-theme="stone"] .staff-fuel-item, [data-theme="neon-purple"] .staff-fuel-item, [data-theme="citrus"] .staff-fuel-item, [data-theme="velocity"] .staff-fuel-item, [data-theme="arclight"] .staff-fuel-item{background:rgba(255,255,255,.05);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-cash .cc-header-card, [data-theme="neon-purple"] #tab-cash .cc-header-card, [data-theme="citrus"] #tab-cash .cc-header-card, [data-theme="velocity"] #tab-cash .cc-header-card, [data-theme="arclight"] #tab-cash .cc-header-card{background:linear-gradient(118deg,color-mix(in srgb, var(--petrol) 8%, transparent) 0%,color-mix(in srgb, var(--diesel) 6%, transparent) 100%);}
+ [data-theme="stone"] #tab-cash .cc-header-card h2, [data-theme="neon-purple"] #tab-cash .cc-header-card h2, [data-theme="citrus"] #tab-cash .cc-header-card h2, [data-theme="velocity"] #tab-cash .cc-header-card h2, [data-theme="arclight"] #tab-cash .cc-header-card h2{color:var(--ink);}
+ [data-theme="stone"] #tab-cash .cc-header-card .tag, [data-theme="neon-purple"] #tab-cash .cc-header-card .tag, [data-theme="citrus"] #tab-cash .cc-header-card .tag, [data-theme="velocity"] #tab-cash .cc-header-card .tag, [data-theme="arclight"] #tab-cash .cc-header-card .tag{background:rgba(255,199,95,.14);color:#FFC75F;}
+ [data-theme="stone"] #tab-cash .cc-block, [data-theme="neon-purple"] #tab-cash .cc-block, [data-theme="citrus"] #tab-cash .cc-block, [data-theme="velocity"] #tab-cash .cc-block, [data-theme="arclight"] #tab-cash .cc-block{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] #tab-cash .cc-block-title, [data-theme="neon-purple"] #tab-cash .cc-block-title, [data-theme="citrus"] #tab-cash .cc-block-title, [data-theme="velocity"] #tab-cash .cc-block-title, [data-theme="arclight"] #tab-cash .cc-block-title{border-bottom-color:var(--theme-border);}
+ [data-theme="stone"] #tab-cash .cc-block-title .tag, [data-theme="neon-purple"] #tab-cash .cc-block-title .tag, [data-theme="citrus"] #tab-cash .cc-block-title .tag, [data-theme="velocity"] #tab-cash .cc-block-title .tag, [data-theme="arclight"] #tab-cash .cc-block-title .tag{background:rgba(255,255,255,.06);}
+ [data-theme="stone"] #tab-cash .denom-cell, [data-theme="neon-purple"] #tab-cash .denom-cell, [data-theme="citrus"] #tab-cash .denom-cell, [data-theme="velocity"] #tab-cash .denom-cell, [data-theme="arclight"] #tab-cash .denom-cell{background:rgba(255,255,255,.04);}
+ [data-theme="stone"] #tab-cash .denom-cell:focus-within, [data-theme="neon-purple"] #tab-cash .denom-cell:focus-within, [data-theme="citrus"] #tab-cash .denom-cell:focus-within, [data-theme="velocity"] #tab-cash .denom-cell:focus-within, [data-theme="arclight"] #tab-cash .denom-cell:focus-within{box-shadow:0 0 0 3px var(--theme-glow-a);}
+ [data-theme="stone"] #tab-cash .cash-counted-coins, [data-theme="neon-purple"] #tab-cash .cash-counted-coins, [data-theme="citrus"] #tab-cash .cash-counted-coins, [data-theme="velocity"] #tab-cash .cash-counted-coins, [data-theme="arclight"] #tab-cash .cash-counted-coins{background:rgba(255,199,95,.06);border-color:rgba(255,199,95,.22);}
+ [data-theme="stone"] #tab-cash .cc-receipt, [data-theme="neon-purple"] #tab-cash .cc-receipt, [data-theme="citrus"] #tab-cash .cc-receipt, [data-theme="velocity"] #tab-cash .cc-receipt, [data-theme="arclight"] #tab-cash .cc-receipt{background:linear-gradient(150deg,var(--navy2) 0%,var(--cream) 100%);}
+ [data-theme="stone"] #tab-cash .cc-receipt-subtitle, [data-theme="neon-purple"] #tab-cash .cc-receipt-subtitle, [data-theme="citrus"] #tab-cash .cc-receipt-subtitle, [data-theme="velocity"] #tab-cash .cc-receipt-subtitle, [data-theme="arclight"] #tab-cash .cc-receipt-subtitle{color:var(--muted);}
 
- [data-theme="stone"] .fds-net-tile, [data-theme="neon-purple"] .fds-net-tile, [data-theme="citrus"] .fds-net-tile{background:var(--paper);border-color:var(--theme-border);}
- [data-theme="stone"] .fds-net-tile.diesel, [data-theme="neon-purple"] .fds-net-tile.diesel, [data-theme="citrus"] .fds-net-tile.diesel{background:linear-gradient(180deg,color-mix(in srgb, var(--diesel) 10%, transparent) 0%,var(--paper) 65%);}
- [data-theme="stone"] .fds-net-tile.petrol, [data-theme="neon-purple"] .fds-net-tile.petrol, [data-theme="citrus"] .fds-net-tile.petrol{background:linear-gradient(180deg,color-mix(in srgb, var(--petrol) 10%, transparent) 0%,var(--paper) 65%);}
- [data-theme="stone"] .fds-net-tile.total, [data-theme="neon-purple"] .fds-net-tile.total, [data-theme="citrus"] .fds-net-tile.total{background:linear-gradient(180deg,rgba(140,124,255,.12) 0%,var(--paper) 65%);}
- [data-theme="stone"] .fds-net-tile.total .amount, [data-theme="neon-purple"] .fds-net-tile.total .amount, [data-theme="citrus"] .fds-net-tile.total .amount{color:var(--ink);}
- [data-theme="stone"] .shift-btn, [data-theme="neon-purple"] .shift-btn, [data-theme="citrus"] .shift-btn{background:rgba(255,255,255,.05);color:var(--ink);}
- [data-theme="stone"] .ssc-head h3, [data-theme="neon-purple"] .ssc-head h3, [data-theme="stone"] .ssc-head .ssc-total, [data-theme="neon-purple"] .ssc-head .ssc-total, [data-theme="citrus"] .ssc-head h3, [data-theme="citrus"] .ssc-head .ssc-total{color:var(--ink);}
+ [data-theme="stone"] .fds-net-tile, [data-theme="neon-purple"] .fds-net-tile, [data-theme="citrus"] .fds-net-tile, [data-theme="velocity"] .fds-net-tile, [data-theme="arclight"] .fds-net-tile{background:var(--paper);border-color:var(--theme-border);}
+ [data-theme="stone"] .fds-net-tile.diesel, [data-theme="neon-purple"] .fds-net-tile.diesel, [data-theme="citrus"] .fds-net-tile.diesel, [data-theme="velocity"] .fds-net-tile.diesel, [data-theme="arclight"] .fds-net-tile.diesel{background:linear-gradient(180deg,color-mix(in srgb, var(--diesel) 10%, transparent) 0%,var(--paper) 65%);}
+ [data-theme="stone"] .fds-net-tile.petrol, [data-theme="neon-purple"] .fds-net-tile.petrol, [data-theme="citrus"] .fds-net-tile.petrol, [data-theme="velocity"] .fds-net-tile.petrol, [data-theme="arclight"] .fds-net-tile.petrol{background:linear-gradient(180deg,color-mix(in srgb, var(--petrol) 10%, transparent) 0%,var(--paper) 65%);}
+ [data-theme="stone"] .fds-net-tile.total, [data-theme="neon-purple"] .fds-net-tile.total, [data-theme="citrus"] .fds-net-tile.total, [data-theme="velocity"] .fds-net-tile.total, [data-theme="arclight"] .fds-net-tile.total{background:linear-gradient(180deg,rgba(140,124,255,.12) 0%,var(--paper) 65%);}
+ [data-theme="stone"] .fds-net-tile.total .amount, [data-theme="neon-purple"] .fds-net-tile.total .amount, [data-theme="citrus"] .fds-net-tile.total .amount, [data-theme="velocity"] .fds-net-tile.total .amount, [data-theme="arclight"] .fds-net-tile.total .amount{color:var(--ink);}
+ [data-theme="stone"] .shift-btn, [data-theme="neon-purple"] .shift-btn, [data-theme="citrus"] .shift-btn, [data-theme="velocity"] .shift-btn, [data-theme="arclight"] .shift-btn{background:rgba(255,255,255,.05);color:var(--ink);}
+ [data-theme="stone"] .ssc-head h3, [data-theme="neon-purple"] .ssc-head h3, [data-theme="stone"] .ssc-head .ssc-total, [data-theme="neon-purple"] .ssc-head .ssc-total, [data-theme="citrus"] .ssc-head h3, [data-theme="velocity"] .ssc-head h3, [data-theme="arclight"] .ssc-head h3, [data-theme="citrus"] .ssc-head .ssc-total, [data-theme="velocity"] .ssc-head .ssc-total, [data-theme="arclight"] .ssc-head .ssc-total{color:var(--ink);}
 
  [data-theme="neon-purple"] #loginGate{
     background:
@@ -1105,25 +1151,41 @@
       radial-gradient(900px 700px at 110% 110%, color-mix(in srgb, var(--diesel) 20%, transparent), transparent 55%),
       linear-gradient(160deg, var(--navy) 0%, #12291b 60%, #0B1C12 100%);
   }
+ [data-theme="arclight"] #loginGate{
+    background:
+      radial-gradient(1100px 600px at 15% -10%, color-mix(in srgb, var(--diesel) 20%, transparent), transparent 60%),
+      radial-gradient(900px 700px at 110% 110%, color-mix(in srgb, var(--petrol) 16%, transparent), transparent 55%),
+      linear-gradient(160deg, var(--navy) 0%, #171208 60%, #0A0807 100%);
+  }
+ [data-theme="velocity"] #loginGate{
+    background:
+      radial-gradient(1100px 600px at 15% -10%, color-mix(in srgb, var(--diesel) 22%, transparent), transparent 60%),
+      radial-gradient(900px 700px at 110% 110%, color-mix(in srgb, var(--petrol) 14%, transparent), transparent 55%),
+      linear-gradient(160deg, var(--navy) 0%, #0D0D0D 60%, #000000 100%);
+  }
  [data-theme="neon-purple"] .login-card{background:rgba(20,17,44,.96);border-color:var(--theme-border);}
  [data-theme="stone"] .login-card{background:rgba(251,246,236,.98);border-color:rgba(26,26,26,.08);}
  [data-theme="citrus"] .login-card{background:rgba(255,253,240,.98);border-color:rgba(25,63,39,.10);}
- [data-theme="stone"] .login-card h2, [data-theme="neon-purple"] .login-card h2, [data-theme="citrus"] .login-card h2{color:var(--ink);}
+ [data-theme="arclight"] .login-card{background:rgba(22,19,13,.97);border-color:var(--theme-border);}
+ [data-theme="velocity"] .login-card{background:rgba(18,18,18,.97);border-color:var(--theme-border);}
+ [data-theme="stone"] .login-card h2, [data-theme="neon-purple"] .login-card h2, [data-theme="citrus"] .login-card h2, [data-theme="velocity"] .login-card h2, [data-theme="arclight"] .login-card h2{color:var(--ink);}
  [data-theme="neon-purple"] .login-field input, [data-theme="neon-purple"] .login-field select{background:rgba(255,255,255,.05);color:var(--ink);border-color:var(--theme-border);}
  [data-theme="stone"] .login-field input, [data-theme="stone"] .login-field select{background:#fff;color:var(--ink);border-color:rgba(26,26,26,.15);}
  [data-theme="citrus"] .login-field input, [data-theme="citrus"] .login-field select{background:#fff;color:var(--ink);border-color:rgba(25,63,39,.18);}
- [data-theme="stone"] .login-field .toggle-eye:hover, [data-theme="neon-purple"] .login-field .toggle-eye:hover, [data-theme="citrus"] .login-field .toggle-eye:hover{color:var(--ink);}
- [data-theme="stone"] button.btn.login-submit, [data-theme="neon-purple"] button.btn.login-submit, [data-theme="citrus"] button.btn.login-submit{color:#fff;box-shadow:0 0 20px var(--theme-glow-a);}
- [data-theme="stone"] .login-error, [data-theme="neon-purple"] .login-error, [data-theme="citrus"] .login-error{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3);}
+ [data-theme="arclight"] .login-field input, [data-theme="arclight"] .login-field select{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
+ [data-theme="velocity"] .login-field input, [data-theme="velocity"] .login-field select{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
+ [data-theme="stone"] .login-field .toggle-eye:hover, [data-theme="neon-purple"] .login-field .toggle-eye:hover, [data-theme="citrus"] .login-field .toggle-eye:hover, [data-theme="velocity"] .login-field .toggle-eye:hover, [data-theme="arclight"] .login-field .toggle-eye:hover{color:var(--ink);}
+ [data-theme="stone"] button.btn.login-submit, [data-theme="neon-purple"] button.btn.login-submit, [data-theme="citrus"] button.btn.login-submit, [data-theme="velocity"] button.btn.login-submit, [data-theme="arclight"] button.btn.login-submit{color:#fff;box-shadow:0 0 20px var(--theme-glow-a);}
+ [data-theme="stone"] .login-error, [data-theme="neon-purple"] .login-error, [data-theme="citrus"] .login-error, [data-theme="velocity"] .login-error, [data-theme="arclight"] .login-error{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3);}
 
- [data-theme="stone"] #idleCountdown, [data-theme="neon-purple"] #idleCountdown, [data-theme="citrus"] #idleCountdown{border-color:var(--theme-border);box-shadow:0 4px 20px color-mix(in srgb, var(--petrol) 20%, transparent);}
+ [data-theme="stone"] #idleCountdown, [data-theme="neon-purple"] #idleCountdown, [data-theme="citrus"] #idleCountdown, [data-theme="velocity"] #idleCountdown, [data-theme="arclight"] #idleCountdown{border-color:var(--theme-border);box-shadow:0 4px 20px color-mix(in srgb, var(--petrol) 20%, transparent);}
 
- [data-theme="stone"] .tank-status-card, [data-theme="neon-purple"] .tank-status-card, [data-theme="citrus"] .tank-status-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 20px rgba(0,0,0,.4);}
- [data-theme="stone"] .tank-status-card.urgent, [data-theme="neon-purple"] .tank-status-card.urgent, [data-theme="citrus"] .tank-status-card.urgent{background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.35);}
- [data-theme="stone"] .tank-title, [data-theme="neon-purple"] .tank-title, [data-theme="stone"] .tank-left, [data-theme="neon-purple"] .tank-left, [data-theme="citrus"] .tank-title, [data-theme="citrus"] .tank-left{color:var(--ink);}
- [data-theme="stone"] .tank-meter, [data-theme="neon-purple"] .tank-meter, [data-theme="citrus"] .tank-meter{background:rgba(255,255,255,.08);}
- [data-theme="stone"] .tank-forecast, [data-theme="neon-purple"] .tank-forecast, [data-theme="citrus"] .tank-forecast{background:rgba(140,124,255,.14);color:var(--ink);}
- [data-theme="stone"] .tank-status-card.urgent .tank-forecast, [data-theme="neon-purple"] .tank-status-card.urgent .tank-forecast, [data-theme="citrus"] .tank-status-card.urgent .tank-forecast{background:rgba(255,77,109,.18);color:#FF9AB3;}
+ [data-theme="stone"] .tank-status-card, [data-theme="neon-purple"] .tank-status-card, [data-theme="citrus"] .tank-status-card, [data-theme="velocity"] .tank-status-card, [data-theme="arclight"] .tank-status-card{background:var(--paper);border-color:var(--theme-border);box-shadow:0 4px 20px rgba(0,0,0,.4);}
+ [data-theme="stone"] .tank-status-card.urgent, [data-theme="neon-purple"] .tank-status-card.urgent, [data-theme="citrus"] .tank-status-card.urgent, [data-theme="velocity"] .tank-status-card.urgent, [data-theme="arclight"] .tank-status-card.urgent{background:rgba(255,77,109,.10);border-color:rgba(255,77,109,.35);}
+ [data-theme="stone"] .tank-title, [data-theme="neon-purple"] .tank-title, [data-theme="stone"] .tank-left, [data-theme="neon-purple"] .tank-left, [data-theme="citrus"] .tank-title, [data-theme="velocity"] .tank-title, [data-theme="arclight"] .tank-title, [data-theme="citrus"] .tank-left, [data-theme="velocity"] .tank-left, [data-theme="arclight"] .tank-left{color:var(--ink);}
+ [data-theme="stone"] .tank-meter, [data-theme="neon-purple"] .tank-meter, [data-theme="citrus"] .tank-meter, [data-theme="velocity"] .tank-meter, [data-theme="arclight"] .tank-meter{background:rgba(255,255,255,.08);}
+ [data-theme="stone"] .tank-forecast, [data-theme="neon-purple"] .tank-forecast, [data-theme="citrus"] .tank-forecast, [data-theme="velocity"] .tank-forecast, [data-theme="arclight"] .tank-forecast{background:rgba(140,124,255,.14);color:var(--ink);}
+ [data-theme="stone"] .tank-status-card.urgent .tank-forecast, [data-theme="neon-purple"] .tank-status-card.urgent .tank-forecast, [data-theme="citrus"] .tank-status-card.urgent .tank-forecast, [data-theme="velocity"] .tank-status-card.urgent .tank-forecast, [data-theme="arclight"] .tank-status-card.urgent .tank-forecast{background:rgba(255,77,109,.18);color:#FF9AB3;}
 /* Global Bus Cash Tracker alert banner: shown fixed at the very top of the
    page, on top of whichever tab is currently open, so an overdue cash
    handover is never missed just because the user is on a different tab. */
@@ -1329,6 +1391,8 @@ input[type=date], input[type=password], select, textarea{
         <option value="stone">🫒 Olive Stone</option>
         <option value="citrus">🍔 Citrus Burger</option>
         <option value="neon-purple">💜 Neon Purple</option>
+        <option value="arclight">🏆 Arclight</option>
+        <option value="velocity">⚡ Velocity</option>
       </select>
       <button onclick="configureServerUrl()" title="Set the backend server URL for live multi-device sync">🔗 Server</button>
       <button onclick="manualFetchFromServer()" title="Force-reload the latest data from the database">⬇️ Fetch from Database</button>
@@ -7041,14 +7105,15 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 /* ============== THEME SWITCHER ============== */
-// Four interfaces: 'light' (default), 'stone' (olive/stone editorial
+// Six interfaces: 'light' (default), 'stone' (olive/stone editorial
 // palette), 'citrus' (yellow-green/burger-joint palette), 'neon-purple'
-// (vivid dark). Selecting one sets data-theme on <html>, which the CSS
-// above reads via
-// [data-theme="stone"]/[data-theme="citrus"]/[data-theme="neon-purple"]
+// (vivid dark), 'arclight' (black/gold command-center palette), 'velocity'
+// (black/neon-lime fitness-app palette). Selecting one sets data-theme on
+// <html>, which the CSS above reads via
+// [data-theme="stone"]/[data-theme="citrus"]/[data-theme="neon-purple"]/[data-theme="arclight"]/[data-theme="velocity"]
 // selectors.
 var THEME_STORAGE_KEY = 'maaFuelStationTheme_v1';
-var VALID_THEMES = ['light','stone','citrus','neon-purple'];
+var VALID_THEMES = ['light','stone','citrus','neon-purple','arclight','velocity'];
 function applyTheme(theme){
   if(VALID_THEMES.indexOf(theme) === -1) theme = 'light';
   if(theme === 'light'){
