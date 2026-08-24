@@ -88,7 +88,7 @@
   .mono{font-family:'JetBrains Mono',monospace;}
 
   header.top{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;border-bottom:4px solid var(--petrol);position:relative;}
-  header.top .station-badge{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:min(90vw,560px);width:100%;justify-content:center;order:-1;flex-basis:100%;margin:0 0 10px 0;}
+  header.top .station-badge{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:min(90vw,560px);width:100%;justify-content:center;order:-1;flex-basis:100%;margin:0 auto 10px auto;}
   header.top .station-badge img{height:42px;width:auto;flex-shrink:0;}
   header.top .station-badge .station-text{color:var(--navy);line-height:1.25;min-width:0;text-align:center;}
   header.top .station-badge .station-text .st-name{font-weight:700;font-size:16px;white-space:nowrap;}
@@ -1279,6 +1279,16 @@ input[type=date], input[type=password], select, textarea{
   font-size: max(16px, 0.95rem);
 }
 .row{ row-gap:12px; }
+
+/* ---- 5b. Native <select> dropdown lists (the open option popup) are
+   rendered by the OS/browser with their own background, which is
+   almost always solid white regardless of any theme colors applied to
+   the closed select box. Dark themes set select text color to a very
+   light shade (readable on the dark closed box), which then becomes
+   near-invisible light-on-white once the dropdown opens. Force a fixed,
+   readable dark-on-white color for every <option> everywhere so the
+   list stays legible no matter which theme is active. ---- */
+select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 
 /* ---- 6. Buttons: comfortable tap targets (44px) on touch screens
    without changing desktop sizing, which stays exactly as before. ---- */
