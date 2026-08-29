@@ -3905,6 +3905,7 @@ function renderStaffTab(){
         <input type="text" value="${escapeHtml(s.name)}" onchange="renameStaff('${s.id}', this.value)">
         <span class="staff-face-badge ${hasFace?'yes':'no'}">${hasFace?'📸 Face set':'⚠ No face'}</span>
         <button type="button" class="face-reg-btn" onclick="registerStaffFace('${s.id}')">${hasFace?'Re-register face':'Register face'}</button>
+        ${hasFace?`<button type="button" class="face-reg-btn" onclick="removeStaffFace('${s.id}')">Remove face</button>`:''}
         <button class="btn danger" onclick="deleteStaff('${s.id}')">Delete</button>
       </div>`;
     }).join('');
@@ -4153,6 +4154,18 @@ async function registerStaffFace(staffId){
     scheduleAutosave();
     alert((wasRegistered ? 'Face re-registered' : 'Face registered') + ' for ' + staff.name + '.');
   }
+}
+// Clears a staff member's saved face so they drop back to password-only
+// login (the login gate only asks for a face when faceDescriptor is set —
+// see initLoginGate). Doesn't touch their username/password.
+function removeStaffFace(staffId){
+  if(!isAdmin()) return;
+  const staff = (state.staff||[]).find(s=>s.id===staffId);
+  if(!staff || !(staff.faceDescriptor && staff.faceDescriptor.length)) return;
+  if(!confirm('Remove the saved face for ' + staff.name + '? They will log in with just a username and password until a face is registered again.')) return;
+  delete staff.faceDescriptor;
+  renderStaffTab();
+  scheduleAutosave();
 }
 
 /* ============== ADMIN TAB — staff login IDs & passwords ============== */
