@@ -3947,14 +3947,42 @@ function deleteStaff(id){
    just comparing two descriptors with euclidean distance — nothing here
    ever uploads a photo anywhere; the raw camera frame never leaves the
    browser tab (only the derived 128 numbers get saved). */
-const FACE_MODEL_BASE = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+// Two mirrors, tried in order — same resilience pattern as the face-api.js
+// <script> loader up in <head>. The primary is jsDelivr's GitHub-branch
+// proxy (@master, unpinned); jsDelivr's own npm-backed CDN for the
+// @vladmandic/face-api fork is used as a fallback, since it hosts the same
+// model files under a stable npm release rather than a live branch.
+const FACE_MODEL_BASES = [
+  'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights',
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'
+];
 // Euclidean distance below this = "same person". face-api.js's own docs
 // suggest ~0.6 as the line between same/different face; a little slack (0.55)
 // keeps this reasonably strict without being unusable in a shop with mixed
 // lighting/webcam quality.
 const FACE_MATCH_THRESHOLD = 0.55;
+const FACE_MODEL_LOAD_TIMEOUT_MS = 15000;
 let faceModelsLoaded = false;
 let faceModelsLoading = null;
+
+function withTimeout(promise, ms, message){
+  return new Promise((resolve, reject)=>{
+    const t = setTimeout(()=>reject(new Error(message)), ms);
+    promise.then(v=>{ clearTimeout(t); resolve(v); }, e=>{ clearTimeout(t); reject(e); });
+  });
+}
+
+async function loadFaceModelsFrom(base){
+  await withTimeout(
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(base),
+      faceapi.nets.faceLandmark68Net.loadFromUri(base),
+      faceapi.nets.faceRecognitionNet.loadFromUri(base),
+    ]),
+    FACE_MODEL_LOAD_TIMEOUT_MS,
+    'Timed out loading face recognition models from ' + base
+  );
+}
 
 async function ensureFaceApiReady(){
   // face-api.js itself (the <script> tag up in <head>) may still be loading —
@@ -3969,11 +3997,28 @@ async function ensureFaceApiReady(){
   }
   if(faceModelsLoaded) return;
   if(!faceModelsLoading){
-    faceModelsLoading = Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_BASE),
-      faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_BASE),
-      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_BASE),
-    ]).then(()=>{ faceModelsLoaded = true; });
+    faceModelsLoading = (async ()=>{
+      let lastErr = null;
+      for(const base of FACE_MODEL_BASES){
+        try{
+          await loadFaceModelsFrom(base);
+          faceModelsLoaded = true;
+          return;
+        }catch(err){
+          lastErr = err;
+          // A model can partially load before a shard fails/times out —
+          // reset so the next mirror starts clean instead of skipping nets
+          // it thinks are already loaded.
+          try{
+            faceapi.nets.tinyFaceDetector.reset && faceapi.nets.tinyFaceDetector.reset();
+            faceapi.nets.faceLandmark68Net.reset && faceapi.nets.faceLandmark68Net.reset();
+            faceapi.nets.faceRecognitionNet.reset && faceapi.nets.faceRecognitionNet.reset();
+          }catch(e){}
+        }
+      }
+      faceModelsLoading = null; // allow a retry (e.g. after the user tries again)
+      throw lastErr || new Error('Failed to load face recognition models.');
+    })();
   }
   await faceModelsLoading;
 }
@@ -4094,9 +4139,13 @@ async function doFaceCaptureAction(){
   status.textContent = 'Processing…';
   status.className = 'face-status';
   try{
-    const full = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
+    const full = await withTimeout(
+      faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor(),
+      10000,
+      'Face capture timed out — try again.'
+    );
     if(!full){
       status.textContent = 'No face detected — try again.';
       status.className = 'face-status err';
@@ -4132,7 +4181,7 @@ async function doFaceCaptureAction(){
       captureBtn.textContent = 'Try again';
     }
   }catch(err){
-    status.textContent = 'Something went wrong — try again.';
+    status.textContent = (err && err.message) || 'Something went wrong — try again.';
     status.className = 'face-status err';
     captureBtn.disabled = false;
   }
