@@ -735,7 +735,7 @@
     position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0;
   }
   .login-motion .pump-wrap{
-    position:absolute; right:6%; bottom:0; width:220px; max-width:26vw; opacity:.16;
+    position:absolute; right:6%; bottom:0; width:220px; max-width:26vw; opacity:.22;
   }
   .login-motion .pump-wrap svg{ width:100%; height:auto; display:block; }
   .login-motion .fuel-level{
@@ -755,7 +755,7 @@
   }
   .login-motion .drop{
     position:absolute; border-radius:50% 50% 50% 0; transform:rotate(45deg);
-    background:var(--petrol-glow, var(--petrol));
+    background:var(--diesel-glow, var(--diesel));
     opacity:0; animation:dropFall linear infinite;
   }
   @keyframes dropFall{
@@ -768,12 +768,12 @@
     position:absolute; left:7%; top:12%; width:130px; height:130px; max-width:20vw; max-height:20vw;
     border-radius:50%;
     border:2px solid var(--diesel-glow, var(--diesel));
-    opacity:.14;
+    opacity:.22;
     animation:gaugeSpin 22s linear infinite;
   }
   .login-motion .gauge-ring::before{
     content:''; position:absolute; top:-2px; left:50%; width:2px; height:14px;
-    background:var(--petrol-glow, var(--petrol));
+    background:rgba(255,255,255,.8);
   }
   @keyframes gaugeSpin{ from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
 
@@ -788,7 +788,7 @@
   .login-motion .card-glow{
     position:absolute; left:50%; top:50%; width:520px; height:520px; max-width:80vw; max-height:80vw;
     transform:translate(-50%,-50%);
-    background:radial-gradient(circle, var(--petrol-glow, var(--petrol)) 0%, transparent 68%);
+    background:radial-gradient(circle, var(--diesel-glow, var(--diesel)) 0%, transparent 68%);
     opacity:.06;
     animation:glowPulse 4.5s ease-in-out infinite;
   }
@@ -1471,28 +1471,28 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
     <div class="pump-wrap">
       <svg viewBox="0 0 200 320" xmlns="http://www.w3.org/2000/svg">
         <!-- pump body -->
-        <rect x="30" y="60" width="140" height="220" rx="14" fill="none" stroke="var(--cream)" stroke-width="4"/>
+        <rect x="30" y="60" width="140" height="220" rx="14" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="4"/>
         <!-- screen -->
-        <rect x="50" y="82" width="100" height="54" rx="6" fill="none" stroke="var(--cream)" stroke-width="3"/>
+        <rect x="50" y="82" width="100" height="54" rx="6" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="3"/>
         <!-- rising fuel level bar inside screen -->
         <clipPath id="screenClip"><rect x="53" y="85" width="94" height="48" rx="4"/></clipPath>
         <g clip-path="url(#screenClip)">
-          <rect class="fuel-level" x="53" y="85" width="94" height="48" fill="var(--petrol-glow, var(--petrol))"/>
+          <rect class="fuel-level" x="53" y="85" width="94" height="48" fill="var(--diesel-glow, var(--diesel))"/>
         </g>
         <!-- keypad dots -->
-        <circle cx="65" cy="155" r="4" fill="var(--cream)"/>
-        <circle cx="85" cy="155" r="4" fill="var(--cream)"/>
-        <circle cx="105" cy="155" r="4" fill="var(--cream)"/>
-        <circle cx="65" cy="170" r="4" fill="var(--cream)"/>
-        <circle cx="85" cy="170" r="4" fill="var(--cream)"/>
-        <circle cx="105" cy="170" r="4" fill="var(--cream)"/>
+        <circle cx="65" cy="155" r="4" fill="rgba(255,255,255,.85)"/>
+        <circle cx="85" cy="155" r="4" fill="rgba(255,255,255,.85)"/>
+        <circle cx="105" cy="155" r="4" fill="rgba(255,255,255,.85)"/>
+        <circle cx="65" cy="170" r="4" fill="rgba(255,255,255,.85)"/>
+        <circle cx="85" cy="170" r="4" fill="rgba(255,255,255,.85)"/>
+        <circle cx="105" cy="170" r="4" fill="rgba(255,255,255,.85)"/>
         <!-- hose -->
-        <path d="M170 120 C 195 130, 195 200, 165 215" fill="none" stroke="var(--cream)" stroke-width="4" stroke-linecap="round"/>
-        <path class="hose-flow" d="M170 120 C 195 130, 195 200, 165 215" fill="none" stroke="var(--petrol-glow, var(--petrol))" stroke-width="2" stroke-linecap="round"/>
+        <path d="M170 120 C 195 130, 195 200, 165 215" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="4" stroke-linecap="round"/>
+        <path class="hose-flow" d="M170 120 C 195 130, 195 200, 165 215" fill="none" stroke="var(--diesel-glow, var(--diesel))" stroke-width="2" stroke-linecap="round"/>
         <!-- nozzle glow -->
         <circle class="nozzle-glow" cx="163" cy="217" r="7" fill="var(--diesel-glow, var(--diesel))"/>
         <!-- base -->
-        <rect x="20" y="280" width="160" height="16" rx="4" fill="var(--cream)" opacity=".6"/>
+        <rect x="20" y="280" width="160" height="16" rx="4" fill="rgba(255,255,255,.5)"/>
       </svg>
     </div>
   </div>
