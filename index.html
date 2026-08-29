@@ -407,6 +407,10 @@
   .nozzle-row .field-closing{grid-area:closing;}
   .nozzle-row .meter-input{width:100%;min-width:0;box-sizing:border-box;padding:8px 8px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;text-align:right;}
   .nozzle-row .meter-input:disabled{background:#F4EEDD;color:var(--muted);cursor:not-allowed;border-style:dashed;}
+  .closing-input-wrap{display:flex;align-items:center;gap:4px;min-width:0;}
+  .closing-input-wrap .meter-input{flex:1;min-width:0;}
+  .nz-unlock-btn{flex:none;width:26px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;line-height:1;color:var(--muted);}
+  .nz-unlock-btn:hover{border-color:var(--petrol);color:var(--petrol-dark);}
   .nz-result{grid-area:result;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;}
   .nz-chip{border-radius:7px;padding:8px 9px;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35;text-align:center;border:1px solid var(--line);background:#fff;min-width:0;}
   .fuel-group.diesel .nz-chip.litres{color:var(--diesel-dark);background:#EAF2FE;border-color:#D3E4FC;}
@@ -1098,6 +1102,7 @@
  [data-theme="stone"] .fuel-group.petrol, [data-theme="neon-purple"] .fuel-group.petrol, [data-theme="citrus"] .fuel-group.petrol, [data-theme="velocity"] .fuel-group.petrol, [data-theme="arclight"] .fuel-group.petrol{background:color-mix(in srgb, var(--petrol) 8%, transparent);}
  [data-theme="stone"] .nozzle-row .meter-input, [data-theme="neon-purple"] .nozzle-row .meter-input, [data-theme="citrus"] .nozzle-row .meter-input, [data-theme="velocity"] .nozzle-row .meter-input, [data-theme="arclight"] .nozzle-row .meter-input{background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);}
  [data-theme="stone"] .nozzle-row .meter-input:disabled, [data-theme="neon-purple"] .nozzle-row .meter-input:disabled, [data-theme="citrus"] .nozzle-row .meter-input:disabled, [data-theme="velocity"] .nozzle-row .meter-input:disabled, [data-theme="arclight"] .nozzle-row .meter-input:disabled{background:rgba(255,255,255,.03);}
+ [data-theme="stone"] .nz-unlock-btn, [data-theme="neon-purple"] .nz-unlock-btn, [data-theme="citrus"] .nz-unlock-btn, [data-theme="velocity"] .nz-unlock-btn, [data-theme="arclight"] .nz-unlock-btn{background:rgba(255,255,255,.045);color:var(--ink);border-color:var(--theme-border);}
  [data-theme="stone"] .nz-chip, [data-theme="neon-purple"] .nz-chip, [data-theme="citrus"] .nz-chip, [data-theme="velocity"] .nz-chip, [data-theme="arclight"] .nz-chip{background:rgba(255,255,255,.04);}
  [data-theme="stone"] .fuel-group.diesel .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.diesel .nz-chip.litres, [data-theme="citrus"] .fuel-group.diesel .nz-chip.litres, [data-theme="velocity"] .fuel-group.diesel .nz-chip.litres, [data-theme="arclight"] .fuel-group.diesel .nz-chip.litres{background:color-mix(in srgb, var(--diesel) 12%, transparent);border-color:color-mix(in srgb, var(--diesel) 25%, transparent);}
  [data-theme="stone"] .fuel-group.petrol .nz-chip.litres, [data-theme="neon-purple"] .fuel-group.petrol .nz-chip.litres, [data-theme="citrus"] .fuel-group.petrol .nz-chip.litres, [data-theme="velocity"] .fuel-group.petrol .nz-chip.litres, [data-theme="arclight"] .fuel-group.petrol .nz-chip.litres{background:color-mix(in srgb, var(--petrol) 12%, transparent);border-color:color-mix(in srgb, var(--petrol) 25%, transparent);}
@@ -4371,7 +4376,15 @@ function onShiftTestingInput(){
   renderDaySummary(date);
   scheduleAutosave();
 }
+// Tracks nozzle ids an admin has explicitly unlocked for correction, for the
+// currently-viewed date+shift only — reset whenever the visible shift/date
+// changes so an unlock doesn't silently carry over to a different shift.
+let nozzleUnlocked = new Set();
+let nozzleUnlockedFor = null; // `${date}|${shift}` the current unlocks apply to
+
 function renderNozzleAssignTable(date, shift){
+  const key = date + '|' + shift;
+  if(nozzleUnlockedFor !== key){ nozzleUnlocked = new Set(); nozzleUnlockedFor = key; }
   const sd = ensureShiftData(date, shift);
   const rate = getRateForDate(date);
   const openingTitle = shift==='morning' ? "Carried automatically from previous day's Night closing" : 'Carried from previous shift';
@@ -4382,11 +4395,21 @@ function renderNozzleAssignTable(date, shift){
     const litres = nozzleLitres(date, shift, nz.id);
     const amount = litres * rate[nz.fuel];
     const shortLabel = nz.label.replace(/^(Diesel|Petrol)\s*/, '');
+    // Once a closing reading has actually been recorded (litres dispensed
+    // this shift is > 0), lock the field so it can't be accidentally
+    // overwritten later in the shift. Only an admin gets an Edit button to
+    // unlock and correct a mistaken entry — staff logins see it permanently
+    // locked once filled.
+    const isFilled = litres > 0 && !nozzleUnlocked.has(nz.id);
+    const closingDisabled = isFilled ? 'disabled' : '';
+    const unlockBtn = (isFilled && isAdmin())
+      ? `<button type="button" class="nz-unlock-btn" title="Unlock to correct this reading" onclick="unlockNozzleClosing('${nz.id}')">✎</button>`
+      : '';
     return `<div class="nozzle-row">
       <div class="nz-name">${shortLabel}</div>
       <select data-nz="${nz.id}" onchange="onAssignChange(this)">${staffOptionsHtml(sd.assign[nz.id])}</select>
       <div class="meter-field field-opening"><span class="field-caption">Opening</span><input type="number" class="meter-input" data-f="opening" value="${opening}" disabled title="${openingTitle}"></div>
-      <div class="meter-field field-closing"><span class="field-caption">Closing</span><input type="number" class="meter-input" step="0.01" value="${closing}" data-nz="${nz.id}" data-f="closing" oninput="onReadingInput(this)" onchange="validateClosingReading(this)"></div>
+      <div class="meter-field field-closing"><span class="field-caption">Closing</span><span class="closing-input-wrap"><input type="number" class="meter-input" step="0.01" value="${closing}" data-nz="${nz.id}" data-f="closing" oninput="onReadingInput(this)" onchange="validateClosingReading(this)" ${closingDisabled} title="${isFilled ? 'Locked — value already recorded for this shift' : ''}">${unlockBtn}</span></div>
       <div class="nz-result">
         <div class="nz-chip litres"><span id="lit-${nz.id}">${fmtNum(litres)}</span><span class="sfx">L</span></div>
         <div class="nz-chip amount"><span class="sfx">₹</span><span id="amt-${nz.id}">${fmtNum(amount)}</span></div>
@@ -4450,10 +4473,18 @@ function onReadingInput(el){
 }
 function validateClosingReading(el){
   const date = document.getElementById('salesDate').value;
-  const opening = Number(getOpeningReading(date, currentShift, el.dataset.nz))||0;
+  const nzId = el.dataset.nz;
+  const opening = Number(getOpeningReading(date, currentShift, nzId))||0;
   const closing = Number(el.value);
   const litres = closing-opening;
-  if(Number.isFinite(closing) && litres >= 0 && litres <= MAX_NOZZLE_LITRES_PER_SHIFT) return;
+  if(Number.isFinite(closing) && litres >= 0 && litres <= MAX_NOZZLE_LITRES_PER_SHIFT){
+    // A valid value was committed — the field locks now, so clear any
+    // admin unlock that was in effect for this nozzle and re-render to
+    // actually apply the disabled state.
+    nozzleUnlocked.delete(nzId);
+    renderNozzleAssignTable(date, currentShift);
+    return;
+  }
   const sd = ensureShiftData(date, currentShift);
   sd.closing[el.dataset.nz] = opening;
   el.value = opening;
@@ -4462,6 +4493,17 @@ function validateClosingReading(el){
   renderShiftStaffTable(date, currentShift);
   renderDaySummary(date);
   scheduleAutosave();
+}
+
+// Admin-only: temporarily unlocks one nozzle's closing field so a mistaken
+// reading can be corrected. The unlock is scoped to the currently-viewed
+// date+shift (see nozzleUnlockedFor) and is cleared automatically the
+// moment a valid new value is entered (see validateClosingReading).
+function unlockNozzleClosing(nzId){
+  if(!isAdmin()) return;
+  const date = document.getElementById('salesDate').value;
+  nozzleUnlocked.add(nzId);
+  renderNozzleAssignTable(date, currentShift);
 }
 
 function renderShiftReadouts(date, shift){
