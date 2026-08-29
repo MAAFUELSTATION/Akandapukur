@@ -4023,6 +4023,27 @@ async function ensureFaceApiReady(){
   await faceModelsLoading;
 }
 
+// TensorFlow.js's WebGL backend JIT-compiles shaders the first time each
+// model actually runs inference, not when the weights are loaded — and on
+// some Android GPUs that first compile for the heavier landmark/recognition
+// nets is what makes the very first real Capture take a long time (enough
+// to look "stuck"/timed out). Running one throwaway inference on a blank
+// canvas right after the models load (while the person is still framing
+// their face) pays that one-time compile cost early and silently, so the
+// actual Capture click that follows is fast. Best-effort: never throws.
+let faceModelsWarmed = false;
+async function warmUpFaceModels(){
+  if(faceModelsWarmed || !faceModelsLoaded) return;
+  faceModelsWarmed = true; // set first so a slow/failed warm-up is never retried mid-session
+  try{
+    const c = document.createElement('canvas');
+    c.width = 160; c.height = 120;
+    await faceapi.detectSingleFace(c, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+  }catch(e){ /* expected — a blank canvas has no face; only the compile pass matters */ }
+}
+
 // State for whichever face-capture flow is currently open.
 let faceCapture = {
   mode: null,        // 'register' | 'verify'
@@ -4071,6 +4092,7 @@ function openFaceCapture({mode, staffId, staffName}){
       await new Promise(r=>{ video.onloadedmetadata = ()=>{ video.play(); r(); }; });
       status.textContent = 'Looking for a face…';
       startFaceDetectLoop();
+      warmUpFaceModels(); // fire-and-forget, runs in the background while they get in frame
     }catch(err){
       status.textContent = (err && err.message) || 'Could not access the camera.';
       status.classList.add('err');
@@ -4136,15 +4158,22 @@ async function doFaceCaptureAction(){
   const wrap = faceEl('faceVideoWrap');
   const captureBtn = faceEl('faceCaptureBtn');
   captureBtn.disabled = true;
-  status.textContent = 'Processing…';
+  status.textContent = 'Processing… this can take up to 30s on some phones the first time.';
   status.className = 'face-status';
   try{
+    // The landmark + recognition models are much heavier than the tiny
+    // detector used by the live preview loop, and on some Android GPUs
+    // (older/mid-range hardware, or a WebView-flavored Chrome) TensorFlow.js's
+    // WebGL backend can take a genuinely long time to compile shaders for
+    // faceRecognitionNet on its very first run. 30s (vs. the earlier 10s)
+    // gives that real, if slow, work room to finish instead of aborting
+    // it mid-flight and calling it a failure.
     const full = await withTimeout(
       faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
         .withFaceDescriptor(),
-      10000,
-      'Face capture timed out — try again.'
+      30000,
+      'Face capture is taking too long on this device — try again, or use a different phone/browser.'
     );
     if(!full){
       status.textContent = 'No face detected — try again.';
