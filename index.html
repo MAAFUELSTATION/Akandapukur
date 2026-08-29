@@ -88,8 +88,43 @@
   .mono{font-family:'JetBrains Mono',monospace;}
 
   header.top{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;border-bottom:4px solid var(--petrol);position:relative;}
-  header.top .station-badge{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:min(90vw,560px);width:100%;justify-content:center;order:-1;flex-basis:100%;margin:0 auto 10px auto;}
+  header.top .station-badge{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:min(90vw,560px);width:100%;justify-content:center;order:-1;flex-basis:100%;margin:0 auto 10px auto;position:relative;overflow:visible;animation:badgeGlow 4s ease-in-out infinite;}
   header.top .station-badge img{height:42px;width:auto;flex-shrink:0;}
+
+  /* ---- Animated fuel-pump motion graphic in the header/logo area ---- */
+  @keyframes badgeGlow{
+    0%,100%{box-shadow:0 2px 8px rgba(0,0,0,.25);}
+    50%{box-shadow:0 2px 8px rgba(0,0,0,.25), 0 0 16px 1px rgba(224,138,43,.35);}
+  }
+  .pump-motion{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:36px;height:40px;}
+  .pump-motion svg{overflow:visible;}
+  .pump-motion .pm-body{fill:var(--navy);}
+  .pump-motion .pm-screen{fill:var(--diesel-glow);animation:pmScreenFlicker 2.6s ease-in-out infinite;}
+  .pump-motion .pm-hose{fill:none;stroke:var(--navy);stroke-width:2;stroke-linecap:round;}
+  .pump-motion .pm-nozzle{fill:var(--petrol);filter:drop-shadow(0 0 0 rgba(224,138,43,0));animation:pmNozzleGlow 1.8s ease-in-out infinite;}
+  .pump-motion .pm-drop{fill:var(--petrol);opacity:0;animation:pmDrip 1.8s linear infinite;}
+  @keyframes pmScreenFlicker{
+    0%,45%,55%,100%{opacity:1;}
+    50%{opacity:.55;}
+  }
+  @keyframes pmNozzleGlow{
+    0%,100%{filter:drop-shadow(0 0 0px rgba(224,138,43,.0));}
+    50%{filter:drop-shadow(0 0 3px rgba(224,138,43,.9));}
+  }
+  @keyframes pmDrip{
+    0%{transform:translateY(0);opacity:0;}
+    10%{opacity:1;}
+    70%{opacity:1;}
+    85%{transform:translateY(9px);opacity:0;}
+    100%{transform:translateY(9px);opacity:0;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .station-badge{animation:none !important;}
+    .pump-motion .pm-screen, .pump-motion .pm-nozzle, .pump-motion .pm-drop{animation:none !important;opacity:1;}
+  }
+  @media (max-width:760px){
+    .pump-motion{width:26px;height:30px;}
+  }
   header.top .station-badge .station-text{color:var(--navy);line-height:1.25;min-width:0;text-align:center;}
   header.top .station-badge .station-text .st-name{font-weight:700;font-size:16px;white-space:nowrap;}
   header.top .station-badge .station-text .st-addr{font-size:11.5px;color:#3a5b73;white-space:normal;}
@@ -862,12 +897,52 @@
     0%,89%,93%,100%{ opacity:.28; }
     90%,92%{ opacity:.06; }
   }
+  /* ---- brief bright pulse fired from JS whenever the live rate actually
+     changes, layered on top of the ambient flicker above ---- */
+  .login-motion .price-sign.price-sign-flash{
+    animation:signFlicker 5s steps(1) infinite, priceFlash 1.4s ease-out;
+  }
+  @keyframes priceFlash{
+    0%{ opacity:1; text-shadow:0 0 8px var(--diesel-glow, var(--diesel)), 0 0 18px var(--diesel-glow, var(--diesel)); transform:scale(1.1); }
+    100%{ opacity:.28; text-shadow:none; transform:scale(1); }
+  }
+
+  /* ---- a car silhouette driving past along the skyline, headlamps lit ---- */
+  .login-motion .car{
+    position:absolute; bottom:5.5%; left:-12%; width:58px; height:22px;
+    opacity:.55; animation:carDrive 10s linear infinite;
+  }
+  .login-motion .car svg{ width:100%; height:100%; display:block; }
+  .login-motion .car .headlamp{ animation:nozzlePulse 1.4s ease-in-out infinite; }
+  @keyframes carDrive{
+    0%{ left:-12%; }
+    100%{ left:112%; }
+  }
+
+  /* ---- rare shooting star streaking across the upper gate ---- */
+  .login-motion .shooting-star{
+    position:absolute; width:2px; height:2px; border-radius:50%; background:#fff;
+    opacity:0; animation:shootStar 9s ease-in infinite;
+  }
+  .login-motion .shooting-star::after{
+    content:''; position:absolute; top:1px; right:1px; width:64px; height:1px;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.85));
+    transform:translateY(-50%) rotate(180deg); transform-origin:right center;
+  }
+  @keyframes shootStar{
+    0%,90%{ opacity:0; transform:translate(0,0); }
+    91%{ opacity:1; }
+    97%{ opacity:0; transform:translate(-150px,95px); }
+    100%{ opacity:0; transform:translate(-150px,95px); }
+  }
 
   @media (max-width:600px){
     .login-motion .price-sign{ display:none; }
+    .login-motion .car{ opacity:.3; }
   }
   @media (prefers-reduced-motion: reduce){
-    .login-motion .star, .login-motion .price-sign{ animation:none !important; }
+    .login-motion .star, .login-motion .price-sign, .login-motion .price-sign.price-sign-flash,
+    .login-motion .car, .login-motion .car .headlamp, .login-motion .shooting-star{ animation:none !important; }
   }
   @media (prefers-reduced-motion: reduce){
     .login-motion .fuel-level, .login-motion .nozzle-glow, .login-motion .drop,
@@ -1511,7 +1586,18 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
     <div class="star" style="left:64%; top:9%; width:2px; height:2px; animation-duration:2.9s; animation-delay:2.5s;"></div>
     <div class="star" style="left:16%; top:34%; width:1.5px; height:1.5px; animation-duration:4s; animation-delay:1.1s;"></div>
     <div class="star" style="left:52%; top:24%; width:2px; height:2px; animation-duration:3.3s; animation-delay:2.9s;"></div>
-    <div class="price-sign">DIESEL &nbsp;96.40<br/>PETROL &nbsp;104.80</div>
+    <div class="price-sign" id="loginPriceSign">DIESEL &nbsp;--.--<br/>PETROL &nbsp;--.--</div>
+    <div class="car" aria-hidden="true">
+      <svg viewBox="0 0 58 22" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 18 L2 13 Q2 9 8 9 L16 9 L21 3 L40 3 L45 9 L52 9 Q56 9 56 13 L56 18 Z"
+          fill="rgba(255,255,255,.8)"/>
+        <rect class="headlamp" x="52" y="12" width="4" height="3" rx="1" fill="var(--diesel-glow, var(--diesel))"/>
+        <circle cx="14" cy="18" r="3.4" fill="rgba(20,30,40,.9)"/>
+        <circle cx="44" cy="18" r="3.4" fill="rgba(20,30,40,.9)"/>
+      </svg>
+    </div>
+    <div class="shooting-star" style="left:70%; top:14%;"></div>
+    <div class="shooting-star" style="left:30%; top:20%; animation-delay:4.5s;"></div>
     <div class="card-glow"></div>
     <div class="headlight" style="animation-delay:0s;"></div>
     <div class="headlight" style="animation-delay:3.5s; bottom:6%;"></div>
@@ -1604,6 +1690,15 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 
 <header class="top">
   <div class="station-badge">
+    <div class="pump-motion" aria-hidden="true" title="">
+      <svg viewBox="0 0 40 48" width="34" height="41">
+        <rect class="pm-body" x="5" y="9" width="18" height="31" rx="3"></rect>
+        <rect class="pm-screen" x="8" y="13" width="12" height="8" rx="1"></rect>
+        <path class="pm-hose" d="M23 15 Q34 15 34 25 L34 33"></path>
+        <circle class="pm-nozzle" cx="34" cy="35" r="2.6"></circle>
+        <circle class="pm-drop" cx="34" cy="39" r="1.7"></circle>
+      </svg>
+    </div>
     <img id="headerOilLogo" alt="IndianOil" title="IndianOil">
     <div class="station-text">
       <div class="st-name">Maa Fuel Station</div>
@@ -3622,6 +3717,7 @@ function initServerSync(retryCount){
     saveConflictPending = false;
     try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
     setAutosaveStatus('Updated from another device ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+    updateLoginPriceSign();
     const activeTab = document.querySelector('.tab-btn.active');
     if(activeTab) switchTab(activeTab.dataset.tab);
     applyingRemoteUpdate = false;
@@ -3671,6 +3767,7 @@ async function loadFromServer(){
       try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
       setAutosaveStatus('Loaded latest data from server ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
       console.log('[MaaFuelStation] Loaded state from database:', doc);
+      updateLoginPriceSign();
       return true;
     }
     console.warn('[MaaFuelStation] Server responded but sent no state — is the DB document initialized?', doc);
@@ -4523,6 +4620,24 @@ function renderSalesTab(){
   document.querySelectorAll('.shift-btn').forEach(b=>b.classList.toggle('active', b.dataset.shift===currentShift));
   renderShiftPanel();
   renderDaySummary(date);
+  updateLoginPriceSign();
+}
+
+// ---- Keeps the forecourt "price sign" on the login screen showing the
+// actual configured Diesel/Petrol rate for today (falling back to the most
+// recent rate on file, same as everywhere else in the app), instead of a
+// hardcoded placeholder. Runs whenever rates load or change, and briefly
+// flashes the sign so a rate update feels alive rather than just appearing.
+function updateLoginPriceSign(){
+  const el = document.getElementById('loginPriceSign');
+  if(!el) return;
+  const rate = getRateForDate(todayStr());
+  const text = 'DIESEL \u00A0' + fmtNum(rate.diesel) + '<br/>PETROL \u00A0' + fmtNum(rate.petrol);
+  if(el.innerHTML === text) return;
+  el.innerHTML = text;
+  el.classList.remove('price-sign-flash');
+  void el.offsetWidth; // restart animation
+  el.classList.add('price-sign-flash');
 }
 function switchShift(shift){
   currentShift = shift;
