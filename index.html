@@ -8,7 +8,24 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- jsQR — used only by the EOD Shift Payout QR scanner to decode Lube/Water QR tags from the camera feed. -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<!-- face-api.js — used only by staff face registration/verification (Manage Staff + login gate). Loaded resiliently since it's a bigger library and its own model files are fetched separately, lazily, only when a face flow actually opens. -->
+<script>
+(function(){
+  var sources = [
+    'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js',
+    'https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js'
+  ];
+  window.__faceApiLoadFailed = false;
+  function tryLoad(i){
+    if(i >= sources.length){ window.__faceApiLoadFailed = true; return; }
+    var s = document.createElement('script');
+    s.src = sources[i];
+    s.onerror = function(){ tryLoad(i + 1); };
+    document.head.appendChild(s);
+  }
+  tryLoad(0);
+})();
+</script>
 <script>
 // Apply the saved interface theme (Light, Olive Stone, Citrus Burger,
 // Neon Purple, Arclight, or Velocity) as early as possible, before the
@@ -484,26 +501,6 @@
   .correction-history .corr-entry:first-of-type{border-top:none;padding-top:0;}
 
 
-  /* ===== Staff face registration / face login ===== */
-  .face-login-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-  .face-login-btn{background:#0F6B5A!important;color:#fff!important;}
-  .face-login-btn:hover{background:#0A5447!important;}
-  .face-status{font-size:12px;margin-top:8px;min-height:18px;color:var(--muted);}
-  .face-status.ok{color:var(--surplus);font-weight:700;}
-  .face-status.err{color:var(--shortfall);font-weight:700;}
-  .face-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,20,30,.68);z-index:900;align-items:center;justify-content:center;padding:16px;}
-  .face-modal-backdrop.show{display:flex;}
-  .face-modal{background:var(--paper,#fff);border:1px solid var(--line);border-radius:16px;padding:20px;max-width:560px;width:100%;box-shadow:0 18px 60px rgba(0,0,0,.35);}
-  .face-modal h3{font-size:20px;margin:0 0 5px;color:var(--navy);}
-  .face-camera-wrap{position:relative;background:#081317;border-radius:12px;overflow:hidden;aspect-ratio:4/3;margin:14px 0 10px;}
-  .face-camera-wrap video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1);}
-  .face-camera-wrap::after{content:'';position:absolute;left:15%;right:15%;top:10%;bottom:10%;border:2px solid rgba(255,255,255,.65);border-radius:48%;pointer-events:none;box-shadow:0 0 0 999px rgba(0,0,0,.08);}
-  .face-modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
-  .face-modal-note{font-size:12px;color:var(--muted);line-height:1.5;}
-  .face-staff-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .face-badge{font-size:11px;padding:4px 8px;border-radius:999px;background:#E9F7F2;color:#11634F;font-weight:700;}
-  .face-badge.none{background:#F4F0E7;color:var(--muted);}
-  @media(max-width:600px){.face-modal{padding:15px}.face-modal-actions button{flex:1;min-width:120px}}
   .staff-list{display:flex;flex-direction:column;gap:8px;}
   .staff-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;}
   .staff-row input{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:14px;}
@@ -844,6 +841,59 @@
   }
   .recover-actions button.primary{ background:var(--petrol); color:#3a2205; border-color:transparent; }
   .recover-actions button.primary:hover{ background:var(--petrol-dark); color:#fff; }
+
+  /* ---- Face capture modal (registration + login verification) ---- */
+  .face-overlay{
+    display:none; position:fixed; inset:0; background:rgba(10,14,20,.65);
+    z-index:10000; align-items:center; justify-content:center; padding:16px;
+  }
+  .face-overlay.show{ display:flex; }
+  .face-box{
+    background:#fff; border-radius:14px; max-width:420px; width:100%;
+    padding:20px 20px 18px; box-shadow:0 20px 60px rgba(0,0,0,.4);
+    text-align:center;
+  }
+ [data-theme="stone"] .face-box, [data-theme="neon-purple"] .face-box, [data-theme="citrus"] .face-box, [data-theme="velocity"] .face-box, [data-theme="arclight"] .face-box{
+    background:#161327; color:var(--ink); border:1px solid var(--theme-border);
+  }
+  .face-box h3{ margin:0 0 4px; font-size:16px; }
+  .face-box .face-sub{ font-size:12.5px; color:var(--muted); margin-bottom:12px; line-height:1.5; }
+  .face-video-wrap{
+    position:relative; width:100%; aspect-ratio:4/3; border-radius:10px; overflow:hidden;
+    background:#111; margin-bottom:12px; border:2px solid var(--line);
+  }
+  .face-video-wrap.match{ border-color:#2e8b57; }
+  .face-video-wrap.nomatch{ border-color:var(--shortfall); }
+  .face-video-wrap video, .face-video-wrap canvas{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  }
+  .face-video-wrap canvas{ pointer-events:none; }
+  .face-status{
+    font-size:12.5px; font-weight:600; margin-bottom:12px; min-height:16px;
+  }
+  .face-status.ok{ color:#2e8b57; }
+  .face-status.err{ color:var(--shortfall); }
+  .face-actions{ display:flex; gap:8px; }
+  .face-actions button{
+    flex:1; padding:10px; border-radius:8px; border:1px solid rgba(0,0,0,.12);
+    background:#f4f4f4; cursor:pointer; font-size:13px; font-weight:600;
+  }
+  .face-actions button.primary{ background:var(--petrol); color:#3a2205; border-color:transparent; }
+  .face-actions button.primary:hover{ background:var(--petrol-dark); color:#fff; }
+  .face-actions button:disabled{ opacity:.5; cursor:not-allowed; }
+  .staff-face-badge{
+    font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px;
+    white-space:nowrap;
+  }
+  .staff-face-badge.yes{ background:#e3f5ea; color:#1f7a4d; }
+  .staff-face-badge.no{ background:#fdecea; color:#b23b2e; }
+ [data-theme="stone"] .staff-face-badge.yes, [data-theme="neon-purple"] .staff-face-badge.yes, [data-theme="citrus"] .staff-face-badge.yes, [data-theme="velocity"] .staff-face-badge.yes, [data-theme="arclight"] .staff-face-badge.yes{ background:rgba(46,139,87,.18); }
+ [data-theme="stone"] .staff-face-badge.no, [data-theme="neon-purple"] .staff-face-badge.no, [data-theme="citrus"] .staff-face-badge.no, [data-theme="velocity"] .staff-face-badge.no, [data-theme="arclight"] .staff-face-badge.no{ background:rgba(178,59,46,.2); }
+  .face-reg-btn{
+    background:none; border:1px solid var(--line); border-radius:6px; padding:6px 10px;
+    font-size:11.5px; cursor:pointer; white-space:nowrap; font-family:'Inter',sans-serif;
+  }
+  .face-reg-btn:hover{ border-color:var(--petrol); color:var(--petrol-dark); }
 
   .logout-btn{
     background:transparent; border:1px solid #3a5b74; color:#dfe8ee; padding:7px 12px;
@@ -1388,11 +1438,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
           <button type="button" class="toggle-eye" id="togglePass" title="Show/hide password">👁</button>
         </div>
       </div>
-      <button type="submit" class="btn login-submit">🔐 Unlock with Password</button>
-      <div class="face-login-actions">
-        <button type="button" class="btn face-login-btn" id="faceLoginBtn">📷 Login with Face</button>
-      </div>
-      <div class="face-status" id="loginFaceStatus"></div>
+      <button type="submit" class="btn login-submit">Unlock Console</button>
     </form>
     <div class="login-forgot"><button type="button" id="forgotPasswordBtn">Forgot your password?</button></div>
     <div class="login-foot">Each staff member signs in with their own ID · Restricted access</div>
@@ -1411,16 +1457,22 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   </div>
 </div>
 
-<!-- Face camera modal -->
-<div class="face-modal-backdrop" id="faceModal">
-  <div class="face-modal">
-    <h3 id="faceModalTitle">📷 Face verification</h3>
-    <div class="face-modal-note" id="faceModalNote">Allow camera access and keep your face inside the guide.</div>
-    <div class="face-camera-wrap"><video id="faceVideo" autoplay muted playsinline></video></div>
-    <div class="face-status" id="faceModalStatus">Starting camera…</div>
-    <div class="face-modal-actions">
-      <button type="button" class="btn ghost" id="faceModalCancel">Cancel</button>
-      <button type="button" class="btn amber" id="faceCaptureBtn">📸 Capture &amp; Register</button>
+<!-- Face capture modal — reused for both admin-side "register a staff face"
+     and the login gate's "verify your face" step. Only one instance in the
+     DOM; faceCaptureState (in the script below) tracks which mode/staff it's
+     currently running for. -->
+<div class="face-overlay" id="faceOverlay">
+  <div class="face-box">
+    <h3 id="faceModalTitle">📸 Face Registration</h3>
+    <div class="face-sub" id="faceModalSub">Center your face in the frame, then capture.</div>
+    <div class="face-video-wrap" id="faceVideoWrap">
+      <video id="faceVideo" autoplay playsinline muted></video>
+      <canvas id="faceOverlayCanvas"></canvas>
+    </div>
+    <div class="face-status" id="faceStatus"></div>
+    <div class="face-actions">
+      <button type="button" id="faceCancelBtn">Cancel</button>
+      <button type="button" class="primary" id="faceCaptureBtn">Capture</button>
     </div>
   </div>
 </div>
@@ -1693,16 +1745,6 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       <h2>🔑 Staff Login IDs &amp; Passwords <span class="tag">Visible to Admin only</span></h2>
       <div class="hint" style="margin-bottom:10px;">Each staff member signs in to the console with their own Login ID and password below. Change either field and it saves automatically. Data separation here is a UI-level lock (same as the rest of this app) — it stops staff from browsing each other's data in normal use, not a hardened multi-tenant server.</div>
       <div class="staff-list" id="adminCredList"></div>
-    </div>
-    <div class="card">
-      <h2>📷 Staff Face Registration <span class="tag">Admin only</span></h2>
-      <div class="hint" style="margin-bottom:12px;">
-        Register one face for each staff member. The camera image is converted into a mathematical face descriptor;
-        the photo itself is not stored by this feature. Staff can then select their name and use <b>Login with Face</b>.
-        Use good lighting and a straight-on face.
-      </div>
-      <div class="staff-list" id="faceRegistrationList"></div>
-      <div class="face-status" id="adminFaceStatus"></div>
     </div>
     <div class="card">
       <h2>Admin Account <span class="tag">Your own login</span></h2>
@@ -3075,15 +3117,63 @@ function onLoginStaffPick(username){
 
     ensureStaffCredentials();
     const session = authenticate(userInp.value, passInp.value);
-    if(session){
-      await completeSuccessfulLogin(session, 'password');
-    } else {
+
+    function rejectLogin(message){
+      errEl.textContent = message || '⚠ Wrong username or password. Please try again.';
       errEl.classList.add('show');
       card.classList.remove('shake');
       void card.offsetWidth; // restart animation
       card.classList.add('shake');
       passInp.value = '';
       passInp.focus();
+    }
+
+    function finalizeLogin(sess){
+      errEl.classList.remove('show');
+      currentUser = sess;
+      try{ sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sess)); }catch(e){}
+      playLoginSuccessSound();
+      unlockApp();
+      registerDeviceWithServer();
+      // Force a fresh pull from the server right at login, rather than
+      // trusting whatever the background page-load fetch (or the socket)
+      // last delivered. A device can sit on the login screen for a while
+      // before someone actually types the password, so re-fetching here
+      // guarantees the data shown right after login is current, not just
+      // whatever was current a while ago when the page first loaded.
+      loadFromServer().then(function(loaded){
+        applyRoleUI();
+        if(loaded){
+          const activeTab = document.querySelector('.tab-btn.active');
+          if(activeTab) switchTab(activeTab.dataset.tab);
+        }
+      });
+    }
+
+    if(session){
+      // Password checked out. If this is a staff login AND that staff member
+      // has a face on file, also require a live camera match before actually
+      // opening the console — a correct password alone is no longer enough
+      // for a staff account once its face is registered. Admin logins and
+      // staff accounts with no face registered yet skip straight through.
+      const staffRecord = session.role === 'staff'
+        ? (state.staff||[]).find(s=>s.id===session.staffId)
+        : null;
+      const needsFace = staffRecord && staffRecord.faceDescriptor && staffRecord.faceDescriptor.length;
+      if(needsFace){
+        const result = await openFaceCapture({mode:'verify', staffId: staffRecord.id, staffName: staffRecord.name});
+        if(result && result.ok && result.matched){
+          finalizeLogin(session);
+        } else if(result && result.cancelled){
+          rejectLogin('Face verification cancelled — login not completed.');
+        } else {
+          rejectLogin('⚠ Face did not match ' + staffRecord.name + '\'s account. Login rejected.');
+        }
+      } else {
+        finalizeLogin(session);
+      }
+    } else {
+      rejectLogin();
     }
   });
 
@@ -3092,14 +3182,6 @@ function onLoginStaffPick(username){
     passInp.type = showing ? 'password' : 'text';
     toggleBtn.textContent = showing ? '👁' : '🙈';
   });
-  const faceLoginBtn=document.getElementById('faceLoginBtn');
-  if(faceLoginBtn)faceLoginBtn.addEventListener('click',()=>openFaceLogin());
-  const faceCancel=document.getElementById('faceModalCancel');
-  const faceCapture=document.getElementById('faceCaptureBtn');
-  if(faceCancel)faceCancel.addEventListener('click',closeFaceModal);
-  if(faceCapture)faceCapture.addEventListener('click',captureFaceDescriptor);
-  const faceModal=document.getElementById('faceModal');
-  if(faceModal)faceModal.addEventListener('click',e=>{if(e.target===faceModal)closeFaceModal();});
 })();
 
 /* ============== FORGOT PASSWORD / RECOVERY ==============
@@ -3816,11 +3898,16 @@ function renderStaffTab(){
   if(state.staff.length===0){
     list.innerHTML = '<div class="empty">No staff added yet.</div>';
   } else {
-    list.innerHTML = state.staff.map(s=>`
+    list.innerHTML = state.staff.map(s=>{
+      const hasFace = !!(s.faceDescriptor && s.faceDescriptor.length);
+      return `
       <div class="staff-row">
         <input type="text" value="${escapeHtml(s.name)}" onchange="renameStaff('${s.id}', this.value)">
+        <span class="staff-face-badge ${hasFace?'yes':'no'}">${hasFace?'📸 Face set':'⚠ No face'}</span>
+        <button type="button" class="face-reg-btn" onclick="registerStaffFace('${s.id}')">${hasFace?'Re-register face':'Register face'}</button>
         <button class="btn danger" onclick="deleteStaff('${s.id}')">Delete</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 }
 function addStaff(){
@@ -3850,130 +3937,222 @@ function deleteStaff(id){
   scheduleAutosave();
 }
 
-/* ============== STAFF FACE LOGIN / REGISTRATION ==============
-   Convenience biometric login using face-api.js. A 128-value descriptor is
-   stored on the staff record; the camera photo itself is not stored.
-   This does not provide liveness/anti-spoofing and should not be treated as
-   hardened biometric security. */
-const FACE_MODEL_URL='https://justadudewhohacks.github.io/face-api.js/models';
-const FACE_MATCH_THRESHOLD=0.50;
-let faceModelsReady=false, faceModelsPromise=null, faceStream=null, faceModalMode=null, faceBusy=false;
+/* ============== FACE RECOGNITION (registration + login verification) ==============
+   Runs entirely client-side with face-api.js (loaded resiliently up in <head>,
+   with its model weights fetched lazily on first use from a public CDN — no
+   backend changes needed at all). Each staff record gets a `faceDescriptor`
+   (a 128-number array, the face-api.js face embedding) synced to the server
+   the same way the rest of state.staff already is. Comparing two faces is
+   just comparing two descriptors with euclidean distance — nothing here
+   ever uploads a photo anywhere; the raw camera frame never leaves the
+   browser tab (only the derived 128 numbers get saved). */
+const FACE_MODEL_BASE = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+// Euclidean distance below this = "same person". face-api.js's own docs
+// suggest ~0.6 as the line between same/different face; a little slack (0.55)
+// keeps this reasonably strict without being unusable in a shop with mixed
+// lighting/webcam quality.
+const FACE_MATCH_THRESHOLD = 0.55;
+let faceModelsLoaded = false;
+let faceModelsLoading = null;
 
-async function ensureFaceModels(){
-  if(faceModelsReady && window.faceapi)return true;
-  if(!window.faceapi)throw new Error('Face recognition library did not load. Check your internet connection.');
-  if(!faceModelsPromise){
-    faceModelsPromise=Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
-    ]).then(()=>{faceModelsReady=true;return true;}).catch(e=>{faceModelsPromise=null;throw e;});
+async function ensureFaceApiReady(){
+  // face-api.js itself (the <script> tag up in <head>) may still be loading —
+  // wait a bit before giving up, same pattern used for the Socket.IO loader.
+  let tries = 0;
+  while(typeof faceapi === 'undefined' && !window.__faceApiLoadFailed && tries < 40){
+    await new Promise(r=>setTimeout(r, 250));
+    tries++;
   }
-  return faceModelsPromise;
+  if(typeof faceapi === 'undefined'){
+    throw new Error('Face recognition library failed to load. Check your internet connection and try again.');
+  }
+  if(faceModelsLoaded) return;
+  if(!faceModelsLoading){
+    faceModelsLoading = Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_BASE),
+      faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_BASE),
+      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_BASE),
+    ]).then(()=>{ faceModelsLoaded = true; });
+  }
+  await faceModelsLoading;
 }
-function setFaceStatus(id,text,type){
-  const el=document.getElementById(id);if(!el)return;
-  el.textContent=text||'';el.className='face-status'+(type?' '+type:'');
-}
-function hasFaceRegistered(s){return !!(s&&Array.isArray(s.faceDescriptor)&&s.faceDescriptor.length===128);}
-function renderFaceRegistrationList(){
-  const list=document.getElementById('faceRegistrationList');if(!list)return;
-  if(!isAdmin()){list.innerHTML='';return;}
-  ensureStaffCredentials();
-  list.innerHTML=(state.staff||[]).map(s=>{
-    const yes=hasFaceRegistered(s);
-    return `<div class="staff-row face-staff-row">
-      <span style="min-width:120px;font-weight:700;">${escapeHtml(s.name)}</span>
-      <span class="face-badge ${yes?'':'none'}">${yes?'✓ Face registered':'No face registered'}</span>
-      <span style="flex:1"></span>
-      <button type="button" class="btn amber small" onclick="openFaceRegistration('${s.id}')">${yes?'🔄 Re-register':'📷 Register Face'}</button>
-      ${yes?`<button type="button" class="btn danger small" onclick="removeStaffFace('${s.id}')">Remove Face</button>`:''}
-    </div>`;
-  }).join('')||'<div class="empty">No staff added yet.</div>';
-}
-function openFaceRegistration(staffId){
-  if(!isAdmin())return;
-  const s=(state.staff||[]).find(x=>x.id===staffId);if(!s)return;
-  faceModalMode={action:'register',staffId};
-  openFaceModal('📷 Register face — '+s.name,'Look straight at the camera. Only the face descriptor will be saved.','📸 Capture & Register');
-}
-function openFaceLogin(){
-  const username=(document.getElementById('loginUser')||{}).value||'';
-  const s=findStaffByUsername(username);
-  if(!s){setFaceStatus('loginFaceStatus','Select a staff name first.','err');return;}
-  if(!hasFaceRegistered(s)){setFaceStatus('loginFaceStatus',s.name+' has no registered face. Ask Admin to register it.','err');return;}
-  faceModalMode={action:'login',staffId:s.id};
-  openFaceModal('📷 Face login — '+s.name,'Look straight at the camera. Your face will be compared with this staff member’s registered face.','🔓 Verify Face');
-}
-async function openFaceModal(title,note,buttonText){
-  const modal=document.getElementById('faceModal');if(!modal)return;
-  document.getElementById('faceModalTitle').textContent=title;
-  document.getElementById('faceModalNote').textContent=note;
-  document.getElementById('faceCaptureBtn').textContent=buttonText;
-  document.getElementById('faceCaptureBtn').disabled=true;
-  setFaceStatus('faceModalStatus','Loading face recognition…');
-  modal.classList.add('show');
-  try{
-    await ensureFaceModels();await startFaceCamera();
-    document.getElementById('faceCaptureBtn').disabled=false;
-    setFaceStatus('faceModalStatus','Camera ready. Center one face inside the guide.');
-  }catch(e){setFaceStatus('faceModalStatus','Could not start face recognition: '+(e.message||e),'err');}
-}
-async function startFaceCamera(){
-  stopFaceCamera();
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Camera access is not supported by this browser.');
-  faceStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
-  const v=document.getElementById('faceVideo');v.srcObject=faceStream;await v.play();
-}
-function stopFaceCamera(){
-  if(faceStream){faceStream.getTracks().forEach(t=>t.stop());faceStream=null;}
-  const v=document.getElementById('faceVideo');if(v)v.srcObject=null;
-}
-function closeFaceModal(){
-  stopFaceCamera();const m=document.getElementById('faceModal');if(m)m.classList.remove('show');
-  faceModalMode=null;faceBusy=false;const b=document.getElementById('faceCaptureBtn');if(b)b.disabled=false;
-}
-async function captureFaceDescriptor(){
-  if(faceBusy||!faceModalMode)return;
-  faceBusy=true;const b=document.getElementById('faceCaptureBtn');if(b)b.disabled=true;
-  setFaceStatus('faceModalStatus','Detecting face…');
-  try{
-    await ensureFaceModels();
-    const v=document.getElementById('faceVideo');
-    const d=await faceapi.detectSingleFace(v,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.55}))
-      .withFaceLandmarks().withFaceDescriptor();
-    if(!d)throw new Error('No clear face detected. Move closer, improve lighting, and look at the camera.');
-    const descriptor=Array.from(d.descriptor);
-    if(faceModalMode.action==='register'){
-      const s=(state.staff||[]).find(x=>x.id===faceModalMode.staffId);if(!s)throw new Error('Staff member no longer exists.');
-      s.faceDescriptor=descriptor;s.faceRegisteredAt=new Date().toISOString();
-      scheduleAutosave();renderFaceRegistrationList();setFaceStatus('adminFaceStatus','Face registered successfully for '+s.name+'.','ok');closeFaceModal();return;
+
+// State for whichever face-capture flow is currently open.
+let faceCapture = {
+  mode: null,        // 'register' | 'verify'
+  staffId: null,
+  staffName: null,
+  stream: null,
+  resolve: null,      // resolves the promise returned by openFaceCapture()
+  detectLoop: null,   // requestAnimationFrame handle
+};
+
+function faceEl(id){ return document.getElementById(id); }
+
+// Opens the shared modal, starts the camera, and resolves with:
+//   { ok:true, descriptor:[...] }  — a face was captured (register mode)
+//   { ok:true, matched:true/false } — login verification result
+//   { ok:false, cancelled:true }   — user backed out
+function openFaceCapture({mode, staffId, staffName}){
+  return new Promise(async (resolve)=>{
+    faceCapture = {mode, staffId, staffName, stream:null, resolve, detectLoop:null};
+    const overlay = faceEl('faceOverlay');
+    const video = faceEl('faceVideo');
+    const wrap = faceEl('faceVideoWrap');
+    const status = faceEl('faceStatus');
+    const title = faceEl('faceModalTitle');
+    const sub = faceEl('faceModalSub');
+    const captureBtn = faceEl('faceCaptureBtn');
+
+    wrap.classList.remove('match','nomatch');
+    status.textContent = '';
+    status.className = 'face-status';
+    captureBtn.disabled = true;
+    captureBtn.textContent = mode === 'verify' ? 'Verify' : 'Capture';
+    title.textContent = mode === 'verify' ? '📸 Verify your face' : '📸 Register face — ' + (staffName||'');
+    sub.textContent = mode === 'verify'
+      ? 'Look at the camera to confirm it\'s really ' + (staffName||'you') + '.'
+      : 'Center the face in the frame, good lighting helps, then capture.';
+    overlay.classList.add('show');
+
+    try{
+      status.textContent = 'Loading face recognition model…';
+      await ensureFaceApiReady();
+      status.textContent = 'Starting camera…';
+      const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false});
+      faceCapture.stream = stream;
+      video.srcObject = stream;
+      await new Promise(r=>{ video.onloadedmetadata = ()=>{ video.play(); r(); }; });
+      status.textContent = 'Looking for a face…';
+      startFaceDetectLoop();
+    }catch(err){
+      status.textContent = (err && err.message) || 'Could not access the camera.';
+      status.classList.add('err');
+      captureBtn.disabled = true;
     }
-    const s=(state.staff||[]).find(x=>x.id===faceModalMode.staffId);
-    if(!s||!hasFaceRegistered(s))throw new Error('No registered face found.');
-    const distance=faceapi.euclideanDistance(new Float32Array(descriptor),new Float32Array(s.faceDescriptor));
-    if(distance>FACE_MATCH_THRESHOLD)throw new Error('Face does not match '+s.name+'. Please try again.');
-    await completeSuccessfulLogin({role:'staff',staffId:s.id,staffName:s.name},'face');
-    closeFaceModal();
-  }catch(e){setFaceStatus('faceModalStatus',e.message||'Face verification failed.','err');}
-  finally{faceBusy=false;if(b)b.disabled=false;}
-}
-function removeStaffFace(staffId){
-  if(!isAdmin())return;
-  const s=(state.staff||[]).find(x=>x.id===staffId);if(!s)return;
-  if(!confirm('Remove the registered face for '+s.name+'?'))return;
-  delete s.faceDescriptor;delete s.faceRegisteredAt;scheduleAutosave();renderFaceRegistrationList();
-  setFaceStatus('adminFaceStatus','Registered face removed for '+s.name+'.','ok');
-}
-async function completeSuccessfulLogin(session,method){
-  const errEl=document.getElementById('loginError');if(errEl)errEl.classList.remove('show');
-  currentUser=session;try{sessionStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(session));}catch(e){}
-  playLoginSuccessSound();unlockApp();registerDeviceWithServer();
-  loadFromServer().then(function(loaded){
-    applyRoleUI();
-    if(loaded){const activeTab=document.querySelector('.tab-btn.active');if(activeTab)switchTab(activeTab.dataset.tab);}
   });
-  if(method==='face')setFaceStatus('loginFaceStatus','Face verified. Welcome, '+session.staffName+'.','ok');
+}
+
+function closeFaceCapture(result){
+  const overlay = faceEl('faceOverlay');
+  overlay.classList.remove('show');
+  if(faceCapture.detectLoop) cancelAnimationFrame(faceCapture.detectLoop);
+  if(faceCapture.stream){
+    faceCapture.stream.getTracks().forEach(t=>t.stop());
+  }
+  const resolve = faceCapture.resolve;
+  faceCapture = {mode:null, staffId:null, staffName:null, stream:null, resolve:null, detectLoop:null};
+  if(resolve) resolve(result || {ok:false, cancelled:true});
+}
+
+// Runs continuously while the modal is open: draws a bounding box so the
+// person can see they're framed correctly, and enables the Capture/Verify
+// button only once a face is actually detected.
+function startFaceDetectLoop(){
+  const video = faceEl('faceVideo');
+  const canvas = faceEl('faceOverlayCanvas');
+  const captureBtn = faceEl('faceCaptureBtn');
+  const status = faceEl('faceStatus');
+  const detectOpts = new faceapi.TinyFaceDetectorOptions();
+
+  async function tick(){
+    if(!faceCapture.stream) return; // modal was closed
+    try{
+      const result = await faceapi.detectSingleFace(video, detectOpts);
+      canvas.width = video.videoWidth || canvas.width;
+      canvas.height = video.videoHeight || canvas.height;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(result){
+        if(captureBtn.disabled){
+          captureBtn.disabled = false;
+          status.textContent = 'Face detected — ready to ' + (faceCapture.mode==='verify'?'verify':'capture') + '.';
+          status.className = 'face-status ok';
+        }
+        const b = result.box;
+        ctx.strokeStyle = '#2e8b57';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(b.x, b.y, b.width, b.height);
+      } else if(!captureBtn.disabled || status.textContent.indexOf('Looking') === -1){
+        captureBtn.disabled = true;
+        status.textContent = 'Looking for a face…';
+        status.className = 'face-status';
+      }
+    }catch(e){ /* transient — keep looping */ }
+    faceCapture.detectLoop = requestAnimationFrame(tick);
+  }
+  faceCapture.detectLoop = requestAnimationFrame(tick);
+}
+
+async function doFaceCaptureAction(){
+  const video = faceEl('faceVideo');
+  const status = faceEl('faceStatus');
+  const wrap = faceEl('faceVideoWrap');
+  const captureBtn = faceEl('faceCaptureBtn');
+  captureBtn.disabled = true;
+  status.textContent = 'Processing…';
+  status.className = 'face-status';
+  try{
+    const full = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    if(!full){
+      status.textContent = 'No face detected — try again.';
+      status.className = 'face-status err';
+      captureBtn.disabled = false;
+      return;
+    }
+    const descriptor = Array.from(full.descriptor);
+
+    if(faceCapture.mode === 'register'){
+      status.textContent = 'Face captured ✓';
+      status.className = 'face-status ok';
+      setTimeout(()=>closeFaceCapture({ok:true, descriptor}), 350);
+      return;
+    }
+
+    // verify mode: compare against the enrolled descriptor for this staff id
+    const staff = (state.staff||[]).find(s=>s.id===faceCapture.staffId);
+    const enrolled = staff && staff.faceDescriptor;
+    if(!enrolled || !enrolled.length){
+      // Nothing enrolled yet — treat as "can't verify", caller decides what to do.
+      closeFaceCapture({ok:true, matched:null});
+      return;
+    }
+    const dist = faceapi.euclideanDistance(descriptor, enrolled);
+    const matched = dist < FACE_MATCH_THRESHOLD;
+    wrap.classList.add(matched ? 'match' : 'nomatch');
+    status.textContent = matched ? 'Face matched ✓' : 'Face does not match this staff account.';
+    status.className = 'face-status ' + (matched ? 'ok' : 'err');
+    if(matched){
+      setTimeout(()=>closeFaceCapture({ok:true, matched:true}), 450);
+    } else {
+      captureBtn.disabled = false;
+      captureBtn.textContent = 'Try again';
+    }
+  }catch(err){
+    status.textContent = 'Something went wrong — try again.';
+    status.className = 'face-status err';
+    captureBtn.disabled = false;
+  }
+}
+
+faceEl('faceCaptureBtn') && faceEl('faceCaptureBtn').addEventListener('click', doFaceCaptureAction);
+faceEl('faceCancelBtn') && faceEl('faceCancelBtn').addEventListener('click', ()=>closeFaceCapture({ok:false, cancelled:true}));
+
+// Admin action from Manage Staff: capture a face and save it on that staff record.
+async function registerStaffFace(staffId){
+  if(!isAdmin()) return;
+  const staff = (state.staff||[]).find(s=>s.id===staffId);
+  if(!staff) return;
+  const wasRegistered = !!(staff.faceDescriptor && staff.faceDescriptor.length);
+  const result = await openFaceCapture({mode:'register', staffId, staffName: staff.name});
+  if(result && result.ok && result.descriptor){
+    staff.faceDescriptor = result.descriptor;
+    renderStaffTab();
+    scheduleAutosave();
+    alert((wasRegistered ? 'Face re-registered' : 'Face registered') + ' for ' + staff.name + '.');
+  }
 }
 
 /* ============== ADMIN TAB — staff login IDs & passwords ============== */
@@ -4011,7 +4190,6 @@ function renderAdminTab(){
   // A login ID may just have changed here — keep the login screen's
   // dropdown current.
   populateLoginStaffDropdown();
-  renderFaceRegistrationList();
 }
 function updateStaffCredential(id, field, value){
   value = (value||'').trim();
