@@ -3509,6 +3509,26 @@ let sidCounter = 7;
 let ngoCounter = 1;
 let loanRows = []; 
 const CREDIT_CUSTOMERS = ["Ajij","Anwar","Badya Kuro","Bapon","BardhaMan Bus","Bhowmik Trading","BIMONL","Bisu","Chandan","Dadu nati","Gautam","Gona","Gopal Kaka","Haider","Hanif","Hapiz","Hasan Sik","Hasibul","HASIM","ILLAS","Jhangir","Jhontu","Khokon","Krishna","Loknath","MA TARA","Manik","Mati","Mintu Biz","MOlai","Momtaz","Mukto","NASIR","Nittul","Nojrul","Nowsaq","Parked Motor Van","PORIMOL","Rahul","Ram","Ramjan","Sayan Deulpara","School","Sunny","Susanta Pal","T-bull","Tomal","White Truck"];
+// Customer names added by a user via "+ Add new customer..." in the Loan
+// dropdown. Kept separately from the built-in CREDIT_CUSTOMERS list above
+// and persisted to this device's localStorage so they show up in the
+// dropdown again on future visits.
+const CUSTOM_CUSTOMERS_KEY = 'maaFuelStationCustomCustomers_v1';
+function loadCustomCustomers(){
+  try{
+    const raw = window.localStorage.getItem(CUSTOM_CUSTOMERS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+function saveCustomCustomers(arr){
+  try{ window.localStorage.setItem(CUSTOM_CUSTOMERS_KEY, JSON.stringify(arr)); }catch(e){}
+}
+function getCreditCustomers(){
+  const custom = loadCustomCustomers();
+  const merged = CREDIT_CUSTOMERS.concat(custom.filter(n => !CREDIT_CUSTOMERS.some(b => b.toLowerCase() === n.toLowerCase())));
+  return merged.slice().sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+}
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function thisMonthStr(){ return new Date().toISOString().slice(0,7); }
@@ -5705,15 +5725,18 @@ function submitCorrectionUnlock(){
 
 function renderLoanRows(){
   const container = document.getElementById('loanRows');
+  const customers = getCreditCustomers();
   container.innerHTML = loanRows.map((r,i)=>{
-    const isCustom = !!r.customMode || (r.name!=='' && !CREDIT_CUSTOMERS.includes(r.name));
+    const isCustom = !!r.customMode || (r.name!=='' && !customers.includes(r.name));
     return `
     <div class="loan-entry">
       <div class="loan-row">
         <select onchange="onLoanNameSelect(${i},this.value)">
           <option value="" ${(!isCustom && r.name==='')?'selected':''}>Select person...</option>
-          ${CREDIT_CUSTOMERS.map(n=>`<option value="${escapeHtml(n)}" ${(!isCustom && r.name===n)?'selected':''}>${escapeHtml(n)}</option>`).join('')}
+          ${customers.map(n=>`<option value="${escapeHtml(n)}" ${(!isCustom && r.name===n)?'selected':''}>${escapeHtml(n)}</option>`).join('')}
           <option value="__custom__" ${isCustom?'selected':''}>Other (type name)…</option>
+          <option value="__add_new__">+ Add new customer…</option>
+          ${(!isCustom && r.name!=='' && customers.includes(r.name)) ? `<option value="__rename__">✎ Rename "${escapeHtml(r.name)}"…</option>` : ''}
         </select>
         <input type="number" min="0" step="0.01" placeholder="Amount ₹" value="${r.amount||0}" oninput="onLoanFieldInput(${i},'amount',this.value)">
         <select onchange="onLoanFieldInput(${i},'type',this.value)">
@@ -5734,6 +5757,50 @@ function renderLoanRows(){
   document.getElementById('addLoanBtn').disabled = loanRows.length>=10;
 }
 function onLoanNameSelect(i, value){
+  if(value==='__rename__'){
+    const oldName = loanRows[i].name;
+    const entered = prompt('Rename "' + oldName + '" to:', oldName);
+    const trimmed = (entered||'').trim();
+    if(trimmed && trimmed !== oldName){
+      const customers = getCreditCustomers();
+      const clash = customers.some(n => n.toLowerCase() === trimmed.toLowerCase() && n.toLowerCase() !== oldName.toLowerCase());
+      if(clash){
+        alert('"' + trimmed + '" is already in the list.');
+      } else {
+        const isBuiltIn = CREDIT_CUSTOMERS.some(n => n.toLowerCase() === oldName.toLowerCase());
+        let custom = loadCustomCustomers();
+        if(isBuiltIn){
+          custom = custom.filter(n => n.toLowerCase() !== trimmed.toLowerCase());
+          custom.push(trimmed);
+        } else {
+          custom = custom.map(n => n.toLowerCase() === oldName.toLowerCase() ? trimmed : n);
+        }
+        saveCustomCustomers(custom);
+        loanRows.forEach(row => { if(row.name === oldName && !row.customMode) row.name = trimmed; });
+      }
+    }
+    renderLoanRows();
+    calcCash();
+    return;
+  }
+  if(value==='__add_new__'){
+    const entered = prompt("Enter the new customer's name to add to the list:");
+    const trimmed = (entered||'').trim();
+    if(trimmed){
+      const customers = getCreditCustomers();
+      const alreadyThere = customers.some(n => n.toLowerCase() === trimmed.toLowerCase());
+      if(!alreadyThere){
+        const custom = loadCustomCustomers();
+        custom.push(trimmed);
+        saveCustomCustomers(custom);
+      }
+      loanRows[i].customMode = false;
+      loanRows[i].name = trimmed;
+    }
+    renderLoanRows();
+    calcCash();
+    return;
+  }
   if(value==='__custom__'){
     loanRows[i].customMode = true;
     loanRows[i].name = '';
