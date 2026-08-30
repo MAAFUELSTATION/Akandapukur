@@ -5750,7 +5750,6 @@ function renderLoanRows(){
         <select onchange="onLoanNameSelect(${i},this.value)">
           <option value="" ${(!isCustom && r.name==='')?'selected':''}>Select person...</option>
           ${customers.map(n=>`<option value="${escapeHtml(n)}" ${(!isCustom && r.name===n)?'selected':''}>${escapeHtml(n)}</option>`).join('')}
-          <option value="__custom__" ${isCustom?'selected':''}>Other (type name)…</option>
           <option value="__add_new__">+ Add new customer…</option>
           ${(!isCustom && r.name!=='' && customers.includes(r.name)) ? `<option value="__rename__">✎ Rename "${escapeHtml(r.name)}"…</option><option value="__remove__">🗑 Remove "${escapeHtml(r.name)}"</option>` : ''}
         </select>
