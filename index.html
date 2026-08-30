@@ -3508,6 +3508,7 @@ let currentShift = 'morning';
 let sidCounter = 7;
 let ngoCounter = 1;
 let loanRows = []; 
+const CREDIT_CUSTOMERS = ["Ajij","Anwar","Badya Kuro","Bapon","BardhaMan Bus","Bhowmik Trading","BIMONL","Bisu","Chandan","Dadu nati","Gautam","Gona","Gopal Kaka","Haider","Hanif","Hapiz","Hasan Sik","Hasibul","HASIM","ILLAS","Jhangir","Jhontu","Khokon","Krishna","Loknath","MA TARA","Manik","Mati","Mintu Biz","MOlai","Momtaz","Mukto","NASIR","Nittul","Nojrul","Nowsaq","Parked Motor Van","PORIMOL","Rahul","Ram","Ramjan","Sayan Deulpara","School","Sunny","Susanta Pal","T-bull","Tomal","White Truck"];
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function thisMonthStr(){ return new Date().toISOString().slice(0,7); }
@@ -5589,8 +5590,8 @@ function renderCashTab(){
   document.getElementById('cashSavedHint').textContent = existing && existing.savedAt && !isLockedRecord ? 'Unlocked for correction — Save to record the change.' : '';
   renderCashCorrectionHistory(existing);
 
-  loanRows = existing && existing.loans && existing.loans.length ? existing.loans.map(l=>({name:l.name, amount:l.amount, type:l.type||'loan', checked:!!l.checked, note:l.note||''})) : [];
-  if(loanRows.length===0) loanRows.push({name:'', amount:0, type:'loan', checked:false, note:''});
+  loanRows = existing && existing.loans && existing.loans.length ? existing.loans.map(l=>({name:l.name, amount:l.amount, type:l.type||'loan', checked:!!l.checked, note:l.note||'', customMode:false})) : [];
+  if(loanRows.length===0) loanRows.push({name:'', amount:0, type:'loan', checked:false, note:'', customMode:false});
   renderLoanRows();
   // renderLoanRows() and the denom grid above both rebuild fresh HTML
   // (without a disabled attribute) after applyCashLockState's disable
@@ -5704,10 +5705,16 @@ function submitCorrectionUnlock(){
 
 function renderLoanRows(){
   const container = document.getElementById('loanRows');
-  container.innerHTML = loanRows.map((r,i)=>`
+  container.innerHTML = loanRows.map((r,i)=>{
+    const isCustom = !!r.customMode || (r.name!=='' && !CREDIT_CUSTOMERS.includes(r.name));
+    return `
     <div class="loan-entry">
       <div class="loan-row">
-        <input type="text" placeholder="Person's name" value="${escapeHtml(r.name)}" oninput="onLoanFieldInput(${i},'name',this.value)">
+        <select onchange="onLoanNameSelect(${i},this.value)">
+          <option value="" ${(!isCustom && r.name==='')?'selected':''}>Select person...</option>
+          ${CREDIT_CUSTOMERS.map(n=>`<option value="${escapeHtml(n)}" ${(!isCustom && r.name===n)?'selected':''}>${escapeHtml(n)}</option>`).join('')}
+          <option value="__custom__" ${isCustom?'selected':''}>Other (type name)…</option>
+        </select>
         <input type="number" min="0" step="0.01" placeholder="Amount ₹" value="${r.amount||0}" oninput="onLoanFieldInput(${i},'amount',this.value)">
         <select onchange="onLoanFieldInput(${i},'type',this.value)">
           <option value="loan" ${r.type!=='addon'?'selected':''}>Loan</option>
@@ -5716,11 +5723,26 @@ function renderLoanRows(){
         <label class="chk-wrap"><input type="checkbox" ${r.checked?'checked':''} onchange="onLoanFieldInput(${i},'checked',this.checked)"> Checked</label>
         <button class="btn danger" onclick="removeLoanRow(${i})" ${loanRows.length<=1?'style="visibility:hidden"':''}>Remove</button>
       </div>
+      ${isCustom ? `<div class="loan-note-row">
+        <input type="text" placeholder="Enter person's name" value="${escapeHtml(r.name)}" oninput="onLoanFieldInput(${i},'name',this.value)">
+      </div>` : ''}
       <div class="loan-note-row">
         <input type="text" placeholder="Note (optional)" value="${escapeHtml(r.note||'')}" oninput="onLoanFieldInput(${i},'note',this.value)">
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   document.getElementById('addLoanBtn').disabled = loanRows.length>=10;
+}
+function onLoanNameSelect(i, value){
+  if(value==='__custom__'){
+    loanRows[i].customMode = true;
+    loanRows[i].name = '';
+  } else {
+    loanRows[i].customMode = false;
+    loanRows[i].name = value;
+  }
+  renderLoanRows();
+  calcCash();
 }
 function onLoanFieldInput(i, field, value){
   if(field==='amount') loanRows[i][field] = parseFloat(value)||0;
@@ -5730,13 +5752,13 @@ function onLoanFieldInput(i, field, value){
 }
 function addLoanRow(){
   if(loanRows.length>=10) return;
-  loanRows.push({name:'', amount:0, type:'loan', checked:false, note:''});
+  loanRows.push({name:'', amount:0, type:'loan', checked:false, note:'', customMode:false});
   renderLoanRows();
   calcCash();
 }
 function removeLoanRow(i){
   loanRows.splice(i,1);
-  if(loanRows.length===0) loanRows.push({name:'', amount:0, type:'loan', checked:false, note:''});
+  if(loanRows.length===0) loanRows.push({name:'', amount:0, type:'loan', checked:false, note:'', customMode:false});
   renderLoanRows();
   calcCash();
 }
