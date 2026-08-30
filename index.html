@@ -3514,6 +3514,7 @@ const CREDIT_CUSTOMERS = ["Ajij","Anwar","Badya Kuro","Bapon","BardhaMan Bus","B
 // and persisted to this device's localStorage so they show up in the
 // dropdown again on future visits.
 const CUSTOM_CUSTOMERS_KEY = 'maaFuelStationCustomCustomers_v1';
+const REMOVED_CUSTOMERS_KEY = 'maaFuelStationRemovedCustomers_v1';
 function loadCustomCustomers(){
   try{
     const raw = window.localStorage.getItem(CUSTOM_CUSTOMERS_KEY);
@@ -3524,9 +3525,24 @@ function loadCustomCustomers(){
 function saveCustomCustomers(arr){
   try{ window.localStorage.setItem(CUSTOM_CUSTOMERS_KEY, JSON.stringify(arr)); }catch(e){}
 }
+// Names from the built-in CREDIT_CUSTOMERS list that a user has removed on
+// this device. Since CREDIT_CUSTOMERS itself is a fixed constant, removal
+// of a built-in name is tracked here rather than by editing that list.
+function loadRemovedCustomers(){
+  try{
+    const raw = window.localStorage.getItem(REMOVED_CUSTOMERS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+function saveRemovedCustomers(arr){
+  try{ window.localStorage.setItem(REMOVED_CUSTOMERS_KEY, JSON.stringify(arr)); }catch(e){}
+}
 function getCreditCustomers(){
   const custom = loadCustomCustomers();
-  const merged = CREDIT_CUSTOMERS.concat(custom.filter(n => !CREDIT_CUSTOMERS.some(b => b.toLowerCase() === n.toLowerCase())));
+  const removed = loadRemovedCustomers().map(n => n.toLowerCase());
+  const builtIns = CREDIT_CUSTOMERS.filter(n => !removed.includes(n.toLowerCase()));
+  const merged = builtIns.concat(custom.filter(n => !builtIns.some(b => b.toLowerCase() === n.toLowerCase())));
   return merged.slice().sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
 }
 
@@ -5736,7 +5752,7 @@ function renderLoanRows(){
           ${customers.map(n=>`<option value="${escapeHtml(n)}" ${(!isCustom && r.name===n)?'selected':''}>${escapeHtml(n)}</option>`).join('')}
           <option value="__custom__" ${isCustom?'selected':''}>Other (type name)…</option>
           <option value="__add_new__">+ Add new customer…</option>
-          ${(!isCustom && r.name!=='' && customers.includes(r.name)) ? `<option value="__rename__">✎ Rename "${escapeHtml(r.name)}"…</option>` : ''}
+          ${(!isCustom && r.name!=='' && customers.includes(r.name)) ? `<option value="__rename__">✎ Rename "${escapeHtml(r.name)}"…</option><option value="__remove__">🗑 Remove "${escapeHtml(r.name)}"</option>` : ''}
         </select>
         <input type="number" min="0" step="0.01" placeholder="Amount ₹" value="${r.amount||0}" oninput="onLoanFieldInput(${i},'amount',this.value)">
         <select onchange="onLoanFieldInput(${i},'type',this.value)">
@@ -5757,6 +5773,26 @@ function renderLoanRows(){
   document.getElementById('addLoanBtn').disabled = loanRows.length>=10;
 }
 function onLoanNameSelect(i, value){
+  if(value==='__remove__'){
+    const name = loanRows[i].name;
+    if(confirm('Remove "' + name + '" from the customer list? This will not affect any past saved records, only the dropdown.')){
+      const isBuiltIn = CREDIT_CUSTOMERS.some(n => n.toLowerCase() === name.toLowerCase());
+      if(isBuiltIn){
+        const removed = loadRemovedCustomers();
+        if(!removed.some(n => n.toLowerCase() === name.toLowerCase())){
+          removed.push(name);
+          saveRemovedCustomers(removed);
+        }
+      } else {
+        const custom = loadCustomCustomers().filter(n => n.toLowerCase() !== name.toLowerCase());
+        saveCustomCustomers(custom);
+      }
+      loanRows.forEach(row => { if(row.name === name && !row.customMode) row.name = ''; });
+    }
+    renderLoanRows();
+    calcCash();
+    return;
+  }
   if(value==='__rename__'){
     const oldName = loanRows[i].name;
     const entered = prompt('Rename "' + oldName + '" to:', oldName);
