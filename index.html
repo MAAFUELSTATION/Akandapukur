@@ -7290,6 +7290,54 @@ function describeRateChange(c){
   const b = c.before || {}, a = c.after || {};
   return [`<div>Fuel rate: Diesel ₹${fmtNum(b.diesel||0)} → ₹${fmtNum(a.diesel||0)}, Petrol ₹${fmtNum(b.petrol||0)} → ₹${fmtNum(a.petrol||0)}</div>`];
 }
+// Turns one {id, before, after} note-given-out change into a readable line.
+function describeNoteGivenOutChange(c){
+  if(!c.before && c.after){
+    const r = c.after;
+    return [`<div data-date="${escapeHtml(r.date||'')}">Note stock given to ${escapeHtml(r.to||'—')} on ${escapeHtml(r.date||'')}: ₹${fmtNum(r.value||0)} recorded.</div>`];
+  }
+  if(c.before && !c.after){
+    const r = c.before;
+    return [`<div class="removed" data-date="${escapeHtml(r.date||'')}">⚠ Note stock record for ${escapeHtml(r.to||'—')} on ${escapeHtml(r.date||'')} (₹${fmtNum(r.value||0)}) was removed.</div>`];
+  }
+  const b = c.before||{}, a = c.after||{};
+  return [`<div data-date="${escapeHtml(a.date||'')}">Note stock record for ${escapeHtml(a.to||'—')} edited: ₹${fmtNum(b.value||0)} → ₹${fmtNum(a.value||0)}</div>`];
+}
+// Turns one {id, before, after} tank update change into a readable line.
+function describeTankUpdateChange(c){
+  if(!c.before && c.after){
+    const r = c.after;
+    return [`<div data-date="${escapeHtml(r.date||'')}">Tank update added: ${escapeHtml(r.fuel||'')} ${escapeHtml(r.type||'')} of ${fmtNum(r.volume||0)} L on ${escapeHtml(r.date||'')}</div>`];
+  }
+  if(c.before && !c.after){
+    const r = c.before;
+    return [`<div class="removed" data-date="${escapeHtml(r.date||'')}">⚠ Tank update removed: ${escapeHtml(r.fuel||'')} ${escapeHtml(r.type||'')} of ${fmtNum(r.volume||0)} L on ${escapeHtml(r.date||'')}</div>`];
+  }
+  const b = c.before||{}, a = c.after||{};
+  return [`<div data-date="${escapeHtml(a.date||'')}">Tank update edited (${escapeHtml(a.fuel||'')} ${escapeHtml(a.type||'')}): ${fmtNum(b.volume||0)} L → ${fmtNum(a.volume||0)} L</div>`];
+}
+// Turns one {staffId, id, before, after} pouch box change into a readable line.
+function describePouchBoxChange(c){
+  const name = auditStaffLabel(c.staffId);
+  if(!c.before && c.after){
+    return [`<div>Pouch box opened for ${escapeHtml(name)}: ${fmtNum(c.after.remaining||0)} pouches</div>`];
+  }
+  if(c.before && !c.after){
+    return [`<div class="removed">⚠ Pouch box for ${escapeHtml(name)} was removed.</div>`];
+  }
+  const b = c.before||{}, a = c.after||{};
+  const lines = [];
+  if(b.status !== a.status){
+    lines.push(`<div>Pouch box for ${escapeHtml(name)}: status ${escapeHtml(b.status||'—')} → ${escapeHtml(a.status||'—')}</div>`);
+  }
+  if(Number(b.remaining||0) !== Number(a.remaining||0)){
+    lines.push(`<div>Pouch box for ${escapeHtml(name)}: remaining ${fmtNum(b.remaining||0)} → ${fmtNum(a.remaining||0)}</div>`);
+  }
+  if(Number(b.incentive||0) !== Number(a.incentive||0)){
+    lines.push(`<div>Pouch box for ${escapeHtml(name)}: incentive ₹${fmtNum(b.incentive||0)} → ₹${fmtNum(a.incentive||0)}</div>`);
+  }
+  return lines.length ? lines : [`<div>Pouch box for ${escapeHtml(name)} edited.</div>`];
+}
 function renderAuditLog(entries){
   const listEl = document.getElementById('auditList');
   if(!entries || !entries.length){
@@ -7303,6 +7351,9 @@ function renderAuditLog(entries){
     (e.changes.cash||[]).forEach(c=> lines.push(...describeCashChange(c)));
     (e.changes.rates||[]).forEach(c=> lines.push(...describeRateChange(c)));
     (e.changes.duty||[]).forEach(c=> lines.push(`<div>Duty roster for ${escapeHtml(c.date)} changed.</div>`));
+    (e.changes.noteGivenOut||[]).forEach(c=> lines.push(...describeNoteGivenOutChange(c)));
+    (e.changes.tankUpdates||[]).forEach(c=> lines.push(...describeTankUpdateChange(c)));
+    (e.changes.pouchBoxes||[]).forEach(c=> lines.push(...describePouchBoxChange(c)));
     if(e.changes.staff){
       const beforeIds = new Set((e.changes.staff.before||[]).map(s=>s.id));
       const afterIds = new Set((e.changes.staff.after||[]).map(s=>s.id));
