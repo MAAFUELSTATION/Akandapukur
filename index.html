@@ -81,6 +81,7 @@
     --night:#4B4E9E;
     --surplus:#1E8E5A;
     --shortfall:#D14343;
+    --holiday:#8A4FBF;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--cream);color:var(--ink);font-family:'Inter',sans-serif;padding-bottom:60px;}
@@ -262,6 +263,12 @@
   .duty-clear{border:none;background:transparent;color:var(--shortfall);cursor:pointer;font-size:11px;padding:3px 4px;text-decoration:underline;white-space:nowrap;}
   .duty-clear:hover{color:#a92e2e;}
   tr.duty-today td{background:#FDF3E3;}
+  .duty-chip.holiday{background:var(--holiday);border-color:var(--holiday);color:#fff;}
+  .duty-chip.holiday:hover{background:#6e3a9c;}
+  .duty-holiday-summary{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .duty-holiday-pill{font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 12px;border-radius:20px;background:rgba(138,79,191,.1);border:1px solid var(--holiday);color:var(--holiday);display:flex;align-items:center;gap:6px;}
+  .duty-holiday-pill .n{font-family:'JetBrains Mono',monospace;font-weight:700;background:var(--holiday);color:#fff;border-radius:10px;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;font-size:11px;}
+  .duty-holiday-empty{font-size:12.5px;color:var(--muted);margin-top:14px;}
   @media(max-width:700px){
     table.duty-table{min-width:560px;}
     table.duty-table td{min-width:130px;}
@@ -1287,6 +1294,7 @@
 
  [data-theme="stone"] .duty-chip, [data-theme="neon-purple"] .duty-chip, [data-theme="citrus"] .duty-chip, [data-theme="velocity"] .duty-chip, [data-theme="arclight"] .duty-chip{background:rgba(255,255,255,.04);color:var(--ink);border-color:var(--theme-border);}
  [data-theme="stone"] .duty-chip.manual, [data-theme="neon-purple"] .duty-chip.manual, [data-theme="citrus"] .duty-chip.manual, [data-theme="velocity"] .duty-chip.manual, [data-theme="arclight"] .duty-chip.manual{color:#fff;}
+ [data-theme="stone"] .duty-chip.holiday, [data-theme="neon-purple"] .duty-chip.holiday, [data-theme="citrus"] .duty-chip.holiday, [data-theme="velocity"] .duty-chip.holiday, [data-theme="arclight"] .duty-chip.holiday{color:#fff;border-color:var(--holiday);}
  [data-theme="stone"] .duty-add, [data-theme="neon-purple"] .duty-add, [data-theme="citrus"] .duty-add, [data-theme="velocity"] .duty-add, [data-theme="arclight"] .duty-add{color:var(--muted);}
 
  [data-theme="neon-purple"] .digit-box{background:#0A0716;border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.65),0 0 16px color-mix(in srgb, var(--petrol) 10%, transparent);}
@@ -2016,12 +2024,15 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 
       <div class="duty-table-wrap">
       <table class="duty-table">
-        <thead><tr><th>Day</th><th>Morning</th><th>Afternoon</th><th>Night</th></tr></thead>
+        <thead><tr><th>Day</th><th>Morning</th><th>Afternoon</th><th>Night</th><th>Holiday</th></tr></thead>
         <tbody id="dutyBody"></tbody>
       </table>
       </div>
 
-      <div class="hint" style="margin-top:12px;">Tap a staff name to add or remove them from that shift — any number of staff can be on a single shift. Changes save automatically, same as the rest of the app.</div>
+      <div class="hint" style="margin-top:12px;">Tap a staff name to add or remove them from that shift — any number of staff can be on a single shift. Tap a name under <b>Holiday</b> to mark them off that day. Changes save automatically, same as the rest of the app.</div>
+
+      <h2 style="font-size:16px;margin-top:22px;">🏖️ Holidays this week</h2>
+      <div class="duty-holiday-summary" id="dutyHolidaySummary"></div>
     </div>
   </section>
 
@@ -4310,7 +4321,15 @@ function ensureDuty(date){
       if(!Array.isArray(cur.manual)) cur.manual = [];
     }
   });
+  if(!Array.isArray(d.holiday)) d.holiday = [];
   return d;
+}
+function toggleDutyHoliday(date, staffId){
+  const d = ensureDuty(date);
+  const idx = d.holiday.indexOf(staffId);
+  if(idx >= 0) d.holiday.splice(idx, 1); else d.holiday.push(staffId);
+  scheduleAutosave();
+  renderDutyTab();
 }
 function toggleDutyStaff(date, shift, staffId){
   const d = ensureDuty(date);
@@ -4373,6 +4392,7 @@ function copyPrevWeekDuty(){
         manual: srcDuty[sh.id].manual.map(m=>({id: 'm' + Date.now() + Math.random().toString(36).slice(2,7), text: m.text}))
       };
     });
+    dstDuty.holiday = srcDuty.holiday.slice();
   }
   scheduleAutosave();
   renderDutyTab();
@@ -4390,6 +4410,13 @@ function dutyCellHtml(date, shift, cell){
   const clearBtn = hasAny ? `<button type="button" class="duty-clear" onclick="clearDutyCell('${date}','${shift}')">Clear</button>` : '';
   return `<div class="duty-cell">${staffChips}${manualChips}${addBtn}${clearBtn}</div>`;
 }
+function dutyHolidayCellHtml(date, holidayIds){
+  const chips = state.staff.map(s=>{
+    const on = holidayIds.indexOf(s.id) >= 0;
+    return `<button type="button" class="duty-chip${on ? ' holiday' : ''}" onclick="toggleDutyHoliday('${date}','${s.id}')">${escapeHtml(s.name)}</button>`;
+  }).join('');
+  return `<div class="duty-cell">${chips}</div>`;
+}
 function renderDutyTab(){
   if(!dutyWeekStart) dutyWeekStart = mondayOf(todayStr());
   const wsInp = document.getElementById('dutyWeekStart');
@@ -4401,15 +4428,31 @@ function renderDutyTab(){
 
   const today = todayStr();
   let rows = '';
+  const holidayCounts = {}; // staffId -> count of holiday days this week
   for(let i=0; i<7; i++){
     const date = addDaysStr(dutyWeekStart, i);
     const d = ensureDuty(date);
+    d.holiday.forEach(sid=>{ holidayCounts[sid] = (holidayCounts[sid] || 0) + 1; });
     rows += `<tr class="${date===today ? 'duty-today' : ''}">
       <td class="duty-daycell"><span class="mono d">${date}</span></td>
       ${SHIFTS.map(sh=>`<td>${dutyCellHtml(date, sh.id, d[sh.id])}</td>`).join('')}
+      <td>${dutyHolidayCellHtml(date, d.holiday)}</td>
     </tr>`;
   }
   document.getElementById('dutyBody').innerHTML = rows;
+  renderDutyHolidaySummary(holidayCounts);
+}
+function renderDutyHolidaySummary(holidayCounts){
+  const box = document.getElementById('dutyHolidaySummary');
+  if(!box) return;
+  const withHolidays = state.staff.filter(s=>holidayCounts[s.id] > 0);
+  if(!withHolidays.length){
+    box.innerHTML = '<div class="duty-holiday-empty">No staff marked on holiday this week.</div>';
+    return;
+  }
+  box.innerHTML = withHolidays.map(s=>
+    `<span class="duty-holiday-pill">${escapeHtml(s.name)} <span class="n">${holidayCounts[s.id]}</span></span>`
+  ).join('');
 }
 
 /* --- PDF export: loads jsPDF + autotable from CDN on first use (mirrors --- */
@@ -4468,14 +4511,17 @@ async function downloadDutyRosterPDF(){
       return names.length ? names.join(', ') : '—';
     };
     const body = [];
+    const holidayCounts = {};
     for(let i=0; i<7; i++){
       const date = addDaysStr(dutyWeekStart, i);
       const d = ensureDuty(date);
-      body.push([date, cellFor(d,'morning'), cellFor(d,'afternoon'), cellFor(d,'night')]);
+      d.holiday.forEach(sid=>{ holidayCounts[sid] = (holidayCounts[sid] || 0) + 1; });
+      const holidayNames = d.holiday.map(id=>staffNameById(id));
+      body.push([date, cellFor(d,'morning'), cellFor(d,'afternoon'), cellFor(d,'night'), holidayNames.length ? holidayNames.join(', ') : '—']);
     }
 
     doc.autoTable({
-      head: [['Date','Morning','Afternoon','Night']],
+      head: [['Date','Morning','Afternoon','Night','Holiday']],
       body,
       startY: 74,
       styles:{font:'helvetica', fontSize:10, cellPadding:7, valign:'middle'},
@@ -4483,6 +4529,19 @@ async function downloadDutyRosterPDF(){
       columnStyles:{0:{cellWidth:95, fontStyle:'bold'}},
       alternateRowStyles:{fillColor:[251,246,236]}
     });
+
+    const holidaySummary = state.staff
+      .filter(s=>holidayCounts[s.id] > 0)
+      .map(s=>`${s.name} (${holidayCounts[s.id]})`)
+      .join(',  ');
+    if(holidaySummary){
+      const afterTableY = (doc.lastAutoTable && doc.lastAutoTable.finalY) ? doc.lastAutoTable.finalY + 20 : 74;
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10.5);
+      doc.text('Holiday count this week:', 40, afterTableY);
+      doc.setFont('helvetica','normal');
+      doc.text(holidaySummary, 40, afterTableY + 15);
+    }
 
     doc.save(`Duty-Roster_${dutyWeekStart}_to_${weekEnd}.pdf`);
   }catch(e){
