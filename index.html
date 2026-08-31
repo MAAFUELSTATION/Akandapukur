@@ -1024,34 +1024,6 @@
  [data-theme="stone"] .login-forgot button, [data-theme="neon-purple"] .login-forgot button, [data-theme="citrus"] .login-forgot button, [data-theme="velocity"] .login-forgot button, [data-theme="arclight"] .login-forgot button{ color:var(--ink); opacity:.7; }
  [data-theme="stone"] .login-forgot button:hover, [data-theme="neon-purple"] .login-forgot button:hover, [data-theme="citrus"] .login-forgot button:hover, [data-theme="velocity"] .login-forgot button:hover, [data-theme="arclight"] .login-forgot button:hover{ opacity:1; }
 
-  /* ---- Login mode toggle (Password vs Mobile OTP) ---- */
-  .login-mode-toggle{
-    display:flex; gap:4px; background:#F0EAD9; border:1px solid var(--line);
-    border-radius:10px; padding:3px; margin-bottom:20px;
-  }
-  .login-mode-btn{
-    flex:1; padding:8px 6px; border:none; border-radius:7px; background:transparent;
-    color:var(--muted); font-size:12.5px; font-weight:700; letter-spacing:.2px;
-    cursor:pointer; transition:background .15s, color .15s;
-  }
-  .login-mode-btn.active{ background:#fff; color:var(--navy); box-shadow:0 1px 4px rgba(0,0,0,.1); }
-  [data-theme="stone"] .login-mode-toggle, [data-theme="neon-purple"] .login-mode-toggle, [data-theme="citrus"] .login-mode-toggle, [data-theme="velocity"] .login-mode-toggle, [data-theme="arclight"] .login-mode-toggle{ background:rgba(127,127,127,.12); }
-  [data-theme="stone"] .login-mode-btn.active, [data-theme="neon-purple"] .login-mode-btn.active, [data-theme="citrus"] .login-mode-btn.active, [data-theme="velocity"] .login-mode-btn.active, [data-theme="arclight"] .login-mode-btn.active{ background:var(--card); color:var(--ink); }
-
-  .login-otp-error{
-    display:none; align-items:center; gap:8px;
-    background:#FDF2F1; border:1px solid #F3C9C4; color:var(--shortfall);
-    font-size:12.5px; font-weight:600; padding:9px 12px; border-radius:8px; margin-bottom:16px;
-  }
-  .login-otp-error.show{ display:flex; }
-  .login-otp-note{ font-size:11.5px; color:var(--muted); margin:-8px 0 16px; text-align:center; }
-  .login-otp-resend{ text-align:center; margin-top:12px; font-size:12px; color:var(--muted); }
-  .login-otp-resend .link-btn{
-    background:none; border:none; padding:0; cursor:pointer;
-    font-size:12px; color:var(--petrol-dark); text-decoration:underline; font-weight:700;
-  }
-  .login-otp-resend .link-btn:disabled{ color:var(--muted); text-decoration:none; cursor:default; }
-
   /* ---- Forgot-password recovery modal ---- */
   .recover-overlay{
     display:none; position:fixed; inset:0; background:rgba(10,14,20,.55);
@@ -1675,11 +1647,6 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 
     <div class="login-error" id="loginError">⚠ Wrong username or password. Please try again.</div>
 
-    <div class="login-mode-toggle">
-      <button type="button" class="login-mode-btn active" id="loginModePasswordBtn" onclick="setLoginMode('password')">🔒 Password</button>
-      <button type="button" class="login-mode-btn" id="loginModeOtpBtn" onclick="setLoginMode('otp')">📱 Mobile OTP</button>
-    </div>
-
     <form id="loginForm" autocomplete="off">
       <div class="login-field">
         <label for="loginUserSelect">Who are you?</label>
@@ -1703,30 +1670,6 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         </div>
       </div>
       <button type="submit" class="btn login-submit">Unlock Console</button>
-    </form>
-
-    <form id="otpLoginForm" autocomplete="off" style="display:none;" onsubmit="return verifyLoginOtp(event)">
-      <div class="login-otp-error" id="otpError"></div>
-      <div class="login-field">
-        <label for="otpPhone">Registered mobile number</label>
-        <div class="input-wrap">
-          <input type="tel" id="otpPhone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel">
-        </div>
-      </div>
-      <div class="login-field" id="otpCodeField" style="display:none;">
-        <label for="otpCode">Enter OTP</label>
-        <div class="input-wrap">
-          <input type="text" id="otpCode" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
-        </div>
-      </div>
-      <div class="login-otp-note" id="otpNote" style="display:none;">OTP sent — valid for 5 minutes.</div>
-      <button type="button" class="btn login-submit" id="otpSendBtn" onclick="sendLoginOtp(false)">Send OTP</button>
-      <button type="submit" class="btn login-submit" id="otpVerifyBtn" style="display:none;">Verify &amp; Unlock</button>
-      <div class="login-otp-resend" id="otpResendWrap" style="display:none;">
-        Didn't get it? <button type="button" class="link-btn" id="otpResendBtn" onclick="sendLoginOtp(true)" disabled>Resend OTP</button>
-        <span id="otpResendTimer"></span>
-        &nbsp;·&nbsp;<button type="button" class="link-btn" onclick="changeOtpNumber()">Change number</button>
-      </div>
     </form>
 
     <div class="login-forgot"><button type="button" id="forgotPasswordBtn">Forgot your password?</button></div>
@@ -3276,8 +3219,6 @@ function lockApp(){
   if(passInp) passInp.value = '';
   if(selInp) selInp.value = '';
   populateLoginStaffDropdown();
-  setLoginMode('password');
-  resetOtpLoginUI();
   setTimeout(()=>{ if(userInp) userInp.focus(); }, 50);
 }
 
@@ -3345,9 +3286,8 @@ function onLoginStaffPick(username){
   if(username && passInp) passInp.focus();
 }
 
-// Shared by both login paths (password submit, and OTP verify below) so
-// there's exactly one place that starts a session, persists it, and pulls
-// fresh data — rather than two slightly-different copies drifting apart.
+// Starts a session, persists it, and pulls fresh data — the single place
+// a successful login finalizes, so there's no risk of drifting copies.
 function finalizeLoginSession(sess){
   const errEl = document.getElementById('loginError');
   if(errEl) errEl.classList.remove('show');
@@ -3447,198 +3387,6 @@ function finalizeLoginSession(sess){
     toggleBtn.textContent = showing ? '👁' : '🙈';
   });
 })();
-
-/* ============== MOBILE OTP LOGIN ==============
-   A second way in alongside the password form above: a staff member types
-   their registered mobile number, gets a 6-digit code by SMS (Fast2SMS —
-   see /api/otp/send and /api/otp/verify in server.js), and that code signs
-   them in exactly like a correct password would. Numbers are set per staff
-   member in Admin → Staff Login IDs & Passwords. Admin itself has no phone
-   field yet, so this path only ever resolves to a staff session, never
-   admin — matching the existing shape of authenticate() above. */
-var otpResendTimerHandle = null;
-var otpLastPhone = '';
-
-function setLoginMode(mode){
-  const pwBtn = document.getElementById('loginModePasswordBtn');
-  const otpBtn = document.getElementById('loginModeOtpBtn');
-  const pwForm = document.getElementById('loginForm');
-  const otpForm = document.getElementById('otpLoginForm');
-  const errEl = document.getElementById('loginError');
-  if(!pwBtn || !otpBtn || !pwForm || !otpForm) return;
-  const isOtp = mode === 'otp';
-  pwBtn.classList.toggle('active', !isOtp);
-  otpBtn.classList.toggle('active', isOtp);
-  pwForm.style.display = isOtp ? 'none' : '';
-  otpForm.style.display = isOtp ? '' : 'none';
-  if(errEl) errEl.classList.remove('show');
-  const otpErrEl = document.getElementById('otpError');
-  if(otpErrEl) otpErrEl.classList.remove('show');
-  if(isOtp){
-    setTimeout(()=>{ const p = document.getElementById('otpPhone'); if(p) p.focus(); }, 50);
-  }
-}
-
-function resetOtpLoginUI(){
-  if(otpResendTimerHandle){ clearInterval(otpResendTimerHandle); otpResendTimerHandle = null; }
-  otpLastPhone = '';
-  const phoneInp = document.getElementById('otpPhone');
-  const codeInp = document.getElementById('otpCode');
-  const codeField = document.getElementById('otpCodeField');
-  const note = document.getElementById('otpNote');
-  const sendBtn = document.getElementById('otpSendBtn');
-  const verifyBtn = document.getElementById('otpVerifyBtn');
-  const resendWrap = document.getElementById('otpResendWrap');
-  const errEl = document.getElementById('otpError');
-  if(phoneInp){ phoneInp.value = ''; phoneInp.disabled = false; }
-  if(codeInp) codeInp.value = '';
-  if(codeField) codeField.style.display = 'none';
-  if(note) note.style.display = 'none';
-  if(sendBtn){ sendBtn.style.display = ''; sendBtn.disabled = false; sendBtn.textContent = 'Send OTP'; }
-  if(verifyBtn){ verifyBtn.style.display = 'none'; verifyBtn.disabled = false; verifyBtn.textContent = 'Verify & Unlock'; }
-  if(resendWrap) resendWrap.style.display = 'none';
-  if(errEl) errEl.classList.remove('show');
-}
-
-function showOtpError(message){
-  const errEl = document.getElementById('otpError');
-  if(!errEl) return;
-  errEl.textContent = '⚠ ' + message;
-  errEl.classList.add('show');
-}
-
-function changeOtpNumber(){
-  resetOtpLoginUI();
-  const p = document.getElementById('otpPhone');
-  if(p) p.focus();
-}
-
-function startOtpResendCountdown(seconds){
-  const resendWrap = document.getElementById('otpResendWrap');
-  const resendBtn = document.getElementById('otpResendBtn');
-  const timerEl = document.getElementById('otpResendTimer');
-  if(!resendWrap || !resendBtn || !timerEl) return;
-  resendWrap.style.display = 'block';
-  resendBtn.disabled = true;
-  let remaining = seconds;
-  if(otpResendTimerHandle) clearInterval(otpResendTimerHandle);
-  const tick = () => {
-    if(remaining <= 0){
-      clearInterval(otpResendTimerHandle);
-      otpResendTimerHandle = null;
-      resendBtn.disabled = false;
-      timerEl.textContent = '';
-    } else {
-      timerEl.textContent = '(' + remaining + 's)';
-      remaining -= 1;
-    }
-  };
-  tick();
-  otpResendTimerHandle = setInterval(tick, 1000);
-}
-
-async function sendLoginOtp(isResend){
-  const phoneInp = document.getElementById('otpPhone');
-  const sendBtn = document.getElementById('otpSendBtn');
-  const resendBtn = document.getElementById('otpResendBtn');
-  const codeField = document.getElementById('otpCodeField');
-  const note = document.getElementById('otpNote');
-  const verifyBtn = document.getElementById('otpVerifyBtn');
-  const errEl = document.getElementById('otpError');
-  if(errEl) errEl.classList.remove('show');
-
-  const phone = (phoneInp.value||'').replace(/\D/g,'').slice(-10);
-  if(!/^[6-9]\d{9}$/.test(phone)){
-    showOtpError('Enter a valid 10-digit mobile number.');
-    return;
-  }
-  const btn = isResend ? resendBtn : sendBtn;
-  const originalText = btn ? btn.textContent : '';
-  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
-
-  const base = getApiBase();
-  if(!base){
-    showOtpError('No backend configured — tap 🔗 Server first, or use the Password tab.');
-    if(btn){ btn.disabled = false; btn.textContent = originalText; }
-    return;
-  }
-
-  try{
-    const res = await fetch(base + '/api/otp/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() },
-      body: JSON.stringify({ phone })
-    });
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok){
-      showOtpError(data.error || ('Could not send OTP (HTTP ' + res.status + ').'));
-      if(btn){ btn.disabled = false; btn.textContent = originalText; }
-      return;
-    }
-    otpLastPhone = phone;
-    phoneInp.disabled = true;
-    if(codeField) codeField.style.display = '';
-    if(note) note.style.display = 'block';
-    if(sendBtn) sendBtn.style.display = 'none';
-    if(verifyBtn) verifyBtn.style.display = '';
-    startOtpResendCountdown(data.resendInSec || 45);
-    setTimeout(()=>{ const c = document.getElementById('otpCode'); if(c) c.focus(); }, 50);
-  }catch(e){
-    showOtpError('Network error — could not reach the server. ' + (e.message||''));
-    if(btn){ btn.disabled = false; btn.textContent = originalText; }
-  }
-}
-
-async function verifyLoginOtp(e){
-  if(e) e.preventDefault();
-  const codeInp = document.getElementById('otpCode');
-  const verifyBtn = document.getElementById('otpVerifyBtn');
-  const errEl = document.getElementById('otpError');
-  if(errEl) errEl.classList.remove('show');
-
-  const code = (codeInp.value||'').trim();
-  if(!/^\d{6}$/.test(code)){
-    showOtpError('Enter the 6-digit OTP.');
-    return false;
-  }
-  if(!otpLastPhone){
-    showOtpError('Please send an OTP first.');
-    return false;
-  }
-
-  // Same race guard as the password login path: don't validate against a
-  // server response that might still be an unloaded default.
-  if(!initialLoadDone && serverSyncEnabled){
-    if(verifyBtn){ verifyBtn.disabled = true; verifyBtn.textContent = 'Checking latest data…'; }
-    try{ await loadFromServer(); }catch(err){}
-  }
-
-  const base = getApiBase();
-  const originalText = verifyBtn ? verifyBtn.textContent : '';
-  if(verifyBtn){ verifyBtn.disabled = true; verifyBtn.textContent = 'Verifying…'; }
-
-  try{
-    const res = await fetch(base + '/api/otp/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() },
-      body: JSON.stringify({ phone: otpLastPhone, otp: code })
-    });
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok || !data.ok){
-      showOtpError(data.error || ('Verification failed (HTTP ' + res.status + ').'));
-      codeInp.value = '';
-      codeInp.focus();
-      if(verifyBtn){ verifyBtn.disabled = false; verifyBtn.textContent = originalText; }
-      return false;
-    }
-    resetOtpLoginUI();
-    finalizeLoginSession({ role:'staff', staffId: data.staff.id, staffName: data.staff.name });
-  }catch(e2){
-    showOtpError('Network error — could not reach the server. ' + (e2.message||''));
-    if(verifyBtn){ verifyBtn.disabled = false; verifyBtn.textContent = originalText; }
-  }
-  return false;
-}
 
 /* ============== FORGOT PASSWORD / RECOVERY ==============
    The login above is a casual-visitor lock, not real security (see the
@@ -4451,7 +4199,7 @@ function renderAdminTab(){
           <span style="min-width:110px;font-weight:600;">${escapeHtml(s.name)}</span>
           <input type="text" value="${escapeHtml(s.username||'')}" placeholder="Login ID" style="flex:1;min-width:100px;" onchange="updateStaffCredential('${s.id}','username',this.value)">
           <input type="${adminRevealedPw[s.id] ? 'text' : 'password'}" value="${escapeHtml(s.password||'')}" placeholder="Password" style="flex:1;min-width:100px;" onchange="updateStaffCredential('${s.id}','password',this.value)">
-          <input type="tel" value="${escapeHtml(s.phone||'')}" placeholder="Mobile no. (for OTP login)" maxlength="10" inputmode="numeric" style="flex:1;min-width:140px;" onchange="updateStaffCredential('${s.id}','phone',this.value)">
+          <input type="tel" value="${escapeHtml(s.phone||'')}" placeholder="Mobile no. (optional)" maxlength="10" inputmode="numeric" style="flex:1;min-width:140px;" onchange="updateStaffCredential('${s.id}','phone',this.value)">
           <button type="button" class="btn ghost small" onclick="toggleAdminPwReveal('${s.id}')">${adminRevealedPw[s.id] ? '🙈 Hide' : '👁 Show'}</button>
         </div>`).join('');
     }
@@ -4471,7 +4219,7 @@ function updateStaffCredential(id, field, value){
   const s = state.staff.find(x=>x.id===id);
   if(!s) return;
   if(field==='phone'){
-    // Phone is optional (only needed for OTP login), so an empty value is
+    // Phone is just optional contact info now, so an empty value is
     // allowed here — unlike username/password below, which can't be blank.
     const digits = value.replace(/\D/g,'').slice(-10);
     if(digits && !/^[6-9]\d{9}$/.test(digits)){
@@ -4496,10 +4244,8 @@ function updateStaffCredential(id, field, value){
   renderAdminTab();
   scheduleAutosave();
 }
-// Small helper kept separate from server.js's normalizePhone (same logic,
-// duplicated because this runs in the browser, not Node) so the "already
-// registered to X" duplicate check above works the same way the backend
-// will match numbers when someone actually sends/verifies an OTP.
+// Small helper so the "already registered to X" duplicate check above
+// compares numbers consistently regardless of formatting.
 function normalizePhoneForCompare(raw){
   const digits = String(raw||'').replace(/\D/g,'');
   return digits.length > 10 ? digits.slice(-10) : digits;
