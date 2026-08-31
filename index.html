@@ -3456,8 +3456,8 @@ function finalizeLoginSession(sess){
    member in Admin → Staff Login IDs & Passwords. Admin itself has no phone
    field yet, so this path only ever resolves to a staff session, never
    admin — matching the existing shape of authenticate() above. */
-let otpResendTimerHandle = null;
-let otpLastPhone = '';
+var otpResendTimerHandle = null;
+var otpLastPhone = '';
 
 function setLoginMode(mode){
   const pwBtn = document.getElementById('loginModePasswordBtn');
