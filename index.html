@@ -1761,6 +1761,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <button class="tab-btn" data-tab="notestock" onclick="switchTab('notestock')">💵 Note Stock</button>
   <button class="tab-btn" data-tab="cashledger" onclick="switchTab('cashledger')">💰 Cash Ledger</button>
   <button class="tab-btn" data-tab="buscash" onclick="switchTab('buscash')">🚌 Bus Cash Tracker</button>
+  <button class="tab-btn" data-tab="eodloan" onclick="switchTab('eodloan')">🧾 EOD Loan</button>
 </nav>
 <nav class="tabs" data-group="staffops" style="display:none;">
   <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
@@ -1997,38 +1998,6 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <button class="btn amber" onclick="resetCashEditPin()">Reset PIN</button>
       </div>
       <div class="hint">Whoever knows this PIN (plus a reason) can unlock a Cash Denomination record that's already been saved, in the Cash Denomination Calculator tab. Change it any time — leave the prompt blank to go back to the default.</div>
-    </div>
-    <div class="card">
-      <h2>🤝 All Loans — Day by Day <span class="tag">Every loan/add-on entry from Cash Denomination, in one place</span></h2>
-      <div class="row">
-        <div class="field">
-          <label>Filter by Month</label>
-          <input type="month" id="adminLoansMonth" onchange="renderAdminLoansTab()">
-        </div>
-        <div class="field">
-          <label>Filter by Staff</label>
-          <select id="adminLoansStaffFilter" onchange="renderAdminLoansTab()"></select>
-        </div>
-        <div class="field">
-          <label>Status</label>
-          <select id="adminLoansStatusFilter" onchange="renderAdminLoansTab()">
-            <option value="all">All</option>
-            <option value="unchecked">Unchecked only</option>
-            <option value="checked">Checked only</option>
-          </select>
-        </div>
-      </div>
-      <div style="overflow-x:auto;">
-      <table>
-        <thead>
-          <tr><th>Date</th><th>Staff</th><th>Person</th><th>Type</th><th class="num">Amount ₹</th><th>Note</th><th>Checked</th></tr>
-        </thead>
-        <tbody id="adminLoansBody"></tbody>
-      </table>
-      </div>
-      <div class="empty" id="adminLoansEmpty" style="display:none;">No loan entries found for this filter.</div>
-      <div class="loan-total-line"><span>Total (filtered)</span><span class="mono" id="adminLoansTotal">₹0.00</span></div>
-      <div class="loan-total-line"><span>Outstanding (unchecked)</span><span class="mono" id="adminLoansOutstanding">₹0.00</span></div>
     </div>
   </section>
 
@@ -2270,6 +2239,44 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <div class="digit-box shortfall"><div class="lbl">Station Total Shortfall</div><div class="val" id="stationShortfall">₹0.00</div></div>
         <div class="digit-box total"><div class="lbl">Net Position</div><div class="val" id="stationNet">₹0.00</div></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ===================== EOD LOAN TAB (admin-only) ===================== -->
+  <section id="tab-eodloan" class="tab">
+    <div class="card">
+      <h2>🧾 EOD Loan <span class="tag">Today's loan &amp; add-on entries — tap 📅 to browse past days</span></h2>
+      <div class="row" style="align-items:end;">
+        <button type="button" class="btn ghost small" id="adminLoansCalendarBtn" onclick="toggleAdminLoansCalendar()">📅 View Past Days</button>
+        <div class="field" id="adminLoansDateWrap" style="display:none;">
+          <label>Date</label>
+          <input type="date" id="adminLoansDate" onchange="renderAdminLoansTab()">
+        </div>
+        <div class="field">
+          <label>Filter by Staff</label>
+          <select id="adminLoansStaffFilter" onchange="renderAdminLoansTab()"></select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="adminLoansStatusFilter" onchange="renderAdminLoansTab()">
+            <option value="all">All</option>
+            <option value="unchecked">Unchecked only</option>
+            <option value="checked">Checked only</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint" id="adminLoansDateLabel" style="margin-bottom:10px;font-weight:600;color:var(--navy);"></div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Staff</th><th>Person</th><th>Type</th><th class="num">Amount ₹</th><th>Note</th><th>Checked</th></tr>
+        </thead>
+        <tbody id="adminLoansBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="adminLoansEmpty" style="display:none;">No loan entries found for this day.</div>
+      <div class="loan-total-line"><span>Total (filtered)</span><span class="mono" id="adminLoansTotal">₹0.00</span></div>
+      <div class="loan-total-line"><span>Outstanding (unchecked)</span><span class="mono" id="adminLoansOutstanding">₹0.00</span></div>
     </div>
   </section>
 
@@ -4113,7 +4120,7 @@ function toggleCcBlock(headerEl){
 // Which category each tab lives under, for the grouped nav below.
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
-  finance:  ['cash','surplus','notestock','cashledger','buscash'],
+  finance:  ['cash','surplus','notestock','cashledger','buscash','eodloan'],
   staffops: ['staff','duty','admin'],
   addons:   ['addonreport']
 };
@@ -4150,6 +4157,7 @@ function switchTab(name){
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
   if(name==='notestock') renderNoteStockTab();
+  if(name==='eodloan') renderAdminLoansTab();
   if(name==='dipchart') renderDipChartTab();
   if(name==='devices'){ renderDevicesTab(); startDevicesAutoRefresh(); }
   if(name==='cashledger') refreshCashLedgerFrame();
@@ -4254,9 +4262,25 @@ function renderAdminTab(){
   // A login ID may just have changed here — keep the login screen's
   // dropdown current.
   populateLoginStaffDropdown();
+}
+/* ============== EOD LOAN TAB (Cash & Finance, admin-only) ============== */
+let adminLoansCalendarOpen = false;
+function toggleAdminLoansCalendar(){
+  adminLoansCalendarOpen = !adminLoansCalendarOpen;
+  const wrap = document.getElementById('adminLoansDateWrap');
+  const btn = document.getElementById('adminLoansCalendarBtn');
+  const dInp = document.getElementById('adminLoansDate');
+  if(adminLoansCalendarOpen){
+    if(wrap) wrap.style.display = '';
+    if(btn) btn.textContent = '📌 Back to Today';
+    if(dInp && !dInp.value) dInp.value = todayStr();
+  } else {
+    if(wrap) wrap.style.display = 'none';
+    if(btn) btn.textContent = '📅 View Past Days';
+    if(dInp) dInp.value = todayStr();
+  }
   renderAdminLoansTab();
 }
-/* ============== ADMIN TAB — All Loans, day by day ============== */
 function populateAdminLoansStaffFilter(){
   const sel = document.getElementById('adminLoansStaffFilter');
   if(!sel) return;
@@ -4275,24 +4299,28 @@ function toggleAdminLoanChecked(date, sid, idx, checked){
 function renderAdminLoansTab(){
   if(!isAdmin()) return; // Belt-and-braces: the tab button/section is hidden for non-admins already.
   const body = document.getElementById('adminLoansBody');
-  if(!body) return; // Admin tab markup not on this screen yet.
+  if(!body) return; // Tab markup not on this screen yet.
   populateAdminLoansStaffFilter();
-  const mInp = document.getElementById('adminLoansMonth');
-  if(!mInp.value) mInp.value = thisMonthStr();
-  const month = mInp.value;
+  const dInp = document.getElementById('adminLoansDate');
+  const viewDate = (adminLoansCalendarOpen && dInp && dInp.value) ? dInp.value : todayStr();
+  if(dInp) dInp.value = viewDate;
   const staffFilter = document.getElementById('adminLoansStaffFilter').value;
   const statusFilter = document.getElementById('adminLoansStatusFilter').value;
 
+  const dateLabel = document.getElementById('adminLoansDateLabel');
+  if(dateLabel){
+    dateLabel.textContent = (viewDate===todayStr() ? "Showing today's data — " : 'Showing past data — ') + fmtDutyDate(viewDate);
+  }
+
   let rows = [];
-  Object.keys(state.cash).filter(d=>d.startsWith(month)).sort().reverse().forEach(date=>{
-    Object.entries(state.cash[date]).forEach(([sid,rec])=>{
-      if(staffFilter!=='all' && sid!==staffFilter) return;
-      (rec.loans||[]).forEach((loan,idx)=>{
-        if(!loan || (!loan.name && !loan.amount)) return;
-        if(statusFilter==='checked' && !loan.checked) return;
-        if(statusFilter==='unchecked' && loan.checked) return;
-        rows.push({date,sid,idx,loan});
-      });
+  const recsForDate = state.cash[viewDate] || {};
+  Object.entries(recsForDate).forEach(([sid,rec])=>{
+    if(staffFilter!=='all' && sid!==staffFilter) return;
+    (rec.loans||[]).forEach((loan,idx)=>{
+      if(!loan || (!loan.name && !loan.amount)) return;
+      if(statusFilter==='checked' && !loan.checked) return;
+      if(statusFilter==='unchecked' && loan.checked) return;
+      rows.push({date:viewDate,sid,idx,loan});
     });
   });
 
