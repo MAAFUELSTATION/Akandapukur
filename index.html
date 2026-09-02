@@ -2206,6 +2206,21 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <!-- ===================== SURPLUS/SHORT TAB ===================== -->
   <section id="tab-surplus" class="tab">
     <div class="card">
+      <h2>Month-End Summary — Surplus / Shortfall by Staff</h2>
+      <table>
+        <thead>
+          <tr><th>Staff</th><th class="num">Total Surplus ₹</th><th class="num">Total Shortfall ₹</th><th class="num">Net ₹</th><th>Status</th><th>Paid</th></tr>
+        </thead>
+        <tbody id="surplusStaffSummary"></tbody>
+      </table>
+      <div class="readouts" style="margin-top:16px;">
+        <div class="digit-box surplus"><div class="lbl">Station Total Surplus</div><div class="val" id="stationSurplus">₹0.00</div></div>
+        <div class="digit-box shortfall"><div class="lbl">Station Total Shortfall</div><div class="val" id="stationShortfall">₹0.00</div></div>
+        <div class="digit-box total"><div class="lbl">Net Position</div><div class="val" id="stationNet">₹0.00</div></div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Staff Surplus / Short Data <span class="tag">Date-wise reconciliation log</span></h2>
       <div class="row">
         <div class="field">
@@ -2224,21 +2239,6 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <tbody id="surplusBody"></tbody>
       </table>
       <div class="empty" id="surplusEmpty" style="display:none;">No cash reconciliation records saved for this month/staff yet.</div>
-    </div>
-
-    <div class="card">
-      <h2>Month-End Summary — Surplus / Shortfall by Staff</h2>
-      <table>
-        <thead>
-          <tr><th>Staff</th><th class="num">Total Surplus ₹</th><th class="num">Total Shortfall ₹</th><th class="num">Net ₹</th><th>Status</th></tr>
-        </thead>
-        <tbody id="surplusStaffSummary"></tbody>
-      </table>
-      <div class="readouts" style="margin-top:16px;">
-        <div class="digit-box surplus"><div class="lbl">Station Total Surplus</div><div class="val" id="stationSurplus">₹0.00</div></div>
-        <div class="digit-box shortfall"><div class="lbl">Station Total Shortfall</div><div class="val" id="stationShortfall">₹0.00</div></div>
-        <div class="digit-box total"><div class="lbl">Net Position</div><div class="val" id="stationNet">₹0.00</div></div>
-      </div>
     </div>
   </section>
 
@@ -3529,7 +3529,8 @@ let state = {
   shiftPayout: {}, // { staffId: { date: {lube, water, breakfast} } } — EOD Shift Payout tracking
   qrScanLog: [],   // [{code, type, staffId, date, ts}] — every QR serial ever scanned, for dedup
   lubeLitresPerUnit: 1, // litres in one lube unit/bottle sold — used to convert Lube Sold (units) into litres
-  pouchStockChecks: {} // { staffId: [ {id, date, systemRemaining, counted, diff, checkedAt} ] } — Add-on Pouch physical stock counter checks
+  pouchStockChecks: {}, // { staffId: [ {id, date, systemRemaining, counted, diff, checkedAt} ] } — Add-on Pouch physical stock counter checks
+  surplusPaid: {} // { "YYYY-MM::staffId": true } — Month-End Summary "Paid" checklist tick per staff per month
 };
 const ADDON_BOX_SIZE = 50;
 const ADDON_SAME_DAY_INCENTIVE = 25;
@@ -3799,6 +3800,7 @@ function initServerSync(retryCount){
     if(!state.pouchBoxes) state.pouchBoxes = {};
     if(!state.shiftPayout) state.shiftPayout = {};
     if(!state.qrScanLog) state.qrScanLog = [];
+    if(!state.surplusPaid) state.surplusPaid = {};
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
@@ -3848,6 +3850,7 @@ async function loadFromServer(){
       if(!state.pouchBoxes) state.pouchBoxes = {};
       if(!state.shiftPayout) state.shiftPayout = {};
       if(!state.qrScanLog) state.qrScanLog = [];
+      if(!state.surplusPaid) state.surplusPaid = {};
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
@@ -4103,6 +4106,7 @@ function loadAutosave(){
         if(!state.pouchBoxes) state.pouchBoxes = {};
         if(!state.shiftPayout) state.shiftPayout = {};
         if(!state.qrScanLog) state.qrScanLog = [];
+        if(!state.surplusPaid) state.surplusPaid = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         setAutosaveStatus('Restored from autosave');
@@ -7132,24 +7136,34 @@ function renderSurplusTab(){
     });
   });
   let stationSurplus=0, stationShortfall=0;
-  const summaryRows = Object.values(summary).map(st=>{
+  if(!state.surplusPaid) state.surplusPaid = {};
+  const summaryRows = Object.entries(summary).map(([sid,st])=>{
     const net = st.surplus - st.shortfall;
     stationSurplus += st.surplus; stationShortfall += st.shortfall;
     const status = net>0?'Surplus':net<0?'Shortfall':'Matched';
+    const paidKey = `${month}::${sid}`;
+    const paid = !!state.surplusPaid[paidKey];
     return `<tr>
       <td class="staff-name-cell">${escapeHtml(st.name)}</td>
       <td class="num">${fmtNum(st.surplus)}</td>
       <td class="num">${fmtNum(st.shortfall)}</td>
       <td class="num">${net>=0?'+':''}${fmtNum(net)}</td>
       <td><span class="badge ${status.toLowerCase()}">${status}</span></td>
+      <td style="text-align:center;"><input type="checkbox" ${paid?'checked':''} onchange="toggleSurplusPaid('${paidKey}',this.checked)" title="Mark this staff's month-end position as settled/paid"></td>
     </tr>`;
   }).join('');
-  document.getElementById('surplusStaffSummary').innerHTML = summaryRows || '<tr><td colspan="5" class="empty">No records for this month.</td></tr>';
+  document.getElementById('surplusStaffSummary').innerHTML = summaryRows || '<tr><td colspan="6" class="empty">No records for this month.</td></tr>';
 
   document.getElementById('stationSurplus').textContent = fmt(stationSurplus);
   document.getElementById('stationShortfall').textContent = fmt(stationShortfall);
   const net = stationSurplus-stationShortfall;
   document.getElementById('stationNet').textContent = (net>=0?'+':'') + fmt(net);
+}
+function toggleSurplusPaid(paidKey, checked){
+  if(!state.surplusPaid) state.surplusPaid = {};
+  if(checked) state.surplusPaid[paidKey] = true;
+  else delete state.surplusPaid[paidKey];
+  scheduleAutosave();
 }
 function deleteCashRecord(date, sid){
   if(!confirm('Delete this reconciliation record?')) return;
@@ -7588,6 +7602,7 @@ function importData(file){
         if(!state.pouchBoxes) state.pouchBoxes = {};
         if(!state.shiftPayout) state.shiftPayout = {};
         if(!state.qrScanLog) state.qrScanLog = [];
+        if(!state.surplusPaid) state.surplusPaid = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         alert('Data restored successfully.');
