@@ -656,11 +656,9 @@
   .nozzle-table td, .nozzle-table th{padding:6px 7px;font-size:12.5px;} /* legacy selector, superseded by .nozzle-row */
   .sub-total{text-align:right;padding:6px 4px;font-size:13px;font-weight:700;}
   .loan-entry{border:1px solid var(--line);border-radius:8px;padding:10px 10px 9px;margin-bottom:9px;background:#FAF9F3;}
-  .loan-row{display:grid;grid-template-columns:1.2fr 0.9fr 1fr auto auto;gap:8px;align-items:center;}
+  .loan-row{display:grid;grid-template-columns:1.2fr 0.9fr 1fr auto;gap:8px;align-items:center;}
   .loan-row input{padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:13px;}
   .loan-row select{padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:12.5px;font-family:'Inter',sans-serif;background:#fff;}
-  .loan-row .chk-wrap{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;}
-  .loan-row .chk-wrap input{width:16px;height:16px;padding:0;}
   .loan-note-row{margin-top:7px;}
   .loan-note-row input{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:5px;font-size:12.5px;background:#fff;color:var(--muted);}
   .loan-note-row input:focus{color:var(--ink);}
@@ -1999,6 +1997,38 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <button class="btn amber" onclick="resetCashEditPin()">Reset PIN</button>
       </div>
       <div class="hint">Whoever knows this PIN (plus a reason) can unlock a Cash Denomination record that's already been saved, in the Cash Denomination Calculator tab. Change it any time — leave the prompt blank to go back to the default.</div>
+    </div>
+    <div class="card">
+      <h2>🤝 All Loans — Day by Day <span class="tag">Every loan/add-on entry from Cash Denomination, in one place</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Filter by Month</label>
+          <input type="month" id="adminLoansMonth" onchange="renderAdminLoansTab()">
+        </div>
+        <div class="field">
+          <label>Filter by Staff</label>
+          <select id="adminLoansStaffFilter" onchange="renderAdminLoansTab()"></select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="adminLoansStatusFilter" onchange="renderAdminLoansTab()">
+            <option value="all">All</option>
+            <option value="unchecked">Unchecked only</option>
+            <option value="checked">Checked only</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Staff</th><th>Person</th><th>Type</th><th class="num">Amount ₹</th><th>Note</th><th>Checked</th></tr>
+        </thead>
+        <tbody id="adminLoansBody"></tbody>
+      </table>
+      </div>
+      <div class="empty" id="adminLoansEmpty" style="display:none;">No loan entries found for this filter.</div>
+      <div class="loan-total-line"><span>Total (filtered)</span><span class="mono" id="adminLoansTotal">₹0.00</span></div>
+      <div class="loan-total-line"><span>Outstanding (unchecked)</span><span class="mono" id="adminLoansOutstanding">₹0.00</span></div>
     </div>
   </section>
 
@@ -4224,6 +4254,70 @@ function renderAdminTab(){
   // A login ID may just have changed here — keep the login screen's
   // dropdown current.
   populateLoginStaffDropdown();
+  renderAdminLoansTab();
+}
+/* ============== ADMIN TAB — All Loans, day by day ============== */
+function populateAdminLoansStaffFilter(){
+  const sel = document.getElementById('adminLoansStaffFilter');
+  if(!sel) return;
+  const prev = sel.value;
+  const opts = ['<option value="all">All Staff</option>'].concat(state.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`));
+  sel.innerHTML = opts.join('');
+  if(prev && (prev==='all' || state.staff.some(s=>s.id===prev))) sel.value = prev;
+}
+function toggleAdminLoanChecked(date, sid, idx, checked){
+  const rec = state.cash[date] && state.cash[date][sid];
+  if(!rec || !rec.loans || !rec.loans[idx]) return;
+  rec.loans[idx].checked = !!checked;
+  scheduleAutosave();
+  renderAdminLoansTab();
+}
+function renderAdminLoansTab(){
+  if(!isAdmin()) return; // Belt-and-braces: the tab button/section is hidden for non-admins already.
+  const body = document.getElementById('adminLoansBody');
+  if(!body) return; // Admin tab markup not on this screen yet.
+  populateAdminLoansStaffFilter();
+  const mInp = document.getElementById('adminLoansMonth');
+  if(!mInp.value) mInp.value = thisMonthStr();
+  const month = mInp.value;
+  const staffFilter = document.getElementById('adminLoansStaffFilter').value;
+  const statusFilter = document.getElementById('adminLoansStatusFilter').value;
+
+  let rows = [];
+  Object.keys(state.cash).filter(d=>d.startsWith(month)).sort().reverse().forEach(date=>{
+    Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      if(staffFilter!=='all' && sid!==staffFilter) return;
+      (rec.loans||[]).forEach((loan,idx)=>{
+        if(!loan || (!loan.name && !loan.amount)) return;
+        if(statusFilter==='checked' && !loan.checked) return;
+        if(statusFilter==='unchecked' && loan.checked) return;
+        rows.push({date,sid,idx,loan});
+      });
+    });
+  });
+
+  const empty = document.getElementById('adminLoansEmpty');
+  if(rows.length===0){
+    body.innerHTML='';
+    empty.style.display='block';
+  } else {
+    empty.style.display='none';
+    body.innerHTML = rows.map(r=>`
+      <tr>
+        <td>${r.date}</td>
+        <td class="staff-name-cell">${escapeHtml(staffNameById(r.sid))}</td>
+        <td>${escapeHtml(r.loan.name||'—')}</td>
+        <td>${r.loan.type==='addon'?'Add-on':'Loan'}</td>
+        <td class="num">${fmtNum(r.loan.amount||0)}</td>
+        <td>${escapeHtml(r.loan.note||'')}</td>
+        <td style="text-align:center;"><input type="checkbox" ${r.loan.checked?'checked':''} onchange="toggleAdminLoanChecked('${r.date}','${r.sid}',${r.idx},this.checked)"></td>
+      </tr>`).join('');
+  }
+
+  const total = rows.reduce((s,r)=> s + (Number(r.loan.amount)||0), 0);
+  const outstanding = rows.reduce((s,r)=> s + (r.loan.checked ? 0 : (Number(r.loan.amount)||0)), 0);
+  document.getElementById('adminLoansTotal').textContent = fmt(total);
+  document.getElementById('adminLoansOutstanding').textContent = fmt(outstanding);
 }
 function updateStaffCredential(id, field, value){
   value = (value||'').trim();
@@ -5843,7 +5937,6 @@ function renderLoanRows(){
           <option value="loan" ${r.type!=='addon'?'selected':''}>Loan</option>
           <option value="addon" ${r.type==='addon'?'selected':''}>Add-on</option>
         </select>
-        <label class="chk-wrap"><input type="checkbox" ${r.checked?'checked':''} onchange="onLoanFieldInput(${i},'checked',this.checked)"> Checked</label>
         <button class="btn danger" onclick="removeLoanRow(${i})" ${loanRows.length<=1?'style="visibility:hidden"':''}>Remove</button>
       </div>
       ${isCustom ? `<div class="loan-note-row">
