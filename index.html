@@ -2117,6 +2117,10 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
               <label>Card / POS ₹</label>
               <input type="number" id="cardAmt" min="0" step="0.01" value="0" oninput="calcCash()">
             </div>
+            <div class="field">
+              <label>Additional Online Amount ₹</label>
+              <input type="number" id="onlineAmt2" min="0" step="0.01" value="0" oninput="calcCash()">
+            </div>
           </div>
           </div>
         </div>
@@ -2154,6 +2158,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
           </div>
           <div class="calc-line"><span>+ Online / UPI</span><span class="mono" id="calcOnline">₹0.00</span></div>
           <div class="calc-line"><span>+ Card / POS</span><span class="mono" id="calcCard">₹0.00</span></div>
+          <div class="calc-line"><span>+ Additional Online</span><span class="mono" id="calcOnline2">₹0.00</span></div>
           <div class="calc-line"><span>+ Deposit</span><span class="mono" id="calcDeposit">₹0.00</span></div>
           <div class="calc-line"><span>+ Loan Given</span><span class="mono" id="calcLoan">₹0.00</span></div>
           <div class="calc-line"><span>+ Testing HSD</span><span class="mono" id="calcTHSD">₹0.00</span></div>
@@ -5068,9 +5073,13 @@ function validateClosingReading(el){
     return;
   }
   const sd = ensureShiftData(date, currentShift);
-  sd.closing[el.dataset.nz] = opening;
-  el.value = opening;
-  setAutosaveStatus('Invalid meter reading reset — please enter the correct closing reading.');
+  // Previously this reset the field to the Opening reading, which made it
+  // look like Closing had auto-filled to match Opening — confusing, since
+  // that reads as "0 litres sold" instead of "nothing entered yet". Reset
+  // to 0/blank instead so it's clear the reading still needs to be typed in.
+  sd.closing[el.dataset.nz] = 0;
+  el.value = '';
+  setAutosaveStatus('Invalid meter reading — please enter the correct closing reading.');
   renderShiftReadouts(date, currentShift);
   renderShiftStaffTable(date, currentShift);
   renderDaySummary(date);
@@ -5841,6 +5850,7 @@ function renderCashTab(){
 
   document.getElementById('onlineAmt').value = existing ? (existing.onlineAmt||0) : 0;
   document.getElementById('cardAmt').value = existing ? (existing.cardAmt||0) : 0;
+  document.getElementById('onlineAmt2').value = existing ? (existing.onlineAmt2||0) : 0;
   document.getElementById('depositAmt').value = existing ? existing.deposit : 0;
   document.getElementById('cashSavedHint').textContent = existing && existing.savedAt && !isLockedRecord ? 'Unlocked for correction — Save to record the change.' : '';
   renderCashCorrectionHistory(existing);
@@ -6112,12 +6122,13 @@ function calcCash(){
 
   const onlineAmt = parseFloat(document.getElementById('onlineAmt').value)||0;
   const cardAmt = parseFloat(document.getElementById('cardAmt').value)||0;
+  const onlineAmt2 = parseFloat(document.getElementById('onlineAmt2').value)||0;
   const loanTotal = loanRows.reduce((sum,r)=> sum + (Number(r.amount)||0), 0);
   const deposit = parseFloat(document.getElementById('depositAmt').value)||0;
 
   const counted = notesTotal + coinsTotal;
   // ADD Testing HSD and Testing MS to Final Cash Value
-  const finalValue = counted + onlineAmt + cardAmt + deposit + loanTotal + testingHSD + testingMS;
+  const finalValue = counted + onlineAmt + cardAmt + onlineAmt2 + deposit + loanTotal + testingHSD + testingMS;
 
   const staffId = document.getElementById('cashStaff').value;
   const staffTotals = computeStaffDayTotals(date, staffId);
@@ -6129,6 +6140,7 @@ function calcCash(){
   document.getElementById('staffPetrolLitres').textContent = staffTotals.pl.toFixed(2) + ' L';
   document.getElementById('calcOnline').textContent = fmt(onlineAmt);
   document.getElementById('calcCard').textContent = fmt(cardAmt);
+  document.getElementById('calcOnline2').textContent = fmt(onlineAmt2);
   document.getElementById('calcDeposit').textContent = fmt(deposit);
   document.getElementById('calcLoan').textContent = fmt(loanTotal);
   document.getElementById('calcTHSD').textContent = fmt(testingHSD);
@@ -6141,7 +6153,7 @@ function calcCash(){
   const box = document.getElementById('diffBox');
   box.className = 'digit-box ' + (diff>0?'surplus':diff<0?'shortfall':'total');
 
-  const result = {counted,coinsTotal,notesTotal,testingHSDQty:hsdQty,testingHSD,testingMSQty:msQty,testingMS,onlineAmt,cardAmt,loanTotal,deposit,finalValue,salesAmount,diff};
+  const result = {counted,coinsTotal,notesTotal,testingHSDQty:hsdQty,testingHSD,testingMSQty:msQty,testingMS,onlineAmt,cardAmt,onlineAmt2,loanTotal,deposit,finalValue,salesAmount,diff};
 
   // Persist this entry into the shared `state.cash` object as the user
   // types, exactly like every other tab in the app does (e.g. the Sales
@@ -6160,7 +6172,7 @@ function calcCash(){
   // meaningful entered, or when a record already exists here (so editing
   // an existing entry back down to zero still updates it).
   const hasData = notesTotal>0 || coinsTotal>0 || testingHSD>0 || testingMS>0 ||
-    onlineAmt>0 || cardAmt>0 || loanTotal>0 || deposit>0 ||
+    onlineAmt>0 || cardAmt>0 || onlineAmt2>0 || loanTotal>0 || deposit>0 ||
     (state.cash[date] && state.cash[date][staffId]);
   // Never let this live-sync path touch a record that's currently locked
   // (a saved record being viewed read-only, not yet unlocked via Request
@@ -6201,6 +6213,7 @@ function buildCashRecord(c){
     testingMS: c.testingMS,
     onlineAmt: c.onlineAmt,
     cardAmt: c.cardAmt,
+    onlineAmt2: c.onlineAmt2,
     loans: loanRows.filter(r=>r.name.trim()!=='' || r.amount>0).map(r=>({name:r.name, amount:r.amount, type:r.type||'loan', checked:!!r.checked, note:r.note||''})),
     loan: c.loanTotal,
     deposit: c.deposit,
@@ -6240,7 +6253,7 @@ function saveCash(){
       previous: {
         denoms: priorRec.denoms, coinsTotal: priorRec.coinsTotal,
         testingHSDQty: priorRec.testingHSDQty, testingMSQty: priorRec.testingMSQty,
-        onlineAmt: priorRec.onlineAmt, cardAmt: priorRec.cardAmt,
+        onlineAmt: priorRec.onlineAmt, cardAmt: priorRec.cardAmt, onlineAmt2: priorRec.onlineAmt2,
         loans: priorRec.loans, deposit: priorRec.deposit,
         finalValue: priorRec.finalValue, difference: priorRec.difference, status: priorRec.status
       }
@@ -7121,7 +7134,7 @@ function renderSurplusTab(){
         <td class="staff-name-cell">${escapeHtml(staffNameById(r.sid))}</td>
         <td class="num">${fmtNum(r.salesAmount)}</td>
         <td class="num">${fmtNum(r.cashCounted)}</td>
-        <td class="num">${fmtNum((r.onlineAmt||0)+(r.cardAmt||0))}</td>
+        <td class="num">${fmtNum((r.onlineAmt||0)+(r.cardAmt||0)+(r.onlineAmt2||0))}</td>
         <td class="num">${fmtNum(r.testingHSD)}</td>
         <td class="num">${fmtNum(r.testingMS)}</td>
         <td class="num">${fmtNum(r.loan)}</td>
@@ -7138,7 +7151,7 @@ function renderSurplusTab(){
   Object.keys(state.cash).filter(d=>d.startsWith(month)).forEach(date=>{
     Object.entries(state.cash[date]).forEach(([sid,rec])=>{
       if(!isVisibleStaffId(sid)) return; // month-end summary never shows another staff member's totals to a staff login
-      if(!summary[sid]) summary[sid] = {name:staffNameById(sid), surplus:0, shortfall:0};
+      if(!summary[sid]) return; // staff no longer on the roster — leave them out of the Month-End Summary
       if(rec.difference>0) summary[sid].surplus += rec.difference;
       else if(rec.difference<0) summary[sid].shortfall += Math.abs(rec.difference);
     });
@@ -7403,6 +7416,7 @@ function exportDataExcel(){
         'Cash Counted': rec.cashCounted,
         'Online Amount': rec.onlineAmt,
         'Card Amount': rec.cardAmt,
+        'Additional Online Amount': rec.onlineAmt2,
         'Loan/Deposit Net': (Number(rec.loan)||0) - (Number(rec.deposit)||0),
         'Sales Amount': rec.salesAmount,
         'Final Value': rec.finalValue,
