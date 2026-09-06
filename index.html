@@ -4830,6 +4830,23 @@ function sanitizeShiftReadings(date, shift){
       repaired = true;
     }
   });
+
+  // Dispensing Unit 2 (machine M2402032) sits idle overnight — nothing is
+  // ever dispensed during the Night shift, so its Closing reading is
+  // always identical to its Night Opening reading (itself carried
+  // automatically from Afternoon's Closing). Keep it synced here
+  // automatically instead of requiring someone to type the same number in
+  // by hand every night, so the next day's Morning opening also carries
+  // forward correctly with no manual step.
+  if(shift==='night'){
+    NOZZLES.filter(nz=>nz.unit===2).forEach(nz=>{
+      const openingNow = Number(getOpeningReading(date, shift, nz.id))||0;
+      if(Number(sd.closing[nz.id]) !== openingNow){
+        sd.closing[nz.id] = openingNow;
+        repaired = true;
+      }
+    });
+  }
   return repaired;
 }
 function staffIdsForDate(date){
@@ -4987,8 +5004,15 @@ function renderNozzleAssignTable(date, shift){
     // overwritten later in the shift. Only an admin gets an Edit button to
     // unlock and correct a mistaken entry — staff logins see it permanently
     // locked once filled.
-    const isFilled = litres > 0 && !nozzleUnlocked.has(nz.id);
-    const closingDisabled = isFilled ? 'disabled' : '';
+    // Unit 2 (M2402032) is idle overnight, so its Night closing is always
+    // auto-synced to match opening (see sanitizeShiftReadings) — no manual
+    // entry is needed or allowed for it.
+    const isRestNight = shift==='night' && nz.unit===2;
+    const isFilled = !isRestNight && litres > 0 && !nozzleUnlocked.has(nz.id);
+    const closingDisabled = (isFilled || isRestNight) ? 'disabled' : '';
+    const closingTitle = isRestNight
+      ? 'Machine at rest overnight (M2402032) — Closing auto-matches Opening, nothing to enter.'
+      : (isFilled ? 'Locked — value already recorded for this shift' : '');
     const unlockBtn = (isFilled && isAdmin())
       ? `<button type="button" class="nz-unlock-btn" title="Unlock to correct this reading" onclick="unlockNozzleClosing('${nz.id}')">✎</button>`
       : '';
@@ -4996,7 +5020,7 @@ function renderNozzleAssignTable(date, shift){
       <div class="nz-name">${shortLabel}</div>
       <select data-nz="${nz.id}" onchange="onAssignChange(this)">${staffOptionsHtml(sd.assign[nz.id])}</select>
       <div class="meter-field field-opening"><span class="field-caption">Opening</span><input type="number" class="meter-input" data-f="opening" value="${opening}" disabled title="${openingTitle}"></div>
-      <div class="meter-field field-closing"><span class="field-caption">Closing</span><span class="closing-input-wrap"><input type="number" class="meter-input" step="0.01" value="${closing}" data-nz="${nz.id}" data-f="closing" oninput="onReadingInput(this)" onchange="validateClosingReading(this)" ${closingDisabled} title="${isFilled ? 'Locked — value already recorded for this shift' : ''}">${unlockBtn}</span></div>
+      <div class="meter-field field-closing"><span class="field-caption">Closing</span><span class="closing-input-wrap"><input type="number" class="meter-input" step="0.01" value="${closing}" data-nz="${nz.id}" data-f="closing" oninput="onReadingInput(this)" onchange="validateClosingReading(this)" ${closingDisabled} title="${closingTitle}">${unlockBtn}</span></div>
       <div class="nz-result">
         <div class="nz-chip litres"><span id="lit-${nz.id}">${fmtNum(litres)}</span><span class="sfx">L</span></div>
         <div class="nz-chip amount"><span class="sfx">₹</span><span id="amt-${nz.id}">${fmtNum(amount)}</span></div>
