@@ -4837,9 +4837,14 @@ function sanitizeShiftReadings(date, shift){
   // automatically from Afternoon's Closing). Keep it synced here
   // automatically instead of requiring someone to type the same number in
   // by hand every night, so the next day's Morning opening also carries
-  // forward correctly with no manual step.
+  // forward correctly with no manual step. Skip any nozzle an admin has
+  // currently unlocked, though — they're mid-correction and this shouldn't
+  // stomp on whatever they're typing in.
   if(shift==='night'){
+    const unlockKey = date + '|' + shift;
+    const activeUnlocks = (nozzleUnlockedFor === unlockKey) ? nozzleUnlocked : null;
     NOZZLES.filter(nz=>nz.unit===2).forEach(nz=>{
+      if(activeUnlocks && activeUnlocks.has(nz.id)) return;
       const openingNow = Number(getOpeningReading(date, shift, nz.id))||0;
       if(Number(sd.closing[nz.id]) !== openingNow){
         sd.closing[nz.id] = openingNow;
@@ -5005,15 +5010,18 @@ function renderNozzleAssignTable(date, shift){
     // unlock and correct a mistaken entry — staff logins see it permanently
     // locked once filled.
     // Unit 2 (M2402032) is idle overnight, so its Night closing is always
-    // auto-synced to match opening (see sanitizeShiftReadings) — no manual
-    // entry is needed or allowed for it.
+    // auto-synced to match opening (see sanitizeShiftReadings) — but an
+    // admin can still unlock it, just like any other locked reading, for
+    // the rare case it actually did dispense something overnight.
     const isRestNight = shift==='night' && nz.unit===2;
-    const isFilled = !isRestNight && litres > 0 && !nozzleUnlocked.has(nz.id);
-    const closingDisabled = (isFilled || isRestNight) ? 'disabled' : '';
-    const closingTitle = isRestNight
-      ? 'Machine at rest overnight (M2402032) — Closing auto-matches Opening, nothing to enter.'
+    const unlockedThis = nozzleUnlocked.has(nz.id);
+    const isFilled = !isRestNight && litres > 0 && !unlockedThis;
+    const lockedForRest = isRestNight && !unlockedThis;
+    const closingDisabled = (isFilled || lockedForRest) ? 'disabled' : '';
+    const closingTitle = lockedForRest
+      ? 'Machine at rest overnight (M2402032) — Closing auto-matches Opening. Tap ✎ to unlock if it actually dispensed.'
       : (isFilled ? 'Locked — value already recorded for this shift' : '');
-    const unlockBtn = (isFilled && isAdmin())
+    const unlockBtn = ((isFilled || lockedForRest) && isAdmin())
       ? `<button type="button" class="nz-unlock-btn" title="Unlock to correct this reading" onclick="unlockNozzleClosing('${nz.id}')">✎</button>`
       : '';
     return `<div class="nozzle-row">
