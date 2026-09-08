@@ -2500,7 +2500,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
     </div>
 
     <div class="card cc-block">
-      <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹25 same-day · ₹10 within 2 days</span><span class="cc-chev">▼</span></h2>
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)"><span class="cc-ico">🎁</span> Add-on Pouch Sale <span class="tag">50 pcs/box · ₹<span id="addonSameDayTagVal">25</span> same-day · ₹<span id="addonTwoDayTagVal">15</span> within 2 days</span><span class="cc-chev">▼</span></h2>
       <div class="cc-block-body">
       <div class="hint" style="margin-bottom:10px;">Tracked per staff member. A box issued at/after 11:00 AM has its incentive clock start the next day.</div>
       <div id="addonStreakBadge" class="calc-line" style="margin-bottom:10px;"></div>
@@ -2522,18 +2522,18 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       <div id="addonClosedBoxes"></div>
 
       <div class="divider" style="margin:16px 0;"></div>
-      <div class="hint" style="margin-bottom:4px; font-weight:600;">📋 Stock Counter Check</div>
-      <div class="hint">System remaining across this staff member's open boxes: <span class="mono" id="addonSystemRemaining">0</span> pcs</div>
-      <div class="grid2" style="margin-top:8px; align-items:end;">
+      <div class="hint" style="margin-bottom:4px; font-weight:600;">⚙️ Incentive Values</div>
+      <div class="grid2" style="align-items:end;">
         <div class="field">
-          <label>Physically counted pouches</label>
-          <input type="number" id="addonCountedQty" min="0" step="1" placeholder="Count all open boxes">
+          <label>Same-day incentive (₹)</label>
+          <input type="number" id="addonSameDayIncentiveInput" min="0" step="1" value="25" onchange="setAddonSameDayIncentive(this.value)">
         </div>
-        <button class="btn ghost small" onclick="checkAddonStock(document.getElementById('addonStaff').value)">🔍 Check Stock</button>
+        <div class="field">
+          <label>Within-2-days incentive (₹)</label>
+          <input type="number" id="addonTwoDayIncentiveInput" min="0" step="1" value="15" onchange="setAddonTwoDayIncentive(this.value)">
+        </div>
       </div>
-      <div id="addonStockCheckResult"></div>
-      <div class="hint" style="margin-top:12px; margin-bottom:4px; font-weight:600;">Recent stock checks</div>
-      <div id="addonStockCheckHistory"></div>
+      <div class="hint" style="margin-top:8px;">Paid when a 50-pouch box is fully sold the same day it's issued, or within 2 days of the issue date. Anything slower earns ₹0.</div>
       </div>
     </div>
 
@@ -2583,7 +2583,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
     <div class="card cc-block collapsed">
       <h2 class="cc-block-title" onclick="toggleCcBlock(this)">🔥 Add-on Streak Counter <span class="tag">Consecutive same-day box closures, by staff</span><span class="cc-chev">▼</span></h2>
       <div class="cc-block-body">
-      <div class="hint" style="margin-bottom:10px;">A streak is consecutive boxes closed the very same day they were issued (₹25 incentive). It resets the moment a box takes longer than that.</div>
+      <div class="hint" style="margin-bottom:10px;">A streak is consecutive boxes closed the very same day they were issued (the same-day incentive). It resets the moment a box takes longer than that.</div>
       <div style="overflow-x:auto;">
       <table>
         <thead>
@@ -3541,12 +3541,13 @@ let state = {
   shiftPayout: {}, // { staffId: { date: {lube, water, breakfast} } } — EOD Shift Payout tracking
   qrScanLog: [],   // [{code, type, staffId, date, ts}] — every QR serial ever scanned, for dedup
   lubeLitresPerUnit: 1, // litres in one lube unit/bottle sold — used to convert Lube Sold (units) into litres
-  pouchStockChecks: {}, // { staffId: [ {id, date, systemRemaining, counted, diff, checkedAt} ] } — Add-on Pouch physical stock counter checks
+  addonSameDayIncentive: 25, // ₹ paid when a 50-pouch box is fully sold the same day it's issued — editable via the Add-on & Incentives tab
+  addonTwoDayIncentive: 15, // ₹ paid when a 50-pouch box is fully sold within 2 days of the issue date — editable via the Add-on & Incentives tab
   surplusPaid: {} // { "YYYY-MM::staffId": true } — Month-End Summary "Paid" checklist tick per staff per month
 };
 const ADDON_BOX_SIZE = 50;
-const ADDON_SAME_DAY_INCENTIVE = 25;
-const ADDON_TWO_DAY_INCENTIVE = 10;
+const ADDON_SAME_DAY_INCENTIVE_DEFAULT = 25;
+const ADDON_TWO_DAY_INCENTIVE_DEFAULT = 15;
 const LUBE_SALE_INCENTIVE = 5;
 const WATER_SALE_INCENTIVE = 2;
 // A box issued at/after this many minutes past midnight (11:00 AM) has its
@@ -6321,9 +6322,12 @@ function saveCash(){
 // (effectiveIssueDate) shifted to the next calendar day — the morning shift's
 // closing staff effectively "owns" that box's clock from day+1 onward.
 //
-// Payout: box fully sold same day as effectiveIssueDate -> ₹25
-//         box fully sold exactly 1 day after effectiveIssueDate -> ₹10
+// Payout: box fully sold same day as effectiveIssueDate -> same-day incentive (default ₹25)
+//         box fully sold exactly 1 day after effectiveIssueDate -> within-2-days incentive (default ₹15)
 //         anything slower -> ₹0 (still recorded, just no incentive)
+// Both incentive values are editable from the Add-on & Incentives tab (see
+// getAddonSameDayIncentive/setAddonSameDayIncentive and their two-day
+// counterparts below) and persisted in state so they sync across devices.
 
 function pouchBoxesFor(staffId){
   if(!state.pouchBoxes) state.pouchBoxes = {};
@@ -6349,9 +6353,49 @@ function daysBetweenStr(d1, d2){
   return Math.round((new Date(d2 + 'T00:00:00') - new Date(d1 + 'T00:00:00')) / 86400000);
 }
 
+function getAddonSameDayIncentive(){
+  const v = parseFloat(state.addonSameDayIncentive);
+  return (isFinite(v) && v >= 0) ? v : ADDON_SAME_DAY_INCENTIVE_DEFAULT;
+}
+
+function setAddonSameDayIncentive(val){
+  const v = parseFloat(val);
+  state.addonSameDayIncentive = (isFinite(v) && v >= 0) ? v : ADDON_SAME_DAY_INCENTIVE_DEFAULT;
+  scheduleAutosave();
+  renderAddonIncentiveSettings();
+}
+
+function getAddonTwoDayIncentive(){
+  const v = parseFloat(state.addonTwoDayIncentive);
+  return (isFinite(v) && v >= 0) ? v : ADDON_TWO_DAY_INCENTIVE_DEFAULT;
+}
+
+function setAddonTwoDayIncentive(val){
+  const v = parseFloat(val);
+  state.addonTwoDayIncentive = (isFinite(v) && v >= 0) ? v : ADDON_TWO_DAY_INCENTIVE_DEFAULT;
+  scheduleAutosave();
+  renderAddonIncentiveSettings();
+}
+
+// Reflects the two editable incentive values into the header tag and the
+// input fields on the Add-on & Incentives tab (skipping any input the user
+// is actively typing in, so it doesn't clobber their keystroke).
+function renderAddonIncentiveSettings(){
+  const sameDayVal = getAddonSameDayIncentive();
+  const twoDayVal = getAddonTwoDayIncentive();
+  const sameDayTag = document.getElementById('addonSameDayTagVal');
+  const twoDayTag = document.getElementById('addonTwoDayTagVal');
+  if(sameDayTag) sameDayTag.textContent = sameDayVal;
+  if(twoDayTag) twoDayTag.textContent = twoDayVal;
+  const sameDayInp = document.getElementById('addonSameDayIncentiveInput');
+  const twoDayInp = document.getElementById('addonTwoDayIncentiveInput');
+  if(sameDayInp && document.activeElement !== sameDayInp) sameDayInp.value = sameDayVal;
+  if(twoDayInp && document.activeElement !== twoDayInp) twoDayInp.value = twoDayVal;
+}
+
 function incentiveForDays(diffDays){
-  if(diffDays === 0) return ADDON_SAME_DAY_INCENTIVE;
-  if(diffDays === 1) return ADDON_TWO_DAY_INCENTIVE;
+  if(diffDays === 0) return getAddonSameDayIncentive();
+  if(diffDays === 1) return getAddonTwoDayIncentive();
   return 0;
 }
 
@@ -6629,7 +6673,7 @@ function renderAddonPanel(staffId){
       </span>
     </div>`).join('') : '<div class="hint">No fully-sold boxes yet.</div>';
 
-  renderAddonStockCheckHistory(staffId);
+  renderAddonIncentiveSettings();
 }
 
 // Streak = consecutive CALENDAR DAYS on which this staff member closed at
@@ -6640,8 +6684,11 @@ function renderAddonPanel(staffId){
 // most recent qualifying day.
 function computeAddonStreak(staffId){
   const allClosed = pouchBoxesFor(staffId).filter(b => b.status === 'closed' && b.closedDate);
+  // Same-day qualification is based on the 0-day gap itself (not the ₹ amount,
+  // which is editable and can change over time) so historical streaks stay
+  // correct even after the incentive value is modified.
   const qualifyingDays = [...new Set(
-    allClosed.filter(b => b.incentive === ADDON_SAME_DAY_INCENTIVE).map(b => b.closedDate)
+    allClosed.filter(b => daysBetweenStr(b.effectiveIssueDate, b.closedDate) === 0).map(b => b.closedDate)
   )].sort();
   let current = 0, best = 0;
   if(qualifyingDays.length){
@@ -6698,69 +6745,6 @@ function renderAddonMonthlySummary(){
   totalEl.textContent = '₹' + grandTotal;
   emptyEl.style.display = rows.length ? 'none' : 'block';
   renderAddonStreakLeaderboard();
-}
-
-/* ============== ADD-ON POUCH STOCK COUNTER CHECK ============== */
-// Physically counting the loose pouches for a staff member and comparing
-// against what the system thinks is remaining across their open boxes —
-// same idea as the Cash Denomination reconciliation, but for pouch stock.
-function pouchStockChecksFor(staffId){
-  if(!state.pouchStockChecks) state.pouchStockChecks = {};
-  if(!state.pouchStockChecks[staffId]) state.pouchStockChecks[staffId] = [];
-  return state.pouchStockChecks[staffId];
-}
-
-function addonSystemRemaining(staffId){
-  return pouchBoxesFor(staffId).filter(b=>b.status==='open').reduce((sum,b)=>sum+b.remaining, 0);
-}
-
-function checkAddonStock(staffId){
-  const resultBox = document.getElementById('addonStockCheckResult');
-  if(!staffId){ alert('Select a staff member first.'); return; }
-  const countedInp = document.getElementById('addonCountedQty');
-  const counted = parseInt(countedInp.value, 10);
-  if(isNaN(counted) || counted < 0){
-    resultBox.innerHTML = '<div class="hint" style="color:var(--shortfall);font-weight:600;">Enter a valid physically counted pouch quantity (0 or more).</div>';
-    return;
-  }
-  const systemRemaining = addonSystemRemaining(staffId);
-  const diff = counted - systemRemaining;
-  let cls = 'total', statusText = '✅ Matches exactly';
-  if(diff > 0){ cls = 'surplus'; statusText = '⬆ Surplus of ' + diff + ' pcs (more counted than the system expects)'; }
-  else if(diff < 0){ cls = 'shortfall'; statusText = '⬇ Shortfall of ' + Math.abs(diff) + ' pcs (missing vs. the system)'; }
-
-  resultBox.innerHTML = `
-    <div class="readouts" style="margin-top:10px;">
-      <div class="digit-box ${cls}">
-        <div class="lbl">${escapeHtml(staffNameById(staffId))} — Stock Check</div>
-        <div class="val">System: ${systemRemaining} pcs · Counted: ${counted} pcs</div>
-        <div class="val">${statusText}</div>
-      </div>
-    </div>`;
-
-  const date = (document.getElementById('addonDate') && document.getElementById('addonDate').value) || todayStr();
-  pouchStockChecksFor(staffId).push({
-    id: 'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-    date, systemRemaining, counted, diff,
-    checkedAt: new Date().toISOString()
-  });
-  scheduleAutosave();
-  renderAddonStockCheckHistory(staffId);
-}
-
-function renderAddonStockCheckHistory(staffId){
-  const wrap = document.getElementById('addonStockCheckHistory');
-  const sysEl = document.getElementById('addonSystemRemaining');
-  if(sysEl && staffId) sysEl.textContent = addonSystemRemaining(staffId);
-  if(!wrap) return;
-  if(!staffId){ wrap.innerHTML = '<div class="hint">Select a staff member to see their stock checks.</div>'; return; }
-  const checks = [...pouchStockChecksFor(staffId)].sort((a,b)=> (b.checkedAt||'').localeCompare(a.checkedAt||'')).slice(0,5);
-  wrap.innerHTML = checks.length ? checks.map(c => `
-    <div class="calc-line addon-box-row">
-      <span>${c.date}</span>
-      <span class="mono">Sys ${c.systemRemaining} · Counted ${c.counted}</span>
-      <span class="mono" style="color:${c.diff===0 ? 'var(--surplus)' : (c.diff>0 ? 'var(--surplus)' : 'var(--shortfall)')};">${c.diff===0 ? 'Match' : (c.diff>0 ? '+'+c.diff : c.diff)}</span>
-    </div>`).join('') : '<div class="hint">No stock checks recorded yet for this staff member.</div>';
 }
 
 /* ============== EOD SHIFT PAYOUT ============== */
