@@ -5630,10 +5630,12 @@ function renderTankTab(){
   const dates = [...new Set([...Object.keys(state.sales), ...(state.tankUpdates || []).map(u=>u.date)])].filter(d=>d<=asOf).sort();
   let dieselLeft = TANK_CAPACITY_L, petrolLeft = TANK_CAPACITY_L;
   let dieselUsed = 0, petrolUsed = 0, activeDays = 0;
+  const asOfMonth = asOf.slice(0,7);
   const rows = dates.map(date=>{
     const sale = getTankNetSalesForDate(date);
-    if(sale.diesel>0 || sale.petrol>0) activeDays++;
-    dieselUsed += sale.diesel; petrolUsed += sale.petrol;
+    const inCurrentMonth = date.slice(0,7) === asOfMonth;
+    if(inCurrentMonth && (sale.diesel>0 || sale.petrol>0)) activeDays++;
+    if(inCurrentMonth){ dieselUsed += sale.diesel; petrolUsed += sale.petrol; }
     dieselLeft = Math.max(0, dieselLeft - sale.diesel);
     petrolLeft = Math.max(0, petrolLeft - sale.petrol);
     const update = getTankUpdatesForDate(date);
@@ -5652,14 +5654,14 @@ function renderTankTab(){
       <div class="tank-title">Diesel Tank</div><div class="tank-left">${fmtNum(dieselLeft)} <small>L left</small></div>
       <div class="tank-meter"><span style="width:${Math.max(0,Math.min(100,dieselLeft/TANK_CAPACITY_L*100))}%"></span></div>
       <div class="tank-meta">Capacity: 20,000 L · Cut-off: 3,500 L</div>
-      <div class="tank-meta">Average net sale: ${fmtNum(dieselAvg)} L/day</div>
+      <div class="tank-meta">Average net sale (this month): ${fmtNum(dieselAvg)} L/day</div>
       <div class="tank-forecast">${tankForecastText(dieselLeft,dieselAvg,asOf)}</div>
     </div>
     <div class="tank-status-card petrol ${petrolUrgent?'urgent':''}">
       <div class="tank-title">Petrol Tank</div><div class="tank-left">${fmtNum(petrolLeft)} <small>L left</small></div>
       <div class="tank-meter"><span style="width:${Math.max(0,Math.min(100,petrolLeft/TANK_CAPACITY_L*100))}%"></span></div>
       <div class="tank-meta">Capacity: 20,000 L · Cut-off: 3,500 L</div>
-      <div class="tank-meta">Average net sale: ${fmtNum(petrolAvg)} L/day</div>
+      <div class="tank-meta">Average net sale (this month): ${fmtNum(petrolAvg)} L/day</div>
       <div class="tank-forecast">${tankForecastText(petrolLeft,petrolAvg,asOf)}</div>
     </div>`;
   document.getElementById('tankUsageBody').innerHTML = rows.join('');
