@@ -2033,6 +2033,20 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 
       <h2 style="font-size:16px;margin-top:22px;">🏖️ Holidays this week</h2>
       <div class="duty-holiday-summary" id="dutyHolidaySummary"></div>
+
+      <div class="divider" style="margin-top:20px;"></div>
+      <h2 style="font-size:16px;">📆 Total Leave Taken This Month <span class="tag">Counts every day each staff was marked Holiday</span></h2>
+      <div class="row" style="align-items:end;">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="dutyLeaveMonth" onchange="renderDutyMonthlyLeaveSummary()">
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Staff</th><th class="num">Days on Leave</th></tr></thead>
+        <tbody id="dutyLeaveMonthBody"></tbody>
+      </table>
+      <div class="empty" id="dutyLeaveMonthEmpty" style="display:none;">No leave recorded for this month.</div>
     </div>
   </section>
 
@@ -4581,6 +4595,46 @@ function renderDutyTab(){
   }
   document.getElementById('dutyBody').innerHTML = rows;
   renderDutyHolidaySummary(holidayCounts);
+  renderDutyMonthlyLeaveSummary();
+}
+// ---- Total leave (Holiday) taken by each staff member, for a whole
+// calendar month — scans every date stored in state.duty (not just the
+// currently-viewed week) and tallies how many days each staff id appears
+// in that date's holiday list. Defaults to the month containing the week
+// currently being viewed, so opening the tab shows something relevant.
+function renderDutyMonthlyLeaveSummary(){
+  const body = document.getElementById('dutyLeaveMonthBody');
+  const emptyBox = document.getElementById('dutyLeaveMonthEmpty');
+  const monthInp = document.getElementById('dutyLeaveMonth');
+  if(!body || !monthInp) return;
+
+  if(!monthInp.value){
+    monthInp.value = (dutyWeekStart || todayStr()).slice(0,7);
+  }
+  const ym = monthInp.value;
+
+  const counts = {}; // staffId -> days on leave this month
+  if(state.duty){
+    Object.keys(state.duty).forEach(date=>{
+      if(date.slice(0,7) !== ym) return;
+      const holidayIds = state.duty[date] && Array.isArray(state.duty[date].holiday) ? state.duty[date].holiday : [];
+      holidayIds.forEach(sid=>{ counts[sid] = (counts[sid] || 0) + 1; });
+    });
+  }
+
+  const withLeave = state.staff
+    .filter(s=>counts[s.id] > 0)
+    .sort((a,b)=>counts[b.id] - counts[a.id]);
+
+  if(!withLeave.length){
+    body.innerHTML = '';
+    if(emptyBox) emptyBox.style.display = 'block';
+    return;
+  }
+  if(emptyBox) emptyBox.style.display = 'none';
+  body.innerHTML = withLeave.map(s=>
+    `<tr><td>${escapeHtml(s.name)}</td><td class="num">${counts[s.id]}</td></tr>`
+  ).join('');
 }
 function renderDutyHolidaySummary(holidayCounts){
   const box = document.getElementById('dutyHolidaySummary');
