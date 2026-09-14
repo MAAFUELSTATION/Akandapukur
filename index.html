@@ -3658,6 +3658,15 @@ let lastKnownUpdatedAt = null;
 // without this guard that harmless render would still write the same full state
 // again and notify every other device as if something had changed.
 let lastSyncedStateSignature = null;
+// Deep-cloned copy of `state` as of the last successful sync (load, remote
+// update, or save). Used as the common ancestor for a 3-way merge if a save
+// ever hits a 409 conflict, so a conflict-resolve can tell "this section
+// changed on this device since we last agreed with the server" apart from
+// "this section is just old" — see smartMergeValue() below.
+let lastSyncedState = null;
+function snapshotCurrentState(){
+  try{ return JSON.parse(JSON.stringify(state)); }catch(e){ return null; }
+}
 function getStateSignature(){
   try{
     return JSON.stringify({state, sidCounter, ngoCounter});
@@ -3832,6 +3841,7 @@ function initServerSync(retryCount){
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
     lastSyncedStateSignature = getStateSignature();
+    lastSyncedState = snapshotCurrentState();
     saveConflictPending = false;
     try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
     setAutosaveStatus('Updated from another device ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
@@ -3882,6 +3892,7 @@ async function loadFromServer(){
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
       lastSyncedStateSignature = getStateSignature();
+      lastSyncedState = snapshotCurrentState();
       saveConflictPending = false;
       try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
       setAutosaveStatus('Loaded latest data from server ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
@@ -3932,37 +3943,84 @@ let saveInProgress = false;
 let saveQueued = false;
 
 // This whole app syncs by pushing the ENTIRE `state` blob with an
-// optimistic-concurrency check (baseUpdatedAt). That's fine for most tabs,
-// but the Cash Denomination tab is the one most likely to have two people
-// (a staff member entering their count, someone else on another device)
-// touching the shared state around the same time — which is exactly when a
-// 409 conflict happens. Previously a genuine conflict just froze all
-// further autosaving on that device until the person noticed a small
-// status-bar warning and manually reloaded — during which time anything
-// they kept typing into the Cash Denomination form silently never made it
-// to the server. This merge step is the fix: on a real conflict, pull the
-// server's latest copy, but for each individual Cash Denomination record
-// (keyed by date+staff), keep whichever side looks like the real edit
-// instead of blindly keeping one whole side or the other.
-function mergeCashRecords(serverCash, localCash){
-  const merged = JSON.parse(JSON.stringify(serverCash || {}));
-  Object.keys(localCash || {}).forEach(date=>{
-    Object.keys(localCash[date] || {}).forEach(staffId=>{
-      const localRec = localCash[date][staffId];
-      const serverRec = merged[date] && merged[date][staffId];
-      let keepLocal;
-      if(!serverRec) keepLocal = true;                              // server has nothing for this record yet
-      else if(localRec.savedAt && !serverRec.savedAt) keepLocal = true;   // local was actually Saved, server's is just a stray live draft
-      else if(!localRec.savedAt && serverRec.savedAt) keepLocal = false;  // server already has a real Saved record, local is just a live draft
-      else if(localRec.savedAt && serverRec.savedAt) keepLocal = localRec.savedAt >= serverRec.savedAt; // both saved — keep the more recent Save
-      else keepLocal = true;                                        // neither saved yet — trust what's actively open in this tab
-      if(keepLocal){
-        if(!merged[date]) merged[date] = {};
-        merged[date][staffId] = localRec;
+// optimistic-concurrency check (baseUpdatedAt). A 409 means another device
+// saved since this one last synced. Previously, resolving that conflict
+// called loadFromServer() — which replaces `state` wholesale with the
+// server's copy — and then patched only the Cash Denomination section back
+// in from a local snapshot (mergeCashRecords). Every OTHER section this
+// device had changed since its last successful sync (Nozzle Sale Report,
+// Note Stock, Tank updates, staff edits, etc.) was silently discarded by
+// that wholesale overwrite, with no warning — that's the data-loss bug,
+// and the Audit Log then shows those fields as "⚠ removed" on the very
+// next save, since as far as the server can tell they really were removed.
+//
+// smartMergeValue() fixes this generically for every section of `state`,
+// not just Cash Denomination. It's a 3-way merge: `base` is this device's
+// last known-synced copy (the common ancestor), `local` is what this
+// device has now (including unsaved edits), and `server` is the fresh copy
+// just pulled down. For each key/record/array item:
+//   - unchanged on both sides  -> keep server's (trivial, no-op)
+//   - changed only locally     -> keep local (never silently drop it)
+//   - changed only on server   -> keep server (pick up the other device's work)
+//   - changed on both sides    -> recurse one level deeper if possible
+//     (e.g. two different Cash Denomination records on the same date), or
+//     prefer local as a last resort so this device's own work is never the
+//     one that quietly vanishes.
+// Array items are matched by their `id` field where present (staff,
+// noteGivenOut, qrScanLog, etc.); plain objects are merged key by key
+// (cash, sales, duty, pouchBoxes, shiftPayout, surplusPaid, rates, ...).
+function smartMergeValue(base, local, server){
+  const isArr = Array.isArray(local) || Array.isArray(server) || Array.isArray(base);
+  if(isArr){
+    base = Array.isArray(base) ? base : [];
+    local = Array.isArray(local) ? local : [];
+    server = Array.isArray(server) ? server : [];
+    const keyOf = (item)=> (item && typeof item === 'object' && 'id' in item) ? ('id:' + item.id) : JSON.stringify(item);
+    const baseMap = new Map(base.map(i=>[keyOf(i), i]));
+    const localMap = new Map(local.map(i=>[keyOf(i), i]));
+    const serverMap = new Map(server.map(i=>[keyOf(i), i]));
+    const allKeys = new Set([...baseMap.keys(), ...localMap.keys(), ...serverMap.keys()]);
+    const result = [];
+    allKeys.forEach(k=>{
+      const b = baseMap.get(k), l = localMap.get(k), s = serverMap.get(k);
+      const localChanged = JSON.stringify(l) !== JSON.stringify(b);
+      const serverChanged = JSON.stringify(s) !== JSON.stringify(b);
+      if(l === undefined){
+        if(b !== undefined && !serverChanged) return; // this device deleted it locally, server agrees it existed unchanged — respect the delete
+        if(s !== undefined) result.push(s);            // new on server, or server also touched it — keep server's copy
+        return;
       }
+      if(s === undefined){
+        if(b !== undefined && !localChanged) return;   // unchanged locally, another device deleted it on the server — respect that delete
+        result.push(l);                                 // new locally, or edited locally but missing on server — never lose it
+        return;
+      }
+      if(localChanged && !serverChanged) result.push(l);
+      else if(!localChanged && serverChanged) result.push(s);
+      else if(localChanged && serverChanged) result.push(l); // both sides touched this item — prefer local so this device's edit is never the one silently dropped
+      else result.push(s);
     });
-  });
-  return merged;
+    return result;
+  }
+  const isObj = (v)=> v && typeof v === 'object';
+  if(isObj(local) || isObj(server) || isObj(base)){
+    base = isObj(base) ? base : {};
+    local = isObj(local) ? local : {};
+    server = isObj(server) ? server : {};
+    const keys = new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(server)]);
+    const result = {};
+    keys.forEach(k=>{
+      const b = base[k], l = local[k], s = server[k];
+      const localChanged = JSON.stringify(l) !== JSON.stringify(b);
+      const serverChanged = JSON.stringify(s) !== JSON.stringify(b);
+      if(!localChanged && !serverChanged){ if(s !== undefined) result[k] = s; return; }
+      if(localChanged && !serverChanged){ if(l !== undefined) result[k] = l; return; }
+      if(!localChanged && serverChanged){ if(s !== undefined) result[k] = s; return; }
+      result[k] = smartMergeValue(b, l, s); // both sides changed this key — merge one level deeper instead of picking one side wholesale
+    });
+    return result;
+  }
+  return (JSON.stringify(local) !== JSON.stringify(base)) ? local : server;
 }
 async function pushToServer(){
   if(!serverSyncEnabled || applyingRemoteUpdate) return;
@@ -4039,7 +4097,13 @@ async function pushToServer(){
         // than leaving the person silently stuck until they notice a
         // status message and reload by hand.
         setAutosaveStatus('Newer data from another device — merging…', true);
-        const localCashSnapshot = state.cash;
+        // Snapshot EVERY section of local state (not just Cash Denomination)
+        // before it gets overwritten by loadFromServer() below, and remember
+        // the common-ancestor copy from the last successful sync — together
+        // these are what let smartMergeValue() tell "this device changed
+        // this" apart from "this is just stale".
+        const localSnapshotBeforeReload = snapshotCurrentState();
+        const commonBase = lastSyncedState ? JSON.parse(JSON.stringify(lastSyncedState)) : localSnapshotBeforeReload;
         loadFromServer().then(function(loaded){
           if(!loaded){
             // Couldn't even fetch the latest copy — nothing safe to merge
@@ -4049,7 +4113,26 @@ async function pushToServer(){
             setTimeout(()=>{ saveConflictPending = false; scheduleAutosave(); }, 5000);
             return;
           }
-          state.cash = mergeCashRecords(state.cash, localCashSnapshot);
+          // `state` now holds the server's freshly-loaded copy. Merge every
+          // section of it against what this device had changed locally,
+          // instead of only patching Cash Denomination back in — see
+          // smartMergeValue() above for why.
+          if(localSnapshotBeforeReload){
+            state = smartMergeValue(commonBase, localSnapshotBeforeReload, state);
+            if(!state.rates) state.rates = {};
+            if(!state.cash) state.cash = {};
+            if(!state.cashUnlocks) state.cashUnlocks = {};
+            if(!state.sales) state.sales = {};
+            if(!state.staff) state.staff = [];
+            ensureStaffCredentials();
+            populateLoginStaffDropdown();
+            if(!state.noteGivenOut) state.noteGivenOut = [];
+            if(!state.duty) state.duty = {};
+            if(!state.pouchBoxes) state.pouchBoxes = {};
+            if(!state.shiftPayout) state.shiftPayout = {};
+            if(!state.qrScanLog) state.qrScanLog = [];
+            if(!state.surplusPaid) state.surplusPaid = {};
+          }
           saveConflictPending = false;
           lastSyncedStateSignature = null; // the merge changed state again — make sure the next push isn't skipped as "already synced"
           const activeTab = document.querySelector('.tab-btn.active');
@@ -4066,6 +4149,7 @@ async function pushToServer(){
     // request was in flight.  If one was, queue a follow-up save for it.
     if(stateSignatureAtSave === getStateSignature()){
       lastSyncedStateSignature = stateSignatureAtSave;
+      lastSyncedState = snapshotCurrentState();
     } else {
       scheduleAutosave();
     }
