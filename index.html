@@ -4994,20 +4994,32 @@ function sanitizeShiftReadings(date, shift){
     NOZZLES.filter(nz=>nz.unit===2).forEach(nz=>{
       if(activeUnlocks && activeUnlocks.has(nz.id)) return;
       const openingNow = Number(getOpeningReading(date, shift, nz.id))||0;
-      // An admin deliberately entered a real overnight closing reading for
-      // this nozzle (see syncRestOverrideFlag). That flag is saved with the
-      // shift data, so it survives tab switches, reloads and updates from
-      // other devices — keep the reading instead of resetting it to Opening.
-      // Drop the flag only if the stored reading has since become invalid
-      // (e.g. Afternoon closing was corrected above it), then re-sync.
+      const c = Number(sd.closing[nz.id]);
+      // Decide from the STORED READING itself whether this looks like a
+      // real overnight entry (clearly higher than Opening, within the sane
+      // per-shift limit) — not from the restOverride flag alone. The flag
+      // is just a saved-with-the-shift marker; relying on it as the sole
+      // gatekeeper meant a device whose copy of the flag hadn't synced yet
+      // (a slow sync, a merge landing between two saves, an old record from
+      // before the flag existed) would treat a perfectly real, already-saved
+      // reading as "not overridden" and silently reset it back to Opening on
+      // its very next render — which then got pushed back to the server,
+      // making a genuinely entered reading vanish. Trusting the reading
+      // itself is self-healing: a real reading is recognized and kept (and
+      // the flag repaired) regardless of what this device's copy of the
+      // flag says; only a reading that's still just sitting at Opening (or
+      // is otherwise invalid) gets auto-synced.
+      const looksReal = Number.isFinite(c) && c > openingNow && (c - openingNow) <= MAX_NOZZLE_LITRES_PER_SHIFT;
+      if(looksReal){
+        if(!sd.restOverride) sd.restOverride = {};
+        if(!sd.restOverride[nz.id]){ sd.restOverride[nz.id] = true; repaired = true; }
+        return;
+      }
       if(sd.restOverride && sd.restOverride[nz.id]){
-        const c = Number(sd.closing[nz.id]);
-        const stillValid = Number.isFinite(c) && c > openingNow && (c - openingNow) <= MAX_NOZZLE_LITRES_PER_SHIFT;
-        if(stillValid) return;
         delete sd.restOverride[nz.id];
         repaired = true;
       }
-      if(Number(sd.closing[nz.id]) !== openingNow){
+      if(c !== openingNow){
         sd.closing[nz.id] = openingNow;
         repaired = true;
       }
