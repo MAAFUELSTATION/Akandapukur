@@ -2219,6 +2219,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       </table>
       </div>
       <div class="empty" id="cashHistoryEmpty" style="display:none;">No saved denomination records yet for this filter.</div>
+      <div id="cashDeletedHistory"></div>
       </div>
     </div>
   </section>
@@ -3548,6 +3549,14 @@ let state = {
   // that when an admin approves a correction on one device, every other
   // device — including the staff member's — sees the record unlock too.
   cashUnlocks: {},
+  // Append-only history of Cash Denomination records that were removed or
+  // replaced (deleted records, edits abandoned before saving, records
+  // overwritten by a restore) — keyed by "date::staffId" like cashUnlocks,
+  // each value a list of {id, at, action, by, snapshot}. Corrections made
+  // through the manager-PIN flow are logged inside the record itself
+  // (record.corrections). Only superseded versions are stored here, so this
+  // stays small. Created lazily by cashHistoryStore().
+  cashHistory: {},
   noteGivenOut: [],
   duty: {},
   tankUpdates: [],
@@ -4985,6 +4994,19 @@ function sanitizeShiftReadings(date, shift){
     NOZZLES.filter(nz=>nz.unit===2).forEach(nz=>{
       if(activeUnlocks && activeUnlocks.has(nz.id)) return;
       const openingNow = Number(getOpeningReading(date, shift, nz.id))||0;
+      // An admin deliberately entered a real overnight closing reading for
+      // this nozzle (see syncRestOverrideFlag). That flag is saved with the
+      // shift data, so it survives tab switches, reloads and updates from
+      // other devices — keep the reading instead of resetting it to Opening.
+      // Drop the flag only if the stored reading has since become invalid
+      // (e.g. Afternoon closing was corrected above it), then re-sync.
+      if(sd.restOverride && sd.restOverride[nz.id]){
+        const c = Number(sd.closing[nz.id]);
+        const stillValid = Number.isFinite(c) && c > openingNow && (c - openingNow) <= MAX_NOZZLE_LITRES_PER_SHIFT;
+        if(stillValid) return;
+        delete sd.restOverride[nz.id];
+        repaired = true;
+      }
       if(Number(sd.closing[nz.id]) !== openingNow){
         sd.closing[nz.id] = openingNow;
         repaired = true;
@@ -5152,7 +5174,8 @@ function renderNozzleAssignTable(date, shift){
     // auto-synced to match opening (see sanitizeShiftReadings) — but an
     // admin can still unlock it, just like any other locked reading, for
     // the rare case it actually did dispense something overnight.
-    const isRestNight = shift==='night' && nz.unit===2;
+    const hasRestOverride = !!(sd.restOverride && sd.restOverride[nz.id]);
+    const isRestNight = shift==='night' && nz.unit===2 && !hasRestOverride;
     const unlockedThis = nozzleUnlocked.has(nz.id);
     const isFilled = !isRestNight && litres > 0 && !unlockedThis;
     const lockedForRest = isRestNight && !unlockedThis;
@@ -5209,12 +5232,34 @@ function onAssignChange(el){
 }
 
 
+// Unit 2 (M2402032) Night closing is normally auto-synced to Opening (idle
+// overnight). When an admin unlocks it and types a different, valid reading,
+// mark it as a manual override — stored inside the shift record so it is
+// saved/synced with everything else — so the auto-sync never wipes it.
+// Typing the Opening value back removes the override (auto-sync resumes).
+function syncRestOverrideFlag(date, shift, nzId, sd){
+  const nz = NOZZLES.find(n=>n.id===nzId);
+  if(!nz || shift!=='night' || nz.unit!==2) return;
+  const opening = Number(getOpeningReading(date, shift, nzId))||0;
+  const closing = Number(sd.closing[nzId]);
+  const litres = closing - opening;
+  const isRealReading = Number.isFinite(litres) && litres > 0 && litres <= MAX_NOZZLE_LITRES_PER_SHIFT;
+  if(isRealReading){
+    if(!sd.restOverride) sd.restOverride = {};
+    sd.restOverride[nzId] = true;
+  } else if(sd.restOverride){
+    delete sd.restOverride[nzId];
+  }
+}
 function onReadingInput(el){
   const date = document.getElementById('salesDate').value;
   const nzId = el.dataset.nz, f = el.dataset.f;
   const sd = ensureShiftData(date, currentShift);
   const val = parseFloat(el.value)||0;
-  if(f==='closing') sd.closing[nzId] = val;
+  if(f==='closing'){
+    sd.closing[nzId] = val;
+    syncRestOverrideFlag(date, currentShift, nzId, sd);
+  }
 
   const nz = NOZZLES.find(n=>n.id===nzId);
   const litres = nozzleLitres(date, currentShift, nzId);
@@ -5240,7 +5285,9 @@ function validateClosingReading(el){
     // admin unlock that was in effect for this nozzle and re-render to
     // actually apply the disabled state.
     nozzleUnlocked.delete(nzId);
+    syncRestOverrideFlag(date, currentShift, nzId, ensureShiftData(date, currentShift));
     renderNozzleAssignTable(date, currentShift);
+    scheduleAutosave();
     return;
   }
   const sd = ensureShiftData(date, currentShift);
@@ -5249,6 +5296,7 @@ function validateClosingReading(el){
   // that reads as "0 litres sold" instead of "nothing entered yet". Reset
   // to 0/blank instead so it's clear the reading still needs to be typed in.
   sd.closing[el.dataset.nz] = 0;
+  if(sd.restOverride) delete sd.restOverride[el.dataset.nz];
   el.value = '';
   setAutosaveStatus('Invalid meter reading — please enter the correct closing reading.');
   renderShiftReadouts(date, currentShift);
@@ -5946,11 +5994,55 @@ function setCashUnlock(key, info){
   unlockedCashKeys()[key] = info;
   scheduleAutosave();
 }
+// ---- Cash Denomination history helpers ----
+function cashHistoryStore(){ return state.cashHistory || (state.cashHistory = {}); }
+function cashDeepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+// The part of a record that matters when checking "did the values change":
+// everything except the bookkeeping fields.
+function cashCoreOf(rec){
+  const c = cashDeepCopy(rec || {});
+  delete c.corrections; delete c.savedAt;
+  return c;
+}
+function cashWhen(iso){
+  return iso ? new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+}
+function cashDenomSummary(rec){
+  if(!rec) return '—';
+  const parts = NOTES.filter(d=> rec.denoms && Number(rec.denoms[d])>0).map(d=>'₹'+d+' × '+rec.denoms[d]);
+  if(Number(rec.coinsTotal)>0) parts.push('coins ₹'+fmtNum(rec.coinsTotal));
+  return parts.length ? parts.join(', ') : 'no cash counted';
+}
+// Stores a copy of a record version that is about to be removed or replaced,
+// so it can always be looked up (and, for deleted records, restored) later.
+function archiveCashVersion(date, staffId, rec, action, extra){
+  if(!rec) return;
+  const store = cashHistoryStore();
+  const key = cashRecordKey(date, staffId);
+  const list = store[key] || (store[key] = []);
+  list.push(Object.assign({
+    id: 'ch' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    at: new Date().toISOString(),
+    action: action,
+    by: currentUser ? (currentUser.role === 'admin' ? 'Admin' : (currentUser.staffName || 'Staff')) : '',
+    snapshot: cashDeepCopy(rec)
+  }, extra || {}));
+  if(list.length > 50) list.splice(0, list.length - 50);
+}
 // Clears an unlock (record re-locked, e.g. after Save) and syncs that too —
 // otherwise a device that missed the "Save" broadcast could still show the
 // record as unlocked/editable after someone else already saved it.
+// If the record was edited while unlocked but the edit was never saved
+// through Save (so no correction was logged), the values it had when it was
+// unlocked are kept in the history instead of silently disappearing.
 function clearCashUnlock(key){
-  if(unlockedCashKeys()[key]){
+  const info = unlockedCashKeys()[key];
+  if(info){
+    const parts = key.split('::');
+    const cur = state.cash[parts[0]] && state.cash[parts[0]][parts[1]];
+    if(info.original && cur && JSON.stringify(cashCoreOf(cur)) !== JSON.stringify(cashCoreOf(info.original))){
+      archiveCashVersion(parts[0], parts[1], info.original, 'edit-not-saved', { reason: info.reason || '' });
+    }
     delete unlockedCashKeys()[key];
     scheduleAutosave();
   }
@@ -6061,28 +6153,103 @@ function applyCashLockState(isLocked, existing){
   }
 }
 
-// Shows a collapsible log of every correction made to this record (if
-// any) — reason, when, and what the values were before the change —
-// right underneath the Save button, so the history is visible without
-// digging into browser storage.
+// Shows a collapsible log of everything that ever changed for the selected
+// date + staff: corrections (with the values before each one), edits that
+// were never saved, and earlier versions that were deleted or replaced —
+// right underneath the Save button.
 function renderCashCorrectionHistory(existing){
   const el = document.getElementById('cashCorrectionHistory');
-  if(!existing || !existing.corrections || !existing.corrections.length){
-    el.innerHTML = '';
-    return;
+  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('cashStaff').value;
+  const events = [];
+  if(existing && existing.corrections){
+    existing.corrections.forEach(c=>{
+      events.push({
+        at: c.correctedAt,
+        title: 'Corrected' + (c.correctedBy ? ' (approved by ' + c.correctedBy + ')' : '') + ' — ' + (c.reason || '(no reason given)'),
+        prev: c.previous, note: 'Values before this correction'
+      });
+    });
   }
-  const items = existing.corrections.slice().reverse().map(c=>{
-    const when = c.correctedAt ? new Date(c.correctedAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
-    const prevVal = c.previous ? fmtNum(c.previous.finalValue) : '—';
+  const hist = (cashHistoryStore()[cashRecordKey(date, staffId)] || []);
+  const labels = {
+    'deleted': 'Record deleted',
+    'edit-not-saved': 'Edit made without saving',
+    'replaced-by-restore': 'Record replaced by a restore'
+  };
+  hist.forEach(h=>{
+    events.push({
+      at: h.at,
+      title: (labels[h.action] || h.action) + (h.by ? ' by ' + h.by : '') + (h.reason ? ' — ' + h.reason : ''),
+      prev: h.snapshot,
+      note: h.action === 'edit-not-saved' ? 'Values before that edit' : 'Values it had'
+    });
+  });
+  if(!events.length){ el.innerHTML = ''; return; }
+  events.sort((a,b)=> String(b.at||'').localeCompare(String(a.at||'')));
+  const items = events.map(ev=>{
+    const p = ev.prev;
     return `<div class="corr-entry">
-      <div><strong>${when}</strong> — ${escapeHtml(c.reason || '(no reason given)')}</div>
-      <div class="hint">Previous Final Value: ₹${prevVal}, Status: ${c.previous ? c.previous.status : '—'}</div>
+      <div><strong>${cashWhen(ev.at)}</strong> — ${escapeHtml(ev.title)}</div>
+      <div class="hint">${ev.note}: ${escapeHtml(cashDenomSummary(p))}</div>
+      <div class="hint">Final Value: ₹${p ? fmtNum(p.finalValue) : '—'}, Status: ${p ? escapeHtml(String(p.status)) : '—'}</div>
     </div>`;
   }).join('');
   el.innerHTML = `<details class="correction-history">
-    <summary>✏️ ${existing.corrections.length} correction(s) made to this record</summary>
+    <summary>✏️ ${events.length} change(s) logged for this record</summary>
     ${items}
   </details>`;
+}
+
+// ---- Deleted records (Past Cash Denomination Records block) ----
+function renderCashDeletedRecords(month, staffFilter){
+  const el = document.getElementById('cashDeletedHistory');
+  if(!el) return;
+  const store = cashHistoryStore();
+  const items = [];
+  Object.keys(store).forEach(key=>{
+    const parts = key.split('::');
+    if(!parts[0].startsWith(month)) return;
+    if(staffFilter!=='all' && parts[1]!==staffFilter) return;
+    (store[key]||[]).forEach(e=>{ if(e.action==='deleted') items.push({key, date:parts[0], sid:parts[1], e}); });
+  });
+  if(!items.length){ el.innerHTML = ''; return; }
+  items.sort((a,b)=> String(b.e.at||'').localeCompare(String(a.e.at||'')));
+  const rows = items.map(it=>{
+    const snap = it.e.snapshot || {};
+    const action = it.e.restoredAt
+      ? `<span class="hint">Restored ${cashWhen(it.e.restoredAt)}</span>`
+      : (isAdmin() ? `<button class="btn ghost small" onclick="restoreCashRecord('${it.key}','${it.e.id}')">Restore</button>` : '');
+    return `<div class="corr-entry">
+      <div><strong>${it.date}</strong> · ${escapeHtml(staffNameById(it.sid))} — deleted ${cashWhen(it.e.at)}${it.e.by ? ' by ' + escapeHtml(it.e.by) : ''}</div>
+      <div class="hint">${escapeHtml(cashDenomSummary(snap))}</div>
+      <div class="hint">Final Value: ₹${fmtNum(snap.finalValue)}, Status: ${escapeHtml(String(snap.status||'—'))} ${action}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<details class="correction-history" style="margin-top:14px;">
+    <summary>🗑 ${items.length} deleted record(s) kept in history</summary>
+    ${rows}
+  </details>`;
+}
+// Admin-only: puts a deleted record back. If a record now exists for that
+// staff/date, it is kept in history before being replaced.
+function restoreCashRecord(key, entryId){
+  if(!isAdmin()) return;
+  const parts = key.split('::');
+  const date = parts[0], sid = parts[1];
+  const entry = (cashHistoryStore()[key] || []).find(x=>x.id===entryId);
+  if(!entry || entry.restoredAt || !entry.snapshot) return;
+  const current = state.cash[date] && state.cash[date][sid];
+  const msg = current
+    ? 'A record already exists for this staff and date. Restoring replaces it (the current one is kept in history). Continue?'
+    : 'Restore this deleted record?';
+  if(!confirm(msg)) return;
+  if(current) archiveCashVersion(date, sid, current, 'replaced-by-restore');
+  if(!state.cash[date]) state.cash[date] = {};
+  state.cash[date][sid] = cashDeepCopy(entry.snapshot);
+  entry.restoredAt = new Date().toISOString();
+  scheduleAutosave();
+  renderCashTab();
 }
 
 // "Load" from Past Cash Denomination Records always opens the record
@@ -6136,7 +6303,11 @@ function submitCorrectionUnlock(){
   // Record who unlocked it, not just when — helps trace an approval back
   // to whoever actually entered the PIN, since the PIN itself is shared.
   const approver = currentUser ? (currentUser.role === 'admin' ? 'Admin' : (currentUser.staffName || 'Staff')) : '';
-  setCashUnlock(cashRecordKey(date, staffId), { reason, at: new Date().toISOString(), approvedBy: approver || undefined });
+  // Keep a copy of the record exactly as it was when unlocked: live-sync
+  // rewrites the stored record on every keystroke while it's unlocked, so
+  // this is the only place the true "before" values survive.
+  const recNow = state.cash[date] && state.cash[date][staffId];
+  setCashUnlock(cashRecordKey(date, staffId), { reason, at: new Date().toISOString(), approvedBy: approver || undefined, original: recNow ? cashDeepCopy(recNow) : undefined });
   closeCorrectionModal();
   renderCashTab();
 }
@@ -6360,9 +6531,14 @@ function calcCash(){
     // Preserve the existing savedAt timestamp (set only by the explicit
     // Save button, see saveCash()) so live-sync writes on every keystroke
     // don't wipe out when the entry was actually saved.
-    const prevSavedAt = state.cash[date][staffId] && state.cash[date][staffId].savedAt;
+    const prevRec = state.cash[date][staffId];
+    const prevSavedAt = prevRec && prevRec.savedAt;
     const rec = buildCashRecord(result);
     if(prevSavedAt) rec.savedAt = prevSavedAt;
+    // Carry the correction log forward too — rebuilding the record from the
+    // form on every keystroke used to drop it, which erased earlier
+    // corrections as soon as someone started editing an unlocked record.
+    if(prevRec && prevRec.corrections) rec.corrections = prevRec.corrections;
     state.cash[date][staffId] = rec;
   }
 
@@ -6402,7 +6578,11 @@ function saveCash(){
   const staffId = document.getElementById('cashStaff').value;
   const key = cashRecordKey(date, staffId);
   const priorRec = state.cash[date] && state.cash[date][staffId];
-  const wasCorrection = !!(priorRec && priorRec.savedAt) && !!unlockedCashKeys()[key];
+  // A past-dated record that was only ever live-typed (never saved) is also
+  // locked and unlocked through the same flow, so count it as a correction
+  // too when the unlock captured its original values.
+  const unlockInfo = unlockedCashKeys()[key];
+  const wasCorrection = !!(priorRec && (priorRec.savedAt || (unlockInfo && unlockInfo.original))) && !!unlockInfo;
 
   const c = calcCash();
   // calcCash() above already writes the live entry into state.cash; this
@@ -6419,17 +6599,18 @@ function saveCash(){
   // was made — rather than silently discarding what it used to say.
   if(wasCorrection){
     const corrInfo = unlockedCashKeys()[key];
-    rec.savedAt = priorRec.savedAt;
-    rec.corrections = (priorRec.corrections || []).concat([{
+    // Use the copy taken at unlock time when there is one — by now the stored
+    // record already holds the edited values (live-sync), so priorRec is not
+    // the "before" any more.
+    const baseRec = corrInfo.original || priorRec;
+    const previous = cashDeepCopy(baseRec);
+    delete previous.corrections;
+    rec.savedAt = baseRec.savedAt || new Date().toISOString();
+    rec.corrections = (baseRec.corrections || []).concat([{
       reason: corrInfo.reason,
       correctedAt: new Date().toISOString(),
-      previous: {
-        denoms: priorRec.denoms, coinsTotal: priorRec.coinsTotal,
-        testingHSDQty: priorRec.testingHSDQty, testingMSQty: priorRec.testingMSQty,
-        onlineAmt: priorRec.onlineAmt, cardAmt: priorRec.cardAmt, onlineAmt2: priorRec.onlineAmt2,
-        loans: priorRec.loans, deposit: priorRec.deposit,
-        finalValue: priorRec.finalValue, difference: priorRec.difference, status: priorRec.status
-      }
+      correctedBy: corrInfo.approvedBy || '',
+      previous: previous
     }]);
   } else {
     // Capture the moment this Save button was actually clicked (not just
@@ -7211,6 +7392,7 @@ function renderCashHistory(){
   if(!mInp.value) mInp.value = thisMonthStr();
   const month = mInp.value;
   const staffFilter = document.getElementById('cashHistoryStaffFilter').value;
+  renderCashDeletedRecords(month, staffFilter);
 
   let rows = [];
   Object.keys(state.cash).filter(d=>d.startsWith(month)).sort().reverse().forEach(date=>{
@@ -7343,7 +7525,8 @@ function toggleSurplusPaid(paidKey, checked){
   scheduleAutosave();
 }
 function deleteCashRecord(date, sid){
-  if(!confirm('Delete this reconciliation record?')) return;
+  if(!confirm('Delete this reconciliation record? A copy is kept in the Cash Denomination history.')) return;
+  archiveCashVersion(date, sid, state.cash[date] && state.cash[date][sid], 'deleted');
   if(state.cash[date]){
     delete state.cash[date][sid];
     if(Object.keys(state.cash[date]).length===0) delete state.cash[date];
@@ -7583,6 +7766,36 @@ function exportDataExcel(){
     });
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cashRows), 'Cash Reconciliation');
+
+  // --- Cash denomination history: values before each correction, deleted
+  // records, unsaved edits, replaced records (one row per event) ---
+  const cashHistRows = [];
+  const pushCashHist = (date, sid, event, when, by, reason, snap)=>{
+    const row = { Date: date, Staff: staffNameById(sid), Event: event, When: when || '', By: by || '', Reason: reason || '' };
+    NOTES.forEach(d=>{ row['₹'+d] = (snap && snap.denoms && snap.denoms[d]) || 0; });
+    row['Coins'] = snap ? (snap.coinsTotal||0) : 0;
+    row['Cash Counted'] = snap ? snap.cashCounted : '';
+    row['Online Amount'] = snap ? snap.onlineAmt : '';
+    row['Card Amount'] = snap ? snap.cardAmt : '';
+    row['Final Value'] = snap ? snap.finalValue : '';
+    row['Status'] = snap ? snap.status : '';
+    cashHistRows.push(row);
+  };
+  Object.keys(state.cash).sort().forEach(date=>{
+    Object.keys(state.cash[date]).forEach(sid=>{
+      (state.cash[date][sid].corrections || []).forEach(c=>{
+        pushCashHist(date, sid, 'Corrected (values before correction)', c.correctedAt, c.correctedBy, c.reason, c.previous);
+      });
+    });
+  });
+  const cashHistLabels = { 'deleted':'Deleted record', 'edit-not-saved':'Edit not saved (values before edit)', 'replaced-by-restore':'Replaced by restore' };
+  Object.keys(cashHistoryStore()).sort().forEach(key=>{
+    const parts = key.split('::');
+    cashHistoryStore()[key].forEach(h=>{
+      pushCashHist(parts[0], parts[1], cashHistLabels[h.action] || h.action, h.at, h.by, h.reason, h.snapshot);
+    });
+  });
+  if(cashHistRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cashHistRows), 'Cash Denomination History');
 
   // --- Fuel rates ---
   const rateRows = Object.keys(state.rates).sort().map(date=>({
