@@ -1763,6 +1763,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <button class="tab-btn" data-tab="buscash" onclick="switchTab('buscash')">🚌 Bus Cash Tracker</button>
   <button class="tab-btn" data-tab="luberegister" onclick="switchTab('luberegister')">🧴 Lube Purchase Register</button>
   <button class="tab-btn" data-tab="eodloan" onclick="switchTab('eodloan')">🧾 EOD Loan</button>
+  <button class="tab-btn" data-tab="onlinecollections" onclick="switchTab('onlinecollections')">📲 Online Collections</button>
 </nav>
 <nav class="tabs" data-group="staffops" style="display:none;">
   <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
@@ -2499,6 +2500,52 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <!-- Everything to do with add-on pouches, EOD lube/water incentives and
        their monthly payouts lives in this one tab now, instead of being
        split across the Cash Denomination Calculator and a separate report. -->
+  <!-- ===================== ONLINE COLLECTIONS (PAYTM) TAB ===================== -->
+  <section id="tab-onlinecollections" class="tab">
+    <div class="card cc-header-card">
+      <h2>📲 Online Collections <span class="tag">Paytm — UPI, Google Pay &amp; card swipes, all under Paytm</span></h2>
+      <div class="row" style="margin-bottom:0;">
+        <div class="field"><label>Date</label><input type="date" id="onlineDate" onchange="renderOnlineTab()"></div>
+        <div class="field"><label>Month (for summary)</label><input type="month" id="onlineMonth" onchange="renderOnlineTab()"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>EOD Online Summary <span class="tag" id="onlineDayTag"></span></h2>
+      <div id="onlineStats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;"></div>
+      <table>
+        <thead><tr><th>Staff</th><th>Counter(s)</th><th class="num">Online / UPI</th><th class="num">Card / POS</th><th class="num">Additional Online</th><th class="num">Paytm Total</th></tr></thead>
+        <tbody id="onlineDayBody"></tbody>
+      </table>
+      <div class="hint" style="margin-top:8px;">Amounts come from each staff member's saved Cash Denomination entry (Online &amp; Card Payments block).</div>
+    </div>
+
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Paytm Counter Setup <span class="tag">Tap to open — which counter each staff member uses</span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <div class="row">
+        <div class="field" style="max-width:220px;"><label>Total Paytm counters</label><input type="number" id="onlineCounterTotal" min="1" max="50" onchange="setPaytmTotal(this.value)"></div>
+      </div>
+      <div id="onlineCounterMap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:16px;"></div>
+      <table>
+        <thead><tr><th>Staff</th><th>Counters used</th><th>Counter no. 1</th><th>Counter no. 2</th><th>Note</th></tr></thead>
+        <tbody id="onlineAssignBody"></tbody>
+      </table>
+      <div class="hint" style="margin-top:8px;">Two staff can share a counter (e.g. on different shifts) — a note just flags it so it is never a surprise.</div>
+      </div>
+    </div>
+
+    <div class="card cc-block collapsed">
+      <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Month summary <span class="tag" id="onlineMonthTag"></span><span class="cc-chev">▼</span></h2>
+      <div class="cc-block-body">
+      <table>
+        <thead><tr><th>Staff</th><th class="num">Days</th><th class="num">Online / UPI</th><th class="num">Card / POS</th><th class="num">Additional Online</th><th class="num">Paytm Total</th></tr></thead>
+        <tbody id="onlineMonthBody"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
   <section id="tab-addonreport" class="tab">
     <div class="card cc-header-card">
       <h2>🎁 Add-on &amp; Incentives <span class="tag">Pouch sales, streaks, EOD payout &amp; monthly incentive totals</span></h2>
@@ -3566,6 +3613,8 @@ let state = {
   lubeLitresPerUnit: 1, // litres in one lube unit/bottle sold — used to convert Lube Sold (units) into litres
   addonSameDayIncentive: 25, // ₹ paid when a 50-pouch box is fully sold the same day it's issued — editable via the Add-on & Incentives tab
   addonTwoDayIncentive: 15, // ₹ paid when a 50-pouch box is fully sold within 2 days of the issue date — editable via the Add-on & Incentives tab
+  paytmCounters: {}, // { staffId: {n:1|2, c1, c2} } — Paytm counter number(s) each staff collects on
+  paytmCounterTotal: 11, // how many Paytm counters the station has
   surplusPaid: {} // { "YYYY-MM::staffId": true } — Month-End Summary "Paid" checklist tick per staff per month
 };
 const ADDON_BOX_SIZE = 50;
@@ -3846,6 +3895,7 @@ function initServerSync(retryCount){
     if(!state.shiftPayout) state.shiftPayout = {};
     if(!state.qrScanLog) state.qrScanLog = [];
     if(!state.surplusPaid) state.surplusPaid = {};
+    if(!state.paytmCounters) state.paytmCounters = {};
     sidCounter = payload.sidCounter || sidCounter;
     ngoCounter = payload.ngoCounter || ngoCounter;
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
@@ -3897,6 +3947,7 @@ async function loadFromServer(){
       if(!state.shiftPayout) state.shiftPayout = {};
       if(!state.qrScanLog) state.qrScanLog = [];
       if(!state.surplusPaid) state.surplusPaid = {};
+      if(!state.paytmCounters) state.paytmCounters = {};
       sidCounter = doc.sidCounter || sidCounter;
       ngoCounter = doc.ngoCounter || ngoCounter;
       if(doc.updatedAt) lastKnownUpdatedAt = doc.updatedAt;
@@ -4141,6 +4192,7 @@ async function pushToServer(){
             if(!state.shiftPayout) state.shiftPayout = {};
             if(!state.qrScanLog) state.qrScanLog = [];
             if(!state.surplusPaid) state.surplusPaid = {};
+            if(!state.paytmCounters) state.paytmCounters = {};
           }
           saveConflictPending = false;
           lastSyncedStateSignature = null; // the merge changed state again — make sure the next push isn't skipped as "already synced"
@@ -4227,6 +4279,7 @@ function loadAutosave(){
         if(!state.shiftPayout) state.shiftPayout = {};
         if(!state.qrScanLog) state.qrScanLog = [];
         if(!state.surplusPaid) state.surplusPaid = {};
+        if(!state.paytmCounters) state.paytmCounters = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         setAutosaveStatus('Restored from autosave');
@@ -4244,7 +4297,7 @@ function toggleCcBlock(headerEl){
 // Which category each tab lives under, for the grouped nav below.
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
-  finance:  ['cash','surplus','notestock','cashledger','buscash','luberegister','eodloan'],
+  finance:  ['cash','surplus','notestock','cashledger','buscash','luberegister','eodloan','onlinecollections'],
   staffops: ['staff','duty','admin'],
   addons:   ['addonreport']
 };
@@ -4282,6 +4335,7 @@ function switchTab(name){
   if(name==='surplus') renderSurplusTab();
   if(name==='notestock') renderNoteStockTab();
   if(name==='eodloan') renderAdminLoansTab();
+  if(name==='onlinecollections') renderOnlineTab();
   if(name==='dipchart') renderDipChartTab();
   if(name==='devices'){ renderDevicesTab(); startDevicesAutoRefresh(); }
   if(name==='cashledger') refreshCashLedgerFrame();
@@ -6647,6 +6701,128 @@ function saveCash(){
   renderCashTab();
 }
 
+/* ============== ONLINE COLLECTIONS (PAYTM) ==============
+   Paytm, Google Pay and card swipes all settle through Paytm, so the three
+   online amounts on a Cash Denomination record (Online/UPI, Card/POS,
+   Additional Online) are shown together as one "Paytm Total". Each staff
+   member has a standing counter assignment: 1 or 2 counters out of the
+   station's Paytm counters (default 11). */
+function paytmTotalCounters(){
+  const v = parseInt(state.paytmCounterTotal);
+  return (v >= 1 && v <= 50) ? v : 11;
+}
+function paytmAssign(staffId){
+  const a = (state.paytmCounters && state.paytmCounters[staffId]) || {};
+  return { n: a.n === 2 ? 2 : 1, c1: parseInt(a.c1)||0, c2: parseInt(a.c2)||0 };
+}
+function paytmCountersOf(staffId){
+  const a = paytmAssign(staffId), out = [];
+  if(a.c1) out.push(a.c1);
+  if(a.n === 2 && a.c2) out.push(a.c2);
+  return out;
+}
+function paytmSave(staffId, patch){
+  if(!state.paytmCounters) state.paytmCounters = {};
+  state.paytmCounters[staffId] = Object.assign(paytmAssign(staffId), patch);
+  scheduleAutosave();
+  renderOnlineTab();
+}
+function setPaytmCount(staffId, n){ paytmSave(staffId, {n: parseInt(n) === 2 ? 2 : 1}); }
+function setPaytmCounter(staffId, slot, val){
+  const patch = {}; patch[slot === 2 ? 'c2' : 'c1'] = parseInt(val)||0;
+  paytmSave(staffId, patch);
+}
+function setPaytmTotal(val){
+  const v = parseInt(val);
+  state.paytmCounterTotal = (v >= 1 && v <= 50) ? v : 11;
+  scheduleAutosave();
+  renderOnlineTab();
+}
+function paytmParts(rec){
+  const u = Number(rec && rec.onlineAmt)||0, c = Number(rec && rec.cardAmt)||0, x = Number(rec && rec.onlineAmt2)||0;
+  return { upi:u, card:c, extra:x, total:u+c+x };
+}
+function paytmTotalsFor(staffId, dates){
+  const t = {upi:0, card:0, extra:0, total:0, days:0};
+  dates.forEach(d=>{
+    const p = paytmParts(state.cash && state.cash[d] && state.cash[d][staffId]);
+    if(p.total > 0) t.days++;
+    t.upi += p.upi; t.card += p.card; t.extra += p.extra; t.total += p.total;
+  });
+  return t;
+}
+function paytmRowHtml(name, counters, t, showDays){
+  return '<tr><td>'+escapeHtml(name)+'</td><td>'+counters+'</td>'+
+    '<td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.card)+'</td><td class="num mono">'+fmt(t.extra)+'</td>'+
+    '<td class="num mono"><strong>'+fmt(t.total)+'</strong></td></tr>';
+}
+function renderOnlineTab(){
+  const dateEl = document.getElementById('onlineDate'), monthEl = document.getElementById('onlineMonth');
+  if(!dateEl.value) dateEl.value = todayStr();
+  if(!monthEl.value) monthEl.value = dateEl.value.slice(0,7);
+  const date = dateEl.value, month = monthEl.value;
+  const total = paytmTotalCounters();
+  const totalEl = document.getElementById('onlineCounterTotal');
+  if(document.activeElement !== totalEl) totalEl.value = total;
+  const staff = state.staff || [];
+
+  // Counter setup table + who-is-on-which-counter map
+  const users = {};
+  staff.forEach(st=> paytmCountersOf(st.id).forEach(c=>{ (users[c] = users[c] || []).push(st.name); }));
+  const opts = sel => '<option value="0">— pick —</option>' + Array.from({length: total}, (_,i)=> '<option value="'+(i+1)+'"'+(sel===i+1?' selected':'')+'>Counter '+(i+1)+'</option>').join('');
+  document.getElementById('onlineAssignBody').innerHTML = staff.map(st=>{
+    const a = paytmAssign(st.id), id = escapeHtml(st.id);
+    const notes = [];
+    paytmCountersOf(st.id).forEach(c=>{
+      const others = (users[c]||[]).filter(n=> n !== st.name);
+      if(others.length) notes.push('Counter '+c+' also used by '+others.map(escapeHtml).join(', '));
+    });
+    if(a.n === 2 && a.c1 && a.c1 === a.c2) notes.push('Both counters are the same');
+    return '<tr><td>'+escapeHtml(st.name)+'</td>'+
+      '<td><select onchange="setPaytmCount(\''+id+'\', this.value)"><option value="1"'+(a.n===1?' selected':'')+'>1 counter</option><option value="2"'+(a.n===2?' selected':'')+'>2 counters</option></select></td>'+
+      '<td><select onchange="setPaytmCounter(\''+id+'\',1,this.value)">'+opts(a.c1)+'</select></td>'+
+      '<td>'+(a.n===2 ? '<select onchange="setPaytmCounter(\''+id+'\',2,this.value)">'+opts(a.c2)+'</select>' : '<span class="hint">—</span>')+'</td>'+
+      '<td class="hint">'+(notes.join('; ') || '')+'</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="hint">No staff added yet.</td></tr>';
+
+  let map = '';
+  for(let c = 1; c <= total; c++){
+    const who = users[c];
+    map += '<div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;'+(who?'background:rgba(30,142,90,.10);':'')+'">'+
+      '<div class="hint" style="margin:0;">Counter '+c+'</div>'+
+      '<div style="font-weight:600;font-size:13px;">'+(who ? who.map(escapeHtml).join(', ') : '<span class="hint">Free</span>')+'</div></div>';
+  }
+  document.getElementById('onlineCounterMap').innerHTML = map;
+
+  // Day view
+  const day = {upi:0, card:0, extra:0, total:0};
+  let rows = '';
+  staff.forEach(st=>{
+    const t = paytmTotalsFor(st.id, [date]);
+    day.upi += t.upi; day.card += t.card; day.extra += t.extra; day.total += t.total;
+    const cs = paytmCountersOf(st.id);
+    rows += paytmRowHtml(st.name, cs.length ? cs.map(c=>'#'+c).join(' + ') : '<span class="hint">not set</span>', t);
+  });
+  rows += '<tr style="font-weight:700;"><td colspan="2">All staff</td><td class="num mono">'+fmt(day.upi)+'</td><td class="num mono">'+fmt(day.card)+'</td><td class="num mono">'+fmt(day.extra)+'</td><td class="num mono">'+fmt(day.total)+'</td></tr>';
+  document.getElementById('onlineDayBody').innerHTML = rows;
+  document.getElementById('onlineDayTag').textContent = date;
+  const stat = (lbl, v, cls) => '<div class="stat-card '+(cls||'')+'"><div class="lbl">'+lbl+'</div><div class="val">'+fmt(v)+'</div></div>';
+  document.getElementById('onlineStats').innerHTML = stat('Paytm total', day.total, 'total') + stat('Online / UPI', day.upi) + stat('Card / POS', day.card) + stat('Additional online', day.extra);
+
+  // Month view
+  const dates = Object.keys(state.cash || {}).filter(d=> d.slice(0,7) === month);
+  const mon = {upi:0, card:0, extra:0, total:0};
+  let mrows = '';
+  staff.forEach(st=>{
+    const t = paytmTotalsFor(st.id, dates);
+    mon.upi += t.upi; mon.card += t.card; mon.extra += t.extra; mon.total += t.total;
+    mrows += '<tr><td>'+escapeHtml(st.name)+'</td><td class="num">'+t.days+'</td><td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.card)+'</td><td class="num mono">'+fmt(t.extra)+'</td><td class="num mono"><strong>'+fmt(t.total)+'</strong></td></tr>';
+  });
+  mrows += '<tr style="font-weight:700;"><td colspan="2">All staff</td><td class="num mono">'+fmt(mon.upi)+'</td><td class="num mono">'+fmt(mon.card)+'</td><td class="num mono">'+fmt(mon.extra)+'</td><td class="num mono">'+fmt(mon.total)+'</td></tr>';
+  document.getElementById('onlineMonthBody').innerHTML = mrows;
+  document.getElementById('onlineMonthTag').textContent = month;
+}
+
 /* ============== ADD-ON POUCH SALE TRACKING ============== */
 // Each "box" = 50 pouches issued to a staff member. Incentive depends on how
 // fast that specific box is fully sold, tracked per staff (not store-wide).
@@ -8006,6 +8182,7 @@ function importData(file){
         if(!state.shiftPayout) state.shiftPayout = {};
         if(!state.qrScanLog) state.qrScanLog = [];
         if(!state.surplusPaid) state.surplusPaid = {};
+        if(!state.paytmCounters) state.paytmCounters = {};
         sidCounter = parsed.sidCounter || sidCounter;
         ngoCounter = parsed.ngoCounter || ngoCounter;
         alert('Data restored successfully.');
