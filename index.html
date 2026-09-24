@@ -2520,6 +2520,14 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       <div class="hint" style="margin-top:8px;">Amounts come from each staff member's saved Cash Denomination entry (Online &amp; Card Payments block).</div>
     </div>
 
+    <div class="card">
+      <h2>Google Pay <span class="tag" id="onlineGpayTag"></span></h2>
+      <table>
+        <thead><tr><th>Staff</th><th class="num">Online / UPI ₹</th><th class="num">Additional Online Amount ₹</th><th class="num">Google Pay Total</th></tr></thead>
+        <tbody id="onlineGpayBody"></tbody>
+      </table>
+    </div>
+
     <div class="card cc-block collapsed">
       <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Paytm Counter Setup <span class="tag">Tap to open — which counter each staff member uses</span><span class="cc-chev">▼</span></h2>
       <div class="cc-block-body">
@@ -2531,7 +2539,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <thead><tr><th>Staff</th><th>Counters used</th><th>Counter no. 1</th><th>Counter no. 2</th><th>Note</th></tr></thead>
         <tbody id="onlineAssignBody"></tbody>
       </table>
-      <div class="hint" style="margin-top:8px;">Two staff can share a counter (e.g. on different shifts) — a note just flags it so it is never a surprise.</div>
+      <div class="hint" style="margin-top:8px;">A counter reserved by one staff member is hidden from everyone else's list. To give it to someone else, first change it on the current staff member.</div>
       </div>
     </div>
 
@@ -6769,7 +6777,14 @@ function renderOnlineTab(){
   // Counter setup table + who-is-on-which-counter map
   const users = {};
   staff.forEach(st=> paytmCountersOf(st.id).forEach(c=>{ (users[c] = users[c] || []).push(st.name); }));
-  const opts = sel => '<option value="0">— pick —</option>' + Array.from({length: total}, (_,i)=> '<option value="'+(i+1)+'"'+(sel===i+1?' selected':'')+'>Counter '+(i+1)+'</option>').join('');
+  const reservedBy = {};
+  staff.forEach(st=> paytmCountersOf(st.id).forEach(c=>{ if(!reservedBy[c]) reservedBy[c] = st.id; }));
+  // Lists counters 1..total, leaving out any counter reserved by another staff
+  // member (or already picked in this staff member's other slot).
+  const opts = (sel, sid, mine) => '<option value="0">— pick —</option>' +
+    Array.from({length: total}, (_,i)=> i+1)
+      .filter(c=> c === sel || ((!reservedBy[c] || reservedBy[c] === sid) && c !== mine))
+      .map(c=> '<option value="'+c+'"'+(sel===c?' selected':'')+'>Counter '+c+'</option>').join('');
   document.getElementById('onlineAssignBody').innerHTML = staff.map(st=>{
     const a = paytmAssign(st.id), id = escapeHtml(st.id);
     const notes = [];
@@ -6780,8 +6795,8 @@ function renderOnlineTab(){
     if(a.n === 2 && a.c1 && a.c1 === a.c2) notes.push('Both counters are the same');
     return '<tr><td>'+escapeHtml(st.name)+'</td>'+
       '<td><select onchange="setPaytmCount(\''+id+'\', this.value)"><option value="1"'+(a.n===1?' selected':'')+'>1 counter</option><option value="2"'+(a.n===2?' selected':'')+'>2 counters</option></select></td>'+
-      '<td><select onchange="setPaytmCounter(\''+id+'\',1,this.value)">'+opts(a.c1)+'</select></td>'+
-      '<td>'+(a.n===2 ? '<select onchange="setPaytmCounter(\''+id+'\',2,this.value)">'+opts(a.c2)+'</select>' : '<span class="hint">—</span>')+'</td>'+
+      '<td><select onchange="setPaytmCounter(\''+id+'\',1,this.value)">'+opts(a.c1, st.id, a.n===2 ? a.c2 : 0)+'</select></td>'+
+      '<td>'+(a.n===2 ? '<select onchange="setPaytmCounter(\''+id+'\',2,this.value)">'+opts(a.c2, st.id, a.c1)+'</select>' : '<span class="hint">—</span>')+'</td>'+
       '<td class="hint">'+(notes.join('; ') || '')+'</td></tr>';
   }).join('') || '<tr><td colspan="5" class="hint">No staff added yet.</td></tr>';
 
@@ -6807,7 +6822,15 @@ function renderOnlineTab(){
   document.getElementById('onlineDayBody').innerHTML = rows;
   document.getElementById('onlineDayTag').textContent = date;
   const stat = (lbl, v, cls) => '<div class="stat-card '+(cls||'')+'"><div class="lbl">'+lbl+'</div><div class="val">'+fmt(v)+'</div></div>';
-  document.getElementById('onlineStats').innerHTML = stat('Paytm total', day.total, 'total') + stat('Online / UPI', day.upi) + stat('Card / POS', day.card) + stat('Additional online', day.extra);
+  document.getElementById('onlineStats').innerHTML = stat('Paytm total', day.total, 'total') + stat('Google Pay (UPI + additional)', day.upi + day.extra) + stat('Online / UPI', day.upi) + stat('Additional online', day.extra) + stat('Card / POS', day.card);
+  let grows = '';
+  staff.forEach(st=>{
+    const t = paytmTotalsFor(st.id, [date]);
+    grows += '<tr><td>'+escapeHtml(st.name)+'</td><td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.extra)+'</td><td class="num mono"><strong>'+fmt(t.upi + t.extra)+'</strong></td></tr>';
+  });
+  grows += '<tr style="font-weight:700;"><td>All staff</td><td class="num mono">'+fmt(day.upi)+'</td><td class="num mono">'+fmt(day.extra)+'</td><td class="num mono">'+fmt(day.upi + day.extra)+'</td></tr>';
+  document.getElementById('onlineGpayBody').innerHTML = grows;
+  document.getElementById('onlineGpayTag').textContent = date;
 
   // Month view
   const dates = Object.keys(state.cash || {}).filter(d=> d.slice(0,7) === month);
