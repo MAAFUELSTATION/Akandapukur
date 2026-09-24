@@ -578,6 +578,9 @@
   #tab-cash{font-size:16px;}
   #tab-cash .card h2{font-size:22px;}
   #tab-cash .cc-block-title{font-size:18px;}
+
+  /* Counter number shown inline in the Online / UPI and Additional Online labels. */
+  .cc-counter-badge{display:inline-block;font-size:.82em;font-weight:800;letter-spacing:.4px;padding:1px 8px;margin:0 6px;border-radius:5px;background:var(--petrol,#0b6e6e);color:#fff;vertical-align:baseline;text-transform:uppercase;}
   #tab-cash .field label{font-size:13px;}
   #tab-cash .field input,#tab-cash .field select{font-size:17px;padding:11px 12px;min-height:46px;}
   #tab-cash .denom-grid{grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;}
@@ -2125,18 +2128,20 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
           <div class="cc-block-body">
           <div class="grid2">
             <div class="field">
-              <label>Online / UPI ₹</label>
+              <label>Online / UPI ₹ <span id="cashCounterBadge1" class="cc-counter-badge" style="display:none;"></span></label>
               <input type="number" id="onlineAmt" min="0" step="0.01" value="0" oninput="calcCash()">
               <select id="cashCounter1" style="margin-top:5px;" onchange="onCashCounterChange(1,this.value)" aria-label="Online / UPI counter"></select>
+              <div class="hint" id="cashCounterLock1" style="margin-top:4px;"></div>
             </div>
             <div class="field">
               <label>Card / POS ₹</label>
               <input type="number" id="cardAmt" min="0" step="0.01" value="0" oninput="calcCash()">
             </div>
             <div class="field">
-              <label>Additional Online Amount ₹</label>
+              <label><span id="cashCounterBadge2" class="cc-counter-badge" style="display:none;"></span>Additional Online Amount ₹</label>
               <input type="number" id="onlineAmt2" min="0" step="0.01" value="0" oninput="calcCash()">
               <select id="cashCounter2" style="margin-top:5px;" onchange="onCashCounterChange(2,this.value)" aria-label="Additional online counter"></select>
+              <div class="hint" id="cashCounterLock2" style="margin-top:4px;"></div>
               <div class="hint" id="gpayNote" style="margin-top:4px;"></div>
             </div>
           </div>
@@ -6725,7 +6730,7 @@ function paytmTotalCounters(){
 }
 function paytmAssign(staffId){
   const a = (state.paytmCounters && state.paytmCounters[staffId]) || {};
-  return { n: a.n === 2 ? 2 : 1, c1: parseInt(a.c1)||0, c2: parseInt(a.c2)||0 };
+  return { n: a.n === 2 ? 2 : 1, c1: parseInt(a.c1)||0, c2: parseInt(a.c2)||0, c1Month: a.c1Month||'', c2Month: a.c2Month||'' };
 }
 function paytmCountersOf(staffId){
   const a = paytmAssign(staffId), out = [];
@@ -6741,7 +6746,13 @@ function paytmSave(staffId, patch){
 }
 function setPaytmCount(staffId, n){ paytmSave(staffId, {n: parseInt(n) === 2 ? 2 : 1}); }
 function setPaytmCounter(staffId, slot, val){
-  const patch = {}; patch[slot === 2 ? 'c2' : 'c1'] = parseInt(val)||0;
+  const month = todayStr().slice(0,7);
+  // A counter already picked this month stays fixed until next month.
+  if(cashCounterLockedFor(staffId, slot === 2 ? 2 : 1, month)){ renderOnlineTab(); return; }
+  const v = parseInt(val)||0;
+  const patch = {};
+  if(slot === 2){ patch.c2 = v; patch.c2Month = v ? month : ''; }
+  else { patch.c1 = v; patch.c1Month = v ? month : ''; }
   paytmSave(staffId, patch);
 }
 function setPaytmTotal(val){
@@ -6767,6 +6778,21 @@ function paytmReservedBy(){
   (state.staff || []).forEach(st => paytmCountersOf(st.id).forEach(c => { if(!by[c]) by[c] = st.id; }));
   return by;
 }
+/* ---- Month lock ----
+   A counter, once picked, stays fixed for the rest of that calendar month.
+   The month it was picked in is stored next to it (c1Month / c2Month, "YYYY-MM").
+   From the 1st of the next month the lock lapses on its own and staff can pick
+   again. The month follows the date selected on the Cash screen. */
+function cashCounterMonth(){
+  const d = (document.getElementById('cashDate') || {}).value || todayStr();
+  return String(d).slice(0,7);
+}
+function cashCounterLockedFor(staffId, slot, month){
+  const a = (state.paytmCounters && state.paytmCounters[staffId]) || {};
+  const c = slot === 2 ? (a.n === 2 ? parseInt(a.c2)||0 : 0) : (parseInt(a.c1)||0);
+  const m = slot === 2 ? a.c2Month : a.c1Month;
+  return !!(c && m && m === month);
+}
 function cashCounterOptions(staffId, slot){
   const a = paytmAssign(staffId);
   const sel = slot === 2 ? (a.n === 2 ? a.c2 : 0) : a.c1;
@@ -6788,20 +6814,43 @@ function renderCashCounterPickers(isLocked){
   if(!staffEl || !s1 || !s2 || !amt2) return;
   const staffId = staffEl.value;
   const gpayOk = isGpayStaff(staffId);
+  const month = cashCounterMonth();
+  const a = paytmAssign(staffId);
   s1.innerHTML = cashCounterOptions(staffId, 1);
   s2.innerHTML = cashCounterOptions(staffId, 2);
-  s1.disabled = !!isLocked || !staffId;
-  s2.disabled = !!isLocked || !staffId || !gpayOk;
+  const lock1 = staffId && cashCounterLockedFor(staffId, 1, month);
+  const lock2 = staffId && cashCounterLockedFor(staffId, 2, month);
+  s1.disabled = !!isLocked || !staffId || !!lock1;
+  s2.disabled = !!isLocked || !staffId || !gpayOk || !!lock2;
   amt2.disabled = !!isLocked || !gpayOk;
   if(note) note.textContent = gpayOk ? '' : 'Google Pay is used by Bappa only, so this field is locked for other staff.';
+
+  // Counter number shown in the label of each field.
+  const c1 = staffId ? a.c1 : 0;
+  const c2 = staffId && a.n === 2 ? a.c2 : 0;
+  const b1 = document.getElementById('cashCounterBadge1'), b2 = document.getElementById('cashCounterBadge2');
+  if(b1){ b1.textContent = c1 ? 'Counter ' + c1 : ''; b1.style.display = c1 ? 'inline-block' : 'none'; }
+  if(b2){ b2.textContent = c2 ? 'Counter ' + c2 : ''; b2.style.display = c2 ? 'inline-block' : 'none'; }
+
+  // Small explanation under each dropdown.
+  const monthLabel = (function(){
+    try{ return new Date(month + '-01T00:00:00').toLocaleDateString('en-IN', {month:'long', year:'numeric'}); }
+    catch(e){ return month; }
+  })();
+  const l1 = document.getElementById('cashCounterLock1'), l2 = document.getElementById('cashCounterLock2');
+  if(l1) l1.textContent = lock1 ? '🔒 Counter ' + c1 + ' is fixed for ' + monthLabel + '.' : '';
+  if(l2) l2.textContent = lock2 ? '🔒 Counter ' + c2 + ' is fixed for ' + monthLabel + '.' : '';
 }
 function onCashCounterChange(slot, val){
   const staffId = document.getElementById('cashStaff').value;
   if(!staffId) return;
   const v = parseInt(val) || 0;
+  const month = cashCounterMonth();
+  // Ignore attempts to change a counter that is already fixed for this month.
+  if(cashCounterLockedFor(staffId, slot, month)){ renderCashCounterPickers(false); return; }
   const patch = {};
-  if(slot === 2){ patch.c2 = v; patch.n = v ? 2 : 1; }
-  else patch.c1 = v;
+  if(slot === 2){ patch.c2 = v; patch.n = v ? 2 : 1; patch.c2Month = v ? month : ''; }
+  else { patch.c1 = v; patch.c1Month = v ? month : ''; }
   paytmSave(staffId, patch);
   renderCashCounterPickers(false);
 }
@@ -6854,8 +6903,8 @@ function renderOnlineTab(){
     if(a.n === 2 && a.c1 && a.c1 === a.c2) notes.push('Both counters are the same');
     return '<tr><td>'+escapeHtml(st.name)+'</td>'+
       '<td><select onchange="setPaytmCount(\''+id+'\', this.value)"><option value="1"'+(a.n===1?' selected':'')+'>1 counter</option><option value="2"'+(a.n===2?' selected':'')+'>2 counters</option></select></td>'+
-      '<td><select onchange="setPaytmCounter(\''+id+'\',1,this.value)">'+opts(a.c1, st.id, a.n===2 ? a.c2 : 0)+'</select></td>'+
-      '<td>'+(a.n===2 ? '<select onchange="setPaytmCounter(\''+id+'\',2,this.value)">'+opts(a.c2, st.id, a.c1)+'</select>' : '<span class="hint">—</span>')+'</td>'+
+      '<td><select'+(cashCounterLockedFor(st.id,1,todayStr().slice(0,7))?' disabled title="Fixed for this month"':'')+' onchange="setPaytmCounter(\''+id+'\',1,this.value)">'+opts(a.c1, st.id, a.n===2 ? a.c2 : 0)+'</select></td>'+
+      '<td>'+(a.n===2 ? '<select'+(cashCounterLockedFor(st.id,2,todayStr().slice(0,7))?' disabled title="Fixed for this month"':'')+' onchange="setPaytmCounter(\''+id+'\',2,this.value)">'+opts(a.c2, st.id, a.c1)+'</select>' : '<span class="hint">—</span>')+'</td>'+
       '<td class="hint">'+(notes.join('; ') || '')+'</td></tr>';
   }).join('') || '<tr><td colspan="5" class="hint">No staff added yet.</td></tr>';
 
