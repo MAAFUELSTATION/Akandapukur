@@ -4145,6 +4145,16 @@ async function pushToServer(){
     if(timeoutId) clearTimeout(timeoutId);
     clearTimeout(slowHintId);
     if(res.status === 403){ handleDeviceBlocked(); return; }
+    if(res.status === 422){
+      // Server refused this save on purpose (e.g. Google Pay amount entered
+      // on a non-Bappa record) — retrying the same payload will just fail
+      // again forever, so stop autosaving and tell the person what to fix
+      // instead of looping with a misleading "slow/delayed" message.
+      const body = await res.json().catch(()=>null);
+      saveConflictPending = true;
+      setAutosaveStatus('⚠ Save blocked: ' + ((body && body.message) || 'invalid data') + ' — fix and try again', true);
+      return;
+    }
     if(res.status === 409){
       saveConflictPending = true;
       if(lastKnownUpdatedAt === null){
