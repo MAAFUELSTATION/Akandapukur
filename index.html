@@ -2510,7 +2510,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <!-- ===================== ONLINE COLLECTIONS (PAYTM) TAB ===================== -->
   <section id="tab-onlinecollections" class="tab">
     <div class="card cc-header-card">
-      <h2>📲 Online Collections <span class="tag">Paytm — UPI, Google Pay &amp; card swipes, all under Paytm</span></h2>
+      <h2>📲 Online Collections <span class="tag">Paytm (UPI &amp; card swipes) — kept separate from Google Pay</span></h2>
       <div class="row" style="margin-bottom:0;">
         <div class="field"><label>Date</label><input type="date" id="onlineDate" onchange="renderOnlineTab()"></div>
         <div class="field"><label>Month (for summary)</label><input type="month" id="onlineMonth" onchange="renderOnlineTab()"></div>
@@ -2518,19 +2518,20 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
     </div>
 
     <div class="card">
-      <h2>EOD Online Summary <span class="tag" id="onlineDayTag"></span></h2>
+      <h2>EOD Paytm Summary <span class="tag" id="onlineDayTag"></span></h2>
       <div id="onlineStats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;"></div>
       <table>
-        <thead><tr><th>Staff</th><th>Counter(s)</th><th class="num">Online / UPI</th><th class="num">Card / POS</th><th class="num">Additional Online</th><th class="num">Paytm Total</th></tr></thead>
+        <thead><tr><th>Staff</th><th>Counter(s)</th><th class="num">Online / UPI</th><th class="num">Card / POS</th><th class="num">Paytm Total</th></tr></thead>
         <tbody id="onlineDayBody"></tbody>
       </table>
-      <div class="hint" style="margin-top:8px;">Amounts come from each staff member's saved Cash Denomination entry (Online &amp; Card Payments block).</div>
+      <div class="hint" style="margin-top:8px;">Amounts come from each staff member's saved Cash Denomination entry (Online &amp; Card Payments block). Google Pay is shown separately below and is not counted in this Paytm total.</div>
     </div>
 
     <div class="card">
-      <h2>Google Pay <span class="tag" id="onlineGpayTag"></span></h2>
+      <h2>🟢 Google Pay <span class="tag">Bappa only — kept separate from Paytm</span></h2>
+      <div id="gpayStats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;"></div>
       <table>
-        <thead><tr><th>Staff</th><th class="num">Online / UPI ₹</th><th class="num">Additional Online Amount ₹</th><th class="num">Google Pay Total</th></tr></thead>
+        <thead><tr><th>Staff</th><th class="num">Google Pay Amount ₹</th></tr></thead>
         <tbody id="onlineGpayBody"></tbody>
       </table>
     </div>
@@ -2554,7 +2555,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       <h2 class="cc-block-title" onclick="toggleCcBlock(this)">Month summary <span class="tag" id="onlineMonthTag"></span><span class="cc-chev">▼</span></h2>
       <div class="cc-block-body">
       <table>
-        <thead><tr><th>Staff</th><th class="num">Days</th><th class="num">Online / UPI</th><th class="num">Card / POS</th><th class="num">Additional Online</th><th class="num">Paytm Total</th></tr></thead>
+        <thead><tr><th>Staff</th><th class="num">Days</th><th class="num">Online / UPI</th><th class="num">Card / POS</th><th class="num">Paytm Total</th></tr></thead>
         <tbody id="onlineMonthBody"></tbody>
       </table>
       </div>
@@ -6728,9 +6729,11 @@ function saveCash(){
 }
 
 /* ============== ONLINE COLLECTIONS (PAYTM) ==============
-   Paytm, Google Pay and card swipes all settle through Paytm, so the three
-   online amounts on a Cash Denomination record (Online/UPI, Card/POS,
-   Additional Online) are shown together as one "Paytm Total". Each staff
+   Paytm covers Online/UPI and Card/POS swipes only — those two amounts on
+   a Cash Denomination record are shown together as one "Paytm Total".
+   Google Pay (the "Additional Online Amount" field, Bappa-only) is
+   tracked and totalled completely separately — see gpayTotalsFor() below
+   — and is never folded into this Paytm figure. Each staff
    member has a standing counter assignment: 1 or 2 counters out of the
    station's Paytm counters (default 11). */
 function paytmTotalCounters(){
@@ -6855,23 +6858,35 @@ function onCashCounterChange(slot, val){
   paytmSave(staffId, patch);
   renderCashCounterPickers(false);
 }
+// Paytm covers Online/UPI and Card/POS only. Google Pay (onlineAmt2 —
+// "Additional Online Amount", Bappa only) is kept out of the Paytm total
+// entirely and totalled separately by gpayTotalsFor() below.
 function paytmParts(rec){
-  const u = Number(rec && rec.onlineAmt)||0, c = Number(rec && rec.cardAmt)||0, x = Number(rec && rec.onlineAmt2)||0;
-  return { upi:u, card:c, extra:x, total:u+c+x };
+  const u = Number(rec && rec.onlineAmt)||0, c = Number(rec && rec.cardAmt)||0;
+  return { upi:u, card:c, total:u+c };
 }
 function paytmTotalsFor(staffId, dates){
-  const t = {upi:0, card:0, extra:0, total:0, days:0};
+  const t = {upi:0, card:0, total:0, days:0};
   dates.forEach(d=>{
     const p = paytmParts(state.cash && state.cash[d] && state.cash[d][staffId]);
     if(p.total > 0) t.days++;
-    t.upi += p.upi; t.card += p.card; t.extra += p.extra; t.total += p.total;
+    t.upi += p.upi; t.card += p.card; t.total += p.total;
   });
   return t;
 }
 function paytmRowHtml(name, counters, t, showDays){
   return '<tr><td>'+escapeHtml(name)+'</td><td>'+counters+'</td>'+
-    '<td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.card)+'</td><td class="num mono">'+fmt(t.extra)+'</td>'+
+    '<td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.card)+'</td>'+
     '<td class="num mono"><strong>'+fmt(t.total)+'</strong></td></tr>';
+}
+// Google Pay: onlineAmt2 alone, kept separate from Paytm.
+function gpayAmount(rec){
+  return Number(rec && rec.onlineAmt2) || 0;
+}
+function gpayTotalsFor(staffId, dates){
+  let total = 0;
+  dates.forEach(d=>{ total += gpayAmount(state.cash && state.cash[d] && state.cash[d][staffId]); });
+  return total;
 }
 function renderOnlineTab(){
   const dateEl = document.getElementById('onlineDate'), monthEl = document.getElementById('onlineMonth');
@@ -6918,39 +6933,46 @@ function renderOnlineTab(){
   }
   document.getElementById('onlineCounterMap').innerHTML = map;
 
-  // Day view
-  const day = {upi:0, card:0, extra:0, total:0};
+  // Day view — Paytm only (Online/UPI + Card/POS). Google Pay is rendered
+  // separately below and is not part of these totals.
+  const day = {upi:0, card:0, total:0};
   let rows = '';
   staff.forEach(st=>{
     const t = paytmTotalsFor(st.id, [date]);
-    day.upi += t.upi; day.card += t.card; day.extra += t.extra; day.total += t.total;
+    day.upi += t.upi; day.card += t.card; day.total += t.total;
     const cs = paytmCountersOf(st.id);
     rows += paytmRowHtml(st.name, cs.length ? cs.map(c=>'#'+c).join(' + ') : '<span class="hint">not set</span>', t);
   });
-  rows += '<tr style="font-weight:700;"><td colspan="2">All staff</td><td class="num mono">'+fmt(day.upi)+'</td><td class="num mono">'+fmt(day.card)+'</td><td class="num mono">'+fmt(day.extra)+'</td><td class="num mono">'+fmt(day.total)+'</td></tr>';
+  rows += '<tr style="font-weight:700;"><td colspan="2">All staff</td><td class="num mono">'+fmt(day.upi)+'</td><td class="num mono">'+fmt(day.card)+'</td><td class="num mono">'+fmt(day.total)+'</td></tr>';
   document.getElementById('onlineDayBody').innerHTML = rows;
   document.getElementById('onlineDayTag').textContent = date;
   const stat = (lbl, v, cls) => '<div class="stat-card '+(cls||'')+'"><div class="lbl">'+lbl+'</div><div class="val">'+fmt(v)+'</div></div>';
-  document.getElementById('onlineStats').innerHTML = stat('Paytm total', day.total, 'total') + stat('Google Pay (UPI + additional)', day.upi + day.extra) + stat('Online / UPI', day.upi) + stat('Additional online', day.extra) + stat('Card / POS', day.card);
+  document.getElementById('onlineStats').innerHTML = stat('Paytm total', day.total, 'total') + stat('Online / UPI', day.upi) + stat('Card / POS', day.card);
+
+  // Google Pay — its own section, onlineAmt2 only, not mixed with Paytm.
+  let gpayDayTotal = 0;
   let grows = '';
   staff.forEach(st=>{
-    const t = paytmTotalsFor(st.id, [date]);
-    grows += '<tr><td>'+escapeHtml(st.name)+'</td><td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.extra)+'</td><td class="num mono"><strong>'+fmt(t.upi + t.extra)+'</strong></td></tr>';
+    const g = gpayTotalsFor(st.id, [date]);
+    if(g > 0){
+      gpayDayTotal += g;
+      grows += '<tr><td>'+escapeHtml(st.name)+'</td><td class="num mono"><strong>'+fmt(g)+'</strong></td></tr>';
+    }
   });
-  grows += '<tr style="font-weight:700;"><td>All staff</td><td class="num mono">'+fmt(day.upi)+'</td><td class="num mono">'+fmt(day.extra)+'</td><td class="num mono">'+fmt(day.upi + day.extra)+'</td></tr>';
+  grows += '<tr style="font-weight:700;"><td>All staff</td><td class="num mono">'+fmt(gpayDayTotal)+'</td></tr>';
   document.getElementById('onlineGpayBody').innerHTML = grows;
-  document.getElementById('onlineGpayTag').textContent = date;
+  document.getElementById('gpayStats').innerHTML = stat('Google Pay total', gpayDayTotal, 'total');
 
-  // Month view
+  // Month view — Paytm only.
   const dates = Object.keys(state.cash || {}).filter(d=> d.slice(0,7) === month);
-  const mon = {upi:0, card:0, extra:0, total:0};
+  const mon = {upi:0, card:0, total:0};
   let mrows = '';
   staff.forEach(st=>{
     const t = paytmTotalsFor(st.id, dates);
-    mon.upi += t.upi; mon.card += t.card; mon.extra += t.extra; mon.total += t.total;
-    mrows += '<tr><td>'+escapeHtml(st.name)+'</td><td class="num">'+t.days+'</td><td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.card)+'</td><td class="num mono">'+fmt(t.extra)+'</td><td class="num mono"><strong>'+fmt(t.total)+'</strong></td></tr>';
+    mon.upi += t.upi; mon.card += t.card; mon.total += t.total;
+    mrows += '<tr><td>'+escapeHtml(st.name)+'</td><td class="num">'+t.days+'</td><td class="num mono">'+fmt(t.upi)+'</td><td class="num mono">'+fmt(t.card)+'</td><td class="num mono"><strong>'+fmt(t.total)+'</strong></td></tr>';
   });
-  mrows += '<tr style="font-weight:700;"><td colspan="2">All staff</td><td class="num mono">'+fmt(mon.upi)+'</td><td class="num mono">'+fmt(mon.card)+'</td><td class="num mono">'+fmt(mon.extra)+'</td><td class="num mono">'+fmt(mon.total)+'</td></tr>';
+  mrows += '<tr style="font-weight:700;"><td colspan="2">All staff</td><td class="num mono">'+fmt(mon.upi)+'</td><td class="num mono">'+fmt(mon.card)+'</td><td class="num mono">'+fmt(mon.total)+'</td></tr>';
   document.getElementById('onlineMonthBody').innerHTML = mrows;
   document.getElementById('onlineMonthTag').textContent = month;
 }
