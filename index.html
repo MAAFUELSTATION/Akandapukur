@@ -4035,14 +4035,31 @@ function smartMergeValue(base, local, server){
   return (JSON.stringify(local) !== JSON.stringify(base)) ? local : server;
 }
 async function pushToServer(){
-  if(!serverSyncEnabled || applyingRemoteUpdate) return;
+  // While an incoming remote update is being applied, that flow (see
+  // socket 'state:updated' handler) manages autosaveStatus itself — leave
+  // whatever it just set alone instead of overwriting it here.
+  if(applyingRemoteUpdate) return;
+  // Not synced to a server at all — the change is still safe in
+  // localStorage (doAutosave already wrote it), so say so instead of
+  // leaving the status badge stuck on whatever it last said.
+  if(!serverSyncEnabled){
+    setAutosaveStatus('Saved locally — sync not connected');
+    return;
+  }
   // Don't push until we've at least tried to load the server's current
   // data first — otherwise a fresh device can overwrite real data with its
-  // own blank defaults (see initialLoadDone comment above).
-  if(!initialLoadDone) return;
-  // A conflict already happened and hasn't been resolved (see 409 handling
-  // below) — refuse to keep autosaving on top of it, since that would just
-  // keep hitting the same conflict. The user needs to reload first.
+  // own blank defaults (see initialLoadDone comment above). Make this
+  // visible rather than silently sitting on a stale message.
+  if(!initialLoadDone){
+    setAutosaveStatus('Saved locally — waiting for initial server load…');
+    return;
+  }
+  // A conflict/validation error already happened and hasn't been resolved
+  // (see 409/422 handling below) — refuse to keep autosaving on top of it,
+  // since that would just keep hitting the same problem. Leave the status
+  // badge showing that specific warning (set when it first happened)
+  // rather than clobbering it here — that's the message the person needs
+  // to act on, not a generic "Saving…" that never resolves.
   if(saveConflictPending) return;
   if(saveInProgress){
     saveQueued = true;
@@ -4058,6 +4075,7 @@ async function pushToServer(){
     return;
   }
   saveInProgress = true;
+  setAutosaveStatus('Saving…');
   const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   // Free-tier backends (Render etc.) can take 30-60s to wake from sleep on
   // their first request. Without an explicit timeout, a save that hits a
@@ -4206,7 +4224,10 @@ function scheduleAutosave(){
 function doAutosave(){
   try{
     window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter}));
-    setAutosaveStatus('Saving…');
+    // pushToServer() decides — and announces — what actually happens next
+    // (a real save attempt, or one of the reasons it can't push yet); it
+    // no longer gets pre-empted by an unconditional "Saving…" here that
+    // could otherwise be left stuck on screen forever.
     pushToServer();
   }catch(e){
     setAutosaveStatus('Autosave unavailable here — use Export Data', true);
