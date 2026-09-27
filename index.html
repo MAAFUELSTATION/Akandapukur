@@ -2132,6 +2132,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
               <select id="onlineCounter" style="margin-top:5px;" onchange="calcCash()">
                 <option value="">— Counter No. —</option>
               </select>
+              <button type="button" class="btn ghost small" style="margin-top:5px;width:100%;" onclick="fixCounterForMonth('onlineCounter')">📌 Fix for rest of month</button>
             </div>
             <div class="field">
               <label>Card / POS ₹</label>
@@ -2143,6 +2144,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
               <select id="onlineCounter2" style="margin-top:5px;" onchange="calcCash()">
                 <option value="">— Counter No. —</option>
               </select>
+              <button type="button" class="btn ghost small" style="margin-top:5px;width:100%;" onclick="fixCounterForMonth('onlineCounter2')">📌 Fix for rest of month</button>
             </div>
           </div>
           </div>
@@ -4415,6 +4417,12 @@ function renderAdminTab(){
           <input type="${adminRevealedPw[s.id] ? 'text' : 'password'}" value="${escapeHtml(s.password||'')}" placeholder="Password" style="flex:1;min-width:100px;" onchange="updateStaffCredential('${s.id}','password',this.value)">
           <input type="tel" value="${escapeHtml(s.phone||'')}" placeholder="Mobile no. (optional)" maxlength="10" inputmode="numeric" style="flex:1;min-width:140px;" onchange="updateStaffCredential('${s.id}','phone',this.value)">
           <button type="button" class="btn ghost small" onclick="toggleAdminPwReveal('${s.id}')">${adminRevealedPw[s.id] ? '🙈 Hide' : '👁 Show'}</button>
+          <select style="flex:1;min-width:150px;" onchange="updateCounterDefault('${s.id}','onlineCounter',this.value)">
+            ${counterDefaultOptionsHtml('Online/UPI Counter', (state.counterDefaults && state.counterDefaults[s.id] && state.counterDefaults[s.id].onlineCounter) || '')}
+          </select>
+          <select style="flex:1;min-width:150px;" onchange="updateCounterDefault('${s.id}','onlineCounter2',this.value)">
+            ${counterDefaultOptionsHtml('Additional Online Counter', (state.counterDefaults && state.counterDefaults[s.id] && state.counterDefaults[s.id].onlineCounter2) || '')}
+          </select>
         </div>`).join('');
     }
   }
@@ -4542,7 +4550,37 @@ function updateStaffCredential(id, field, value){
   renderAdminTab();
   scheduleAutosave();
 }
-// Small helper so the "already registered to X" duplicate check above
+// Builds the <option> list for an admin-side counter-assignment dropdown:
+// a blank "unassigned" choice plus counters 1–11, with `selected` marked.
+// No reservation filtering here — this is the admin's own override control,
+// so every counter number stays pickable regardless of what's in use
+// elsewhere; a genuine same-day clash still gets caught and skipped where
+// it actually matters (day-to-day entry in the Cash tab).
+function counterDefaultOptionsHtml(label, selected){
+  let html = `<option value="">${escapeHtml(label)}: —</option>`;
+  for(let n=1; n<=11; n++){
+    html += `<option value="${n}" ${String(selected)===String(n)?'selected':''}>${escapeHtml(label)}: ${n}</option>`;
+  }
+  return html;
+}
+// Admin-only edit path for a staff member's standing counter assignment
+// (state.counterDefaults). Once set here it carries forward indefinitely —
+// this month, next month, and on — until an admin changes it again or a
+// day's own saved entry overrides it. Mirrors what "Fix for rest of month"
+// does from the Cash tab, but editable centrally for every staff member
+// without needing to open each one's cash entry first.
+function updateCounterDefault(staffId, field, value){
+  if(!isAdmin()) return; // admin-only, same guard as the rest of this tab
+  if(!state.counterDefaults) state.counterDefaults = {};
+  if(!state.counterDefaults[staffId]) state.counterDefaults[staffId] = {};
+  if(value){
+    state.counterDefaults[staffId][field] = value;
+  } else {
+    delete state.counterDefaults[staffId][field];
+  }
+  renderAdminTab();
+  scheduleAutosave();
+}
 // compares numbers consistently regardless of formatting.
 function normalizePhoneForCompare(raw){
   const digits = String(raw||'').replace(/\D/g,'');
@@ -6171,8 +6209,12 @@ function renderCashTab(){
   // Counter dropdowns: rebuilt every render so counters already claimed by
   // other staff on this same date (in the same field) drop out of the
   // list, while this staff's own current pick always stays selectable.
-  renderCounterSelect('onlineCounter', date, staffId, 'onlineCounter', existing ? (existing.onlineCounter||'') : '');
-  renderCounterSelect('onlineCounter2', date, staffId, 'onlineCounter2', existing ? (existing.onlineCounter2||'') : '');
+  // A day with no saved pick of its own falls back to whatever counter was
+  // last "fixed for the rest of the month" for this staff, as long as
+  // today's date is still within that fixed range and nobody else has
+  // grabbed that counter number on this particular date.
+  renderCounterSelect('onlineCounter', date, staffId, 'onlineCounter', defaultCounterFor(staffId, 'onlineCounter', date, existing));
+  renderCounterSelect('onlineCounter2', date, staffId, 'onlineCounter2', defaultCounterFor(staffId, 'onlineCounter2', date, existing));
   document.getElementById('depositAmt').value = existing ? existing.deposit : 0;
   document.getElementById('cashSavedHint').textContent = existing && existing.savedAt && !isLockedRecord ? 'Unlocked for correction — Save to record the change.' : '';
   renderCashCorrectionHistory(existing);
@@ -6528,6 +6570,57 @@ function renderCounterSelect(selectId, date, staffId, field, currentValue){
   }
   sel.innerHTML = opts.join('');
   sel.value = currentValue || '';
+}
+// If this staff's cash record for `date` already has an explicit counter
+// pick for `field`, that always wins — it's what was actually saved for
+// that day. Otherwise, fall back to the standing default set via
+// fixCounterForMonth() or the admin's own editor (updateCounterDefault()),
+// which now carries forward indefinitely — this month, next month, and on
+// — until it's changed again, as long as nobody else already holds that
+// counter number on this specific date.
+function defaultCounterFor(staffId, field, date, existingRec){
+  if(existingRec && existingRec[field]) return existingRec[field];
+  const d = state.counterDefaults && state.counterDefaults[staffId];
+  if(!d) return '';
+  const val = d[field];
+  if(!val) return '';
+  if(reservedCounters(date, field, staffId).has(String(val))) return '';
+  return val;
+}
+// Locks in the currently-picked counter as this staff's standing default
+// from the date on screen onward — carrying into next month and every
+// month after, until it's changed again from here or from the admin's own
+// counter editor. Backfills the pick into any day (from today onward)
+// that already has a saved cash record; days with no record yet just pick
+// up the default the next time they're rendered/entered. Skips any day
+// where another staff member already holds that counter number that day,
+// and reports the skips.
+function fixCounterForMonth(field){
+  const date = document.getElementById('cashDate').value;
+  const staffId = document.getElementById('cashStaff').value;
+  const value = document.getElementById(field).value;
+  if(!staffId){ alert('Pick a staff member first.'); return; }
+  if(!value){ alert('Pick a counter number first, then Fix for rest of month.'); return; }
+  if(!state.counterDefaults) state.counterDefaults = {};
+  if(!state.counterDefaults[staffId]) state.counterDefaults[staffId] = {};
+  state.counterDefaults[staffId][field] = value;
+
+  let applied = 0;
+  const skipped = [];
+  Object.keys(state.cash).forEach(d=>{
+    if(d < date) return;
+    const rec = state.cash[d] && state.cash[d][staffId];
+    if(!rec) return; // no entry that day yet — the default fallback covers it once one exists
+    if(reservedCounters(d, field, staffId).has(String(value))){ skipped.push(d); return; }
+    rec[field] = value;
+    applied++;
+  });
+
+  scheduleAutosave();
+  renderCashTab();
+  alert('Counter ' + value + ' set as ' + staffNameById(staffId) + '\'s standing counter from ' + date + ' onward (carries into future months until changed).' +
+    (applied ? ' Updated ' + applied + ' existing day(s).' : '') +
+    (skipped.length ? ' Skipped ' + skipped.length + ' day(s) already using that counter: ' + skipped.join(', ') + '.' : ''));
 }
 function calcCash(){
   let notesTotal = 0;
