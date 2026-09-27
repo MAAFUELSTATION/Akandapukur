@@ -4543,14 +4543,15 @@ function openAllUncheckedLoansTab(){
   const generatedAt = new Date().toLocaleString('en-IN', {dateStyle:'medium', timeStyle:'short'});
 
   const bodyHtml = rows.length ? rows.map(r=>`
-    <tr>
+    <tr data-row-amount="${Number(r.loan.amount)||0}">
       <td>${escapeHtml(fmtDutyDate(r.date))}</td>
       <td>${escapeHtml(staffNameById(r.sid))}</td>
       <td>${escapeHtml(r.loan.name||'—')}</td>
       <td>${r.loan.type==='addon'?'Add-on':'Loan'}</td>
       <td class="num">${escapeHtml(fmtNum(r.loan.amount||0))}</td>
       <td>${escapeHtml(r.loan.note||'')}</td>
-    </tr>`).join('') : `<tr><td colspan="6" class="empty">No unchecked loans found across any recorded day. 🎉</td></tr>`;
+      <td style="text-align:center;"><input type="checkbox" class="check-box" data-date="${escapeHtml(r.date)}" data-sid="${escapeHtml(r.sid)}" data-idx="${r.idx}"></td>
+    </tr>`).join('') : `<tr><td colspan="7" class="empty">No unchecked loans found across any recorded day. 🎉</td></tr>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -4585,9 +4586,43 @@ function openAllUncheckedLoansTab(){
     <div class="card"><div class="lbl">Total Outstanding</div><div class="val">${escapeHtml(fmt(total))}</div></div>
   </div>
   <table>
-    <thead><tr><th>Date</th><th>Staff</th><th>Person</th><th>Type</th><th style="text-align:right;">Amount ₹</th><th>Note</th></tr></thead>
-    <tbody>${bodyHtml}</tbody>
+    <thead><tr><th>Date</th><th>Staff</th><th>Person</th><th>Type</th><th style="text-align:right;">Amount ₹</th><th>Note</th><th>Checked</th></tr></thead>
+    <tbody id="rowsBody">${bodyHtml}</tbody>
   </table>
+  <div id="noOpenerNote" class="sub" style="display:none;margin-top:14px;color:var(--danger);">
+    Couldn't reach the main app tab to save changes — checking a box here won't stick. Keep this report open in a tab opened directly from the app (don't open it in a new window/incognito), then try again.
+  </div>
+  <script>
+    (function(){
+      var fmtINR = function(n){ return '₹' + Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+      var totalCard = document.querySelectorAll('.summary .val')[1];
+      var countCard = document.querySelectorAll('.summary .val')[0];
+      function recalc(){
+        var remaining = document.querySelectorAll('#rowsBody tr:not(.done)');
+        var sum = 0;
+        remaining.forEach(function(tr){ sum += Number(tr.getAttribute('data-row-amount'))||0; });
+        if(countCard) countCard.textContent = remaining.length;
+        if(totalCard) totalCard.textContent = fmtINR(sum);
+      }
+      document.querySelectorAll('.check-box').forEach(function(cb){
+        cb.addEventListener('change', function(){
+          var tr = cb.closest('tr');
+          var canReach = window.opener && !window.opener.closed && typeof window.opener.toggleAdminLoanChecked === 'function';
+          if(!canReach){
+            document.getElementById('noOpenerNote').style.display = 'block';
+            cb.checked = false;
+            return;
+          }
+          window.opener.toggleAdminLoanChecked(cb.getAttribute('data-date'), cb.getAttribute('data-sid'), Number(cb.getAttribute('data-idx')), true);
+          tr.classList.add('done');
+          tr.style.opacity = '.45';
+          tr.style.textDecoration = 'line-through';
+          cb.disabled = true;
+          recalc();
+        });
+      });
+    })();
+  <\/script>
 </body>
 </html>`;
 
