@@ -2280,6 +2280,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       <h2>🧾 EOD Loan <span class="tag">Today's loan &amp; add-on entries — tap 📅 to browse past days</span></h2>
       <div class="row" style="align-items:end;">
         <button type="button" class="btn ghost small" id="adminLoansCalendarBtn" onclick="toggleAdminLoansCalendar()">📅 View Past Days</button>
+        <button type="button" class="btn ghost small" id="adminLoansUncheckedTabBtn" onclick="openAllUncheckedLoansTab()">🗂️ All Unchecked (New Tab)</button>
         <div class="field" id="adminLoansDateWrap" style="display:none;">
           <label>Date</label>
           <input type="date" id="adminLoansDate" onchange="renderAdminLoansTab()">
@@ -4519,6 +4520,81 @@ function renderAdminLoansTab(){
   const outstanding = rows.reduce((s,r)=> s + (r.loan.checked ? 0 : (Number(r.loan.amount)||0)), 0);
   document.getElementById('adminLoansTotal').textContent = fmt(total);
   document.getElementById('adminLoansOutstanding').textContent = fmt(outstanding);
+}
+// Scans state.cash across EVERY date (not just the currently-viewed day in
+// the EOD Loan tab) and opens a standalone report of every unchecked
+// loan/add-on entry in a new browser tab, newest date first.
+function openAllUncheckedLoansTab(){
+  if(!isAdmin()) return;
+  let rows = [];
+  Object.keys(state.cash||{}).forEach(date=>{
+    const recsForDate = state.cash[date] || {};
+    Object.entries(recsForDate).forEach(([sid,rec])=>{
+      (rec.loans||[]).forEach((loan,idx)=>{
+        if(!loan || (!loan.name && !loan.amount)) return;
+        if(loan.checked) return;
+        rows.push({date,sid,idx,loan});
+      });
+    });
+  });
+  rows.sort((a,b)=> b.date.localeCompare(a.date) || staffNameById(a.sid).localeCompare(staffNameById(b.sid)));
+
+  const total = rows.reduce((s,r)=> s + (Number(r.loan.amount)||0), 0);
+  const generatedAt = new Date().toLocaleString('en-IN', {dateStyle:'medium', timeStyle:'short'});
+
+  const bodyHtml = rows.length ? rows.map(r=>`
+    <tr>
+      <td>${escapeHtml(fmtDutyDate(r.date))}</td>
+      <td>${escapeHtml(staffNameById(r.sid))}</td>
+      <td>${escapeHtml(r.loan.name||'—')}</td>
+      <td>${r.loan.type==='addon'?'Add-on':'Loan'}</td>
+      <td class="num">${escapeHtml(fmtNum(r.loan.amount||0))}</td>
+      <td>${escapeHtml(r.loan.note||'')}</td>
+    </tr>`).join('') : `<tr><td colspan="6" class="empty">No unchecked loans found across any recorded day. 🎉</td></tr>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>All Unchecked Loans — Maa Fuel Station</title>
+<style>
+  :root{ --navy:#1c3d5a; --ink:#1f2937; --line:#e2e8f0; --bg:#f8fafc; --danger:#b91c1c; }
+  *{box-sizing:border-box;}
+  body{ margin:0; padding:24px; font-family:'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  h1{ margin:0 0 4px; font-size:20px; color:var(--navy); }
+  .sub{ color:#64748b; font-size:13px; margin-bottom:18px; }
+  .summary{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .summary .card{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 18px; min-width:160px; }
+  .summary .card .lbl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .summary .card .val{ font-size:22px; font-weight:700; color:var(--danger); font-family:'Roboto Mono',monospace; }
+  table{ width:100%; border-collapse:collapse; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  th,td{ padding:9px 12px; border-bottom:1px solid var(--line); font-size:13.5px; text-align:left; }
+  th{ background:var(--navy); color:#fff; font-weight:600; }
+  td.num{ text-align:right; font-family:'Roboto Mono',monospace; }
+  .empty{ text-align:center; color:#64748b; padding:24px; }
+  tbody tr:hover{ background:#f1f5f9; }
+  @media print{ body{ padding:0; } }
+</style>
+</head>
+<body>
+  <h1>🧾 All Unchecked Loans / Add-ons</h1>
+  <div class="sub">Maa Fuel Station · Generated ${escapeHtml(generatedAt)} · Across every recorded duty day</div>
+  <div class="summary">
+    <div class="card"><div class="lbl">Unchecked Entries</div><div class="val">${rows.length}</div></div>
+    <div class="card"><div class="lbl">Total Outstanding</div><div class="val">${escapeHtml(fmt(total))}</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Date</th><th>Staff</th><th>Person</th><th>Type</th><th style="text-align:right;">Amount ₹</th><th>Note</th></tr></thead>
+    <tbody>${bodyHtml}</tbody>
+  </table>
+</body>
+</html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(()=>URL.revokeObjectURL(url), 60000);
 }
 function updateStaffCredential(id, field, value){
   value = (value||'').trim();
