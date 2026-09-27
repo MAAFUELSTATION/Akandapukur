@@ -2129,6 +2129,9 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
             <div class="field">
               <label>Online / UPI ₹</label>
               <input type="number" id="onlineAmt" min="0" step="0.01" value="0" oninput="calcCash()">
+              <select id="onlineCounter" style="margin-top:5px;" onchange="calcCash()">
+                <option value="">— Counter No. —</option>
+              </select>
             </div>
             <div class="field">
               <label>Card / POS ₹</label>
@@ -2137,6 +2140,9 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
             <div class="field">
               <label>Online Amount ₹</label>
               <input type="number" id="onlineAmt2" min="0" step="0.01" value="0" oninput="calcCash()">
+              <select id="onlineCounter2" style="margin-top:5px;" onchange="calcCash()">
+                <option value="">— Counter No. —</option>
+              </select>
             </div>
           </div>
           </div>
@@ -6162,6 +6168,11 @@ function renderCashTab(){
   document.getElementById('onlineAmt').value = existing ? (existing.onlineAmt||0) : 0;
   document.getElementById('cardAmt').value = existing ? (existing.cardAmt||0) : 0;
   document.getElementById('onlineAmt2').value = existing ? (existing.onlineAmt2||0) : 0;
+  // Counter dropdowns: rebuilt every render so counters already claimed by
+  // other staff on this same date (in the same field) drop out of the
+  // list, while this staff's own current pick always stays selectable.
+  renderCounterSelect('onlineCounter', date, staffId, 'onlineCounter', existing ? (existing.onlineCounter||'') : '');
+  renderCounterSelect('onlineCounter2', date, staffId, 'onlineCounter2', existing ? (existing.onlineCounter2||'') : '');
   document.getElementById('depositAmt').value = existing ? existing.deposit : 0;
   document.getElementById('cashSavedHint').textContent = existing && existing.savedAt && !isLockedRecord ? 'Unlocked for correction — Save to record the change.' : '';
   renderCashCorrectionHistory(existing);
@@ -6487,6 +6498,37 @@ function getSalesAmountFor(date, staffId){
   return t.da + t.pa;
 }
 
+// Counter numbers run 1–11. A counter is "reserved" on a given date if some
+// OTHER staff member's cash record for that date already has it picked in
+// the same field (onlineCounter or onlineCounter2 — the two fields keep
+// separate pools since they represent different payment counters). The
+// currently selected staff's own pick for that date is never treated as
+// reserved against themselves, so re-opening their own record doesn't hide
+// their own counter.
+function reservedCounters(date, field, excludeStaffId){
+  const used = new Set();
+  const dayRecs = state.cash[date];
+  if(dayRecs){
+    Object.keys(dayRecs).forEach(sid=>{
+      if(sid === excludeStaffId) return;
+      const v = dayRecs[sid] && dayRecs[sid][field];
+      if(v) used.add(String(v));
+    });
+  }
+  return used;
+}
+function renderCounterSelect(selectId, date, staffId, field, currentValue){
+  const sel = document.getElementById(selectId);
+  if(!sel) return;
+  const reserved = reservedCounters(date, field, staffId);
+  const opts = ['<option value="">— Counter No. —</option>'];
+  for(let n=1; n<=11; n++){
+    if(reserved.has(String(n)) && String(n) !== String(currentValue)) continue;
+    opts.push(`<option value="${n}">${n}</option>`);
+  }
+  sel.innerHTML = opts.join('');
+  sel.value = currentValue || '';
+}
 function calcCash(){
   let notesTotal = 0;
   NOTES.forEach(d=>{
@@ -6513,6 +6555,8 @@ function calcCash(){
   const onlineAmt = parseFloat(document.getElementById('onlineAmt').value)||0;
   const cardAmt = parseFloat(document.getElementById('cardAmt').value)||0;
   const onlineAmt2 = parseFloat(document.getElementById('onlineAmt2').value)||0;
+  const onlineCounter = document.getElementById('onlineCounter').value || '';
+  const onlineCounter2 = document.getElementById('onlineCounter2').value || '';
   const loanTotal = loanRows.reduce((sum,r)=> sum + (Number(r.amount)||0), 0);
   const deposit = parseFloat(document.getElementById('depositAmt').value)||0;
 
@@ -6543,7 +6587,7 @@ function calcCash(){
   const box = document.getElementById('diffBox');
   box.className = 'digit-box ' + (diff>0?'surplus':diff<0?'shortfall':'total');
 
-  const result = {counted,coinsTotal,notesTotal,testingHSDQty:hsdQty,testingHSD,testingMSQty:msQty,testingMS,onlineAmt,cardAmt,onlineAmt2,loanTotal,deposit,finalValue,salesAmount,diff};
+  const result = {counted,coinsTotal,notesTotal,testingHSDQty:hsdQty,testingHSD,testingMSQty:msQty,testingMS,onlineAmt,cardAmt,onlineAmt2,onlineCounter,onlineCounter2,loanTotal,deposit,finalValue,salesAmount,diff};
 
   // Persist this entry into the shared `state.cash` object as the user
   // types, exactly like every other tab in the app does (e.g. the Sales
@@ -6609,6 +6653,8 @@ function buildCashRecord(c){
     onlineAmt: c.onlineAmt,
     cardAmt: c.cardAmt,
     onlineAmt2: c.onlineAmt2,
+    onlineCounter: c.onlineCounter,
+    onlineCounter2: c.onlineCounter2,
     loans: loanRows.filter(r=>r.name.trim()!=='' || r.amount>0).map(r=>({name:r.name, amount:r.amount, type:r.type||'loan', checked:!!r.checked, note:r.note||''})),
     loan: c.loanTotal,
     deposit: c.deposit,
