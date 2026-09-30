@@ -212,6 +212,18 @@
  [data-theme="stone"] .nav-crumb .crumb-current, [data-theme="neon-purple"] .nav-crumb .crumb-current, [data-theme="citrus"] .nav-crumb .crumb-current, [data-theme="velocity"] .nav-crumb .crumb-current, [data-theme="arclight"] .nav-crumb .crumb-current{color:var(--ink);}
 
   main{max-width:1220px;margin:0 auto;padding:26px 20px;}
+  .maint-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;}
+  .maint-wrap table{min-width:560px;}
+  .maint-wrap select,.maint-wrap input[type=date],.maint-wrap input[type=text]{padding:7px 8px;border:1px solid var(--line);border-radius:6px;font-size:13.5px;font-family:'Inter',sans-serif;background:#fff;color:var(--ink);}
+  .maint-wrap input[type=text]{width:100%;min-width:160px;}
+  .maint-done td{background:rgba(30,142,90,.07);}
+  .maint-next{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;background:#FFF1D6;color:#8A5A00;}
+  .maint-ok{color:var(--surplus);font-weight:700;font-size:13px;}
+  .maint-pill{display:inline-block;margin:2px 4px 2px 0;padding:3px 9px;border-radius:20px;font-size:12px;border:1px solid var(--line);}
+  .maint-pill b{font-family:'JetBrains Mono',monospace;margin-left:4px;}
+  .maint-pill.zero{opacity:.65;}
+  .maint-pill.next{border-color:#8A5A00;background:#FFF1D6;color:#8A5A00;}
+  .maint-x{background:none;border:none;color:var(--shortfall);cursor:pointer;font-size:16px;}
   section.tab{display:none;}
   section.tab.active{display:block;animation:fade .25s ease;}
   @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -1774,6 +1786,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 <nav class="tabs" data-group="staffops" style="display:none;">
   <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
   <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
+  <button class="tab-btn" data-tab="maintenance" onclick="switchTab('maintenance')">🛠️ Maintenance</button>
   <button class="tab-btn" data-tab="admin" onclick="switchTab('admin')">🔑 Admin</button>
 </nav>
 <nav class="tabs" data-group="addons" style="display:none;">
@@ -2010,6 +2023,37 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   </section>
 
   <!-- ===================== DUTY ROSTER TAB ===================== -->
+  <!-- ===================== WEEKLY MAINTENANCE TAB ===================== -->
+  <section id="tab-maintenance" class="tab">
+    <div class="card">
+      <h2>🛠️ Weekly Maintenance <span class="tag">Pick who did each job — the tracker shows whose turn is next</span></h2>
+      <div class="row">
+        <button class="btn ghost small" onclick="maintShiftWeek(-1)">← Prev Week</button>
+        <button class="btn amber small" onclick="maintThisWeek()">This Week</button>
+        <button class="btn ghost small" onclick="maintShiftWeek(1)">Next Week →</button>
+        <div class="field"><label>Week Starting (Mon)</label><input type="date" id="maintWeekStart" onchange="maintPickWeek(this.value)"></div>
+      </div>
+      <div class="hint" id="maintWeekLabel" style="margin-bottom:14px;font-weight:600;color:var(--navy);font-size:14px;"></div>
+      <div class="maint-wrap"><table>
+        <thead><tr><th>Weekly job</th><th>Done by</th><th>Done on</th><th>Status</th><th></th></tr></thead>
+        <tbody id="maintBody"></tbody>
+      </table></div>
+      <div class="row" style="margin-top:14px;">
+        <div class="field"><label>Add a weekly job</label><input type="text" id="maintNewTask" placeholder="e.g. Clean tank chamber" onkeydown="if(event.key==='Enter')maintAddTask()"></div>
+        <button class="btn amber small" onclick="maintAddTask()">+ Add Job</button>
+      </div>
+      <div class="divider"></div>
+      <h2 style="font-size:16px;">🔁 Turn Tracker <span class="tag">All-time count per staff · highlighted = next to assign</span></h2>
+      <div class="maint-wrap"><table>
+        <thead><tr><th>Job</th><th>Last done</th><th>Next up</th><th>Times done</th></tr></thead>
+        <tbody id="maintTrackBody"></tbody>
+      </table></div>
+      <div class="hint" style="margin-top:12px;">"Next up" is the staff member who has done that job the fewest times (ties go to whoever did it longest ago). Jobs are ticked per week; everything saves automatically.</div>
+      <h2 style="font-size:16px;margin-top:20px;">👥 Total Jobs Done <span class="tag">Across all weekly jobs</span></h2>
+      <div id="maintTotals"></div>
+    </div>
+  </section>
+
   <section id="tab-duty" class="tab">
     <div class="card">
       <h2>🗓️ Weekly Duty Roster <span class="tag">Plan staff shifts a week ahead — tap a name to assign/unassign</span></h2>
@@ -4298,7 +4342,7 @@ function toggleCcBlock(headerEl){
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
   finance:  ['cash','surplus','notestock','cashledger','buscash','luberegister','lubeindent','eodloan'],
-  staffops: ['staff','duty','admin'],
+  staffops: ['staff','duty','maintenance','admin'],
   addons:   ['addonreport']
 };
 function tabGroupOf(name){
@@ -4330,6 +4374,7 @@ function switchTab(name){
   if(name==='tanks') renderTankTab();
   if(name==='staff') renderStaffTab();
   if(name==='duty') renderDutyTab();
+  if(name==='maintenance') renderMaintenanceTab();
   if(name==='admin') renderAdminTab();
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
@@ -4355,6 +4400,120 @@ function updateNavCrumb(name){
   const groupLabel = groupBtn.textContent.trim();
   const tabLabel = tabBtn.textContent.trim();
   crumbEl.innerHTML = '<span>'+groupLabel+'</span><span class="crumb-sep">›</span><span class="crumb-current">'+tabLabel+'</span>';
+}
+
+/* ============== WEEKLY MAINTENANCE TAB ============== */
+// state.maintenance = { tasks:[{id,name}], log:{ "<Monday YYYY-MM-DD>": { taskId: {staffId, date} } }, seeded }
+const MAINT_DEFAULTS = ['Clean dispensing units & nozzles','Wash forecourt / pump island','Clean washroom','Check fire extinguishers','Test air & water machine','Check canopy & signboard lights','Clean drains & oil trap','Dust & wipe office / counter'];
+let maintWeekStart = null;
+function ensureMaintenance(){
+  if(!state.maintenance || typeof state.maintenance !== 'object') state.maintenance = {};
+  const m = state.maintenance;
+  if(!Array.isArray(m.tasks)) m.tasks = [];
+  if(!m.log || typeof m.log !== 'object') m.log = {};
+  if(!m.seeded){
+    if(!m.tasks.length) MAINT_DEFAULTS.forEach((n,i)=> m.tasks.push({id:'mt_d'+(i+1), name:n}));
+    m.seeded = true;
+  }
+  return m;
+}
+function maintWeek(){ if(!maintWeekStart) maintWeekStart = mondayOf(localDateStr(new Date())); return maintWeekStart; }
+function maintShiftWeek(n){ maintWeekStart = addDaysStr(maintWeek(), 7*n); renderMaintenanceTab(); }
+function maintThisWeek(){ maintWeekStart = mondayOf(localDateStr(new Date())); renderMaintenanceTab(); }
+function maintPickWeek(v){ if(!v) return; maintWeekStart = mondayOf(v); renderMaintenanceTab(); }
+function maintSetDone(taskId, staffId){
+  const m = ensureMaintenance(), wk = maintWeek();
+  if(!m.log[wk]) m.log[wk] = {};
+  if(!staffId){ delete m.log[wk][taskId]; }
+  else {
+    const prev = m.log[wk][taskId], today = localDateStr(new Date());
+    const inWeek = today >= wk && today <= addDaysStr(wk,6);
+    m.log[wk][taskId] = {staffId, date: (prev && prev.date) ? prev.date : (inWeek ? today : wk)};
+  }
+  renderMaintenanceTab(); scheduleAutosave();
+}
+function maintSetDate(taskId, d){
+  const e = ensureMaintenance().log[maintWeek()];
+  if(e && e[taskId] && d){ e[taskId].date = d; renderMaintenanceTab(); scheduleAutosave(); }
+}
+function maintAddTask(){
+  const inp = document.getElementById('maintNewTask');
+  const name = inp.value.trim(); if(!name) return;
+  ensureMaintenance().tasks.push({id:'mt_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name});
+  inp.value = ''; renderMaintenanceTab(); scheduleAutosave();
+}
+function maintRenameTask(id, name){
+  name = name.trim(); if(!name) return renderMaintenanceTab();
+  const t = ensureMaintenance().tasks.find(x=>x.id===id);
+  if(t){ t.name = name; scheduleAutosave(); }
+  renderMaintenanceTab();
+}
+function maintDeleteTask(id){
+  const m = ensureMaintenance(), t = m.tasks.find(x=>x.id===id);
+  if(!t || !confirm('Remove the job "'+t.name+'" from the weekly list? Its past history will no longer be counted.')) return;
+  m.tasks = m.tasks.filter(x=>x.id!==id);
+  renderMaintenanceTab(); scheduleAutosave();
+}
+function maintStats(m){
+  const stats = {};
+  m.tasks.forEach(t=>{ stats[t.id] = {counts:{}, last:{}, lastBy:null, lastDate:''}; });
+  Object.keys(m.log).forEach(wk=>{
+    const wl = m.log[wk] || {};
+    Object.keys(wl).forEach(tid=>{
+      const st = stats[tid], e = wl[tid];
+      if(!st || !e || !e.staffId) return;
+      const d = e.date || wk;
+      st.counts[e.staffId] = (st.counts[e.staffId] || 0) + 1;
+      if(!st.last[e.staffId] || d > st.last[e.staffId]) st.last[e.staffId] = d;
+      if(d > st.lastDate){ st.lastDate = d; st.lastBy = e.staffId; }
+    });
+  });
+  return stats;
+}
+// Fewest times done wins; a tie goes to whoever did it longest ago (never = oldest).
+function maintSuggest(st){
+  let best = null;
+  state.staff.forEach(s=>{
+    const c = st.counts[s.id] || 0, l = st.last[s.id] || '';
+    if(!best || c < best.c || (c === best.c && l < best.l)) best = {id:s.id, c, l};
+  });
+  return best ? best.id : null;
+}
+function renderMaintenanceTab(){
+  if(!document.getElementById('maintBody')) return;
+  const m = ensureMaintenance(), wk = maintWeek(), wkEnd = addDaysStr(wk, 6);
+  const wsInp = document.getElementById('maintWeekStart'); if(wsInp) wsInp.value = wk;
+  const log = m.log[wk] || {}, stats = maintStats(m);
+  const nm = id => { const s = state.staff.find(x=>x.id===id); return s ? s.name : 'Former staff'; };
+  const fd = d => d ? fmtDutyDate(d) : '—';
+  const doneCount = m.tasks.filter(t=>log[t.id] && log[t.id].staffId).length;
+  document.getElementById('maintWeekLabel').textContent = 'Week of '+fmtDutyDate(wk)+' – '+fmtDutyDate(wkEnd)+' · '+doneCount+' of '+m.tasks.length+' jobs done';
+
+  document.getElementById('maintBody').innerHTML = m.tasks.length ? m.tasks.map(t=>{
+    const e = log[t.id], done = !!(e && e.staffId), sug = maintSuggest(stats[t.id]);
+    const opts = '<option value="">— Not done —</option>' + state.staff.map(s=>'<option value="'+s.id+'"'+(done && e.staffId===s.id ? ' selected' : '')+'>'+escapeHtml(s.name)+'</option>').join('')
+      + (done && !state.staff.some(s=>s.id===e.staffId) ? '<option value="'+escapeHtml(e.staffId)+'" selected>Former staff</option>' : '');
+    return '<tr class="'+(done ? 'maint-done' : '')+'"><td><input type="text" value="'+escapeHtml(t.name)+'" onchange="maintRenameTask(\''+t.id+'\', this.value)"></td>'
+      + '<td><select onchange="maintSetDone(\''+t.id+'\', this.value)">'+opts+'</select></td>'
+      + '<td>'+(done ? '<input type="date" value="'+(e.date || wk)+'" onchange="maintSetDate(\''+t.id+'\', this.value)">' : '—')+'</td>'
+      + '<td>'+(done ? '<span class="maint-ok">✅ Done</span>' : (sug ? '<span class="maint-next">👉 Assign: '+escapeHtml(nm(sug))+'</span>' : '—'))+'</td>'
+      + '<td><button type="button" class="maint-x" title="Remove this job" onclick="maintDeleteTask(\''+t.id+'\')">✕</button></td></tr>';
+  }).join('') : '<tr><td colspan="5" class="empty">No weekly jobs yet — add one below.</td></tr>';
+
+  document.getElementById('maintTrackBody').innerHTML = m.tasks.length ? m.tasks.map(t=>{
+    const st = stats[t.id], sug = maintSuggest(st);
+    const pills = state.staff.map(s=>{
+      const c = st.counts[s.id] || 0;
+      return '<span class="maint-pill'+(c ? '' : ' zero')+(s.id===sug ? ' next' : '')+'">'+escapeHtml(s.name)+'<b>'+c+'</b></span>';
+    }).join('');
+    return '<tr><td>'+escapeHtml(t.name)+'</td><td>'+(st.lastBy ? escapeHtml(nm(st.lastBy))+' · '+fd(st.lastDate) : '<span class="hint">Never</span>')+'</td>'
+      + '<td>'+(sug ? '<span class="maint-next">'+escapeHtml(nm(sug))+'</span>' : '—')+'</td><td>'+pills+'</td></tr>';
+  }).join('') : '<tr><td colspan="4" class="empty">No jobs to track yet.</td></tr>';
+
+  const totals = {}; Object.keys(stats).forEach(tid=>{ Object.keys(stats[tid].counts).forEach(sid=>{ totals[sid] = (totals[sid] || 0) + stats[tid].counts[sid]; }); });
+  document.getElementById('maintTotals').innerHTML = state.staff.length
+    ? state.staff.map(s=>'<span class="maint-pill'+(totals[s.id] ? '' : ' zero')+'">'+escapeHtml(s.name)+'<b>'+(totals[s.id] || 0)+'</b></span>').join('')
+    : '<div class="empty">No staff added yet.</div>';
 }
 
 /* ============== STAFF TAB ============== */
