@@ -453,6 +453,9 @@
   .closing-input-wrap .meter-input{flex:1;min-width:0;}
   .nz-unlock-btn{flex:none;width:26px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;line-height:1;color:var(--muted);}
   .nz-unlock-btn:hover{border-color:var(--petrol);color:var(--petrol-dark);}
+  .staff-select-wrap{grid-area:staff;display:flex;align-items:center;gap:4px;min-width:0;}
+  .staff-select-wrap select{flex:1;min-width:0;}
+  .nozzle-row select:disabled{background:#F4EEDD;color:var(--ink);opacity:1;cursor:not-allowed;border-style:dashed;}
   .nz-result{grid-area:result;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;}
   .nz-chip{border-radius:7px;padding:8px 9px;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35;text-align:center;border:1px solid var(--line);background:#fff;min-width:0;}
   .fuel-group.diesel .nz-chip.litres{color:var(--diesel-dark);background:#EAF2FE;border-color:#D3E4FC;}
@@ -5360,10 +5363,11 @@ function onShiftTestingInput(){
 // changes so an unlock doesn't silently carry over to a different shift.
 let nozzleUnlocked = new Set();
 let nozzleUnlockedFor = null; // `${date}|${shift}` the current unlocks apply to
+let staffUnlocked = new Set(); // nozzle ids whose staff-name dropdown an admin has unlocked (same date+shift scope)
 
 function renderNozzleAssignTable(date, shift){
   const key = date + '|' + shift;
-  if(nozzleUnlockedFor !== key){ nozzleUnlocked = new Set(); nozzleUnlockedFor = key; }
+  if(nozzleUnlockedFor !== key){ nozzleUnlocked = new Set(); staffUnlocked = new Set(); nozzleUnlockedFor = key; }
   const sd = ensureShiftData(date, shift);
   const rate = getRateForDate(date);
   const openingTitle = shift==='morning' ? "Carried automatically from previous day's Night closing" : 'Carried from previous shift';
@@ -5395,9 +5399,20 @@ function renderNozzleAssignTable(date, shift){
     const unlockBtn = ((isFilled || lockedForRest) && isAdmin())
       ? `<button type="button" class="nz-unlock-btn" title="Unlock to correct this reading" onclick="unlockNozzleClosing('${nz.id}')">✎</button>`
       : '';
+    // Staff name lock: once a staff member is assigned to this nozzle for the
+    // shift, the dropdown is locked. Only an admin gets the ✎ button to unlock
+    // and change it; staff logins see it permanently locked.
+    const assignedId = sd.assign[nz.id];
+    const hasStaffAssigned = !!assignedId && state.staff.some(s=>s.id===assignedId);
+    const staffLocked = hasStaffAssigned && !staffUnlocked.has(nz.id);
+    const staffDisabled = staffLocked ? 'disabled' : '';
+    const staffTitle = staffLocked ? 'Locked — staff already assigned for this shift' : '';
+    const staffUnlockBtn = (staffLocked && isAdmin())
+      ? `<button type="button" class="nz-unlock-btn" title="Unlock to change the assigned staff" onclick="unlockNozzleStaff('${nz.id}')">✎</button>`
+      : '';
     return `<div class="nozzle-row">
       <div class="nz-name">${shortLabel}</div>
-      <select data-nz="${nz.id}" onchange="onAssignChange(this)">${staffOptionsHtml(sd.assign[nz.id])}</select>
+      <span class="staff-select-wrap"><select data-nz="${nz.id}" onchange="onAssignChange(this)" ${staffDisabled} title="${staffTitle}">${staffOptionsHtml(sd.assign[nz.id])}</select>${staffUnlockBtn}</span>
       <div class="meter-field field-opening"><span class="field-caption">Opening</span><input type="number" class="meter-input" data-f="opening" value="${opening}" disabled title="${openingTitle}"></div>
       <div class="meter-field field-closing"><span class="field-caption">Closing</span><span class="closing-input-wrap"><input type="number" class="meter-input" step="0.01" value="${closing}" data-nz="${nz.id}" data-f="closing" oninput="onReadingInput(this)" onchange="validateClosingReading(this)" ${closingDisabled} title="${closingTitle}">${unlockBtn}</span></div>
       <div class="nz-result">
@@ -5435,9 +5450,20 @@ function onAssignChange(el){
   const date = document.getElementById('salesDate').value;
   const sd = ensureShiftData(date, currentShift);
   sd.assign[el.dataset.nz] = el.value;
+  // A staff name was picked — lock the dropdown again (an admin unlock is one-shot).
+  staffUnlocked.delete(el.dataset.nz);
+  renderNozzleAssignTable(date, currentShift);
   renderShiftStaffTable(date, currentShift);
   renderDaySummary(date);
   scheduleAutosave();
+}
+// Admin-only: unlocks one nozzle's staff-name dropdown so the assignment can be
+// corrected. Scoped to the viewed date+shift and cleared once a name is chosen.
+function unlockNozzleStaff(nzId){
+  if(!isAdmin()) return;
+  const date = document.getElementById('salesDate').value;
+  staffUnlocked.add(nzId);
+  renderNozzleAssignTable(date, currentShift);
 }
 
 
