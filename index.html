@@ -1787,6 +1787,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')">👥 Staff</button>
   <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
   <button class="tab-btn" data-tab="maintenance" onclick="switchTab('maintenance')">🛠️ Maintenance</button>
+  <button class="tab-btn" data-tab="payroll" onclick="switchTab('payroll')">💵 Payroll</button>
   <button class="tab-btn" data-tab="admin" onclick="switchTab('admin')">🔑 Admin</button>
 </nav>
 <nav class="tabs" data-group="addons" style="display:none;">
@@ -1985,6 +1986,45 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <button class="btn amber" onclick="addStaff()">Add Staff</button>
       </div>
       <div class="hint">Renaming a staff member updates their name everywhere. Deleting removes them from future entry lists — historical records are kept.</div>
+    </div>
+  </section>
+
+  <section id="tab-payroll" class="tab">
+    <div class="card">
+      <h2>Payroll Calculator <span class="tag">Pay owed to each staff member as of a date</span></h2>
+      <div class="row">
+        <div class="field"><label>Period start</label><input type="date" id="prStart" oninput="prSet('start',this.value)"></div>
+        <div class="field"><label>Calculate as of</label><input type="date" id="prAsof" oninput="prAsofChange(this.value)"></div>
+        <div class="field"><label>Days in month</label><input type="number" id="prDim" min="1" max="31" oninput="prSet('dim',this.value)"></div>
+        <div class="field"><label>Meal rate ₹</label><input type="number" id="prMeal" min="0" oninput="prSet('mealRate',this.value)"></div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="min-width:900px;">
+          <thead><tr><th>Staff</th><th>Pay type</th><th>Rate ₹</th><th>Absent days</th><th class="num">Days paid</th><th class="num">Earned ₹</th><th>Advance ₹</th><th>Meals eaten</th><th class="num">Food ₹</th><th>Deduct food</th><th class="num">Net pay ₹</th></tr></thead>
+          <tbody id="prBody"></tbody>
+          <tfoot><tr><th colspan="5">Total</th><th class="num" id="prTE"></th><th class="num" id="prTA"></th><th></th><th class="num" id="prTF"></th><th></th><th class="num" id="prTN"></th></tr></tfoot>
+        </table>
+      </div>
+      <div class="hint">Monthly pay = rate ÷ days in month × days paid. Daily pay = rate × days paid. Days paid = days from period start to the "as of" date (both included) minus absent days. Net = earned − advance − food (if ticked).</div>
+      <div class="divider"></div>
+      <h2>Food &amp; Hotel Payment</h2>
+      <div class="row">
+        <div class="field"><label>Hotel name</label><input type="text" id="prHotel" oninput="prSet('hotel',this.value)"></div>
+        <div class="field"><label>Other food charges ₹</label><input type="number" id="prExtra" min="0" oninput="prSet('extra',this.value)"></div>
+        <div class="field"><label>Already paid to hotel ₹</label><input type="number" id="prPaidHotel" min="0" oninput="prSet('paidHotel',this.value)"></div>
+      </div>
+      <div class="readouts">
+        <div class="digit-box total"><div class="lbl">Staff food total</div><div class="val" id="prHF">₹0.00</div></div>
+        <div class="digit-box total"><div class="lbl">Total hotel bill</div><div class="val" id="prHT">₹0.00</div></div>
+        <div class="digit-box shortfall"><div class="lbl">Balance to pay hotel</div><div class="val" id="prHB">₹0.00</div></div>
+        <div class="digit-box surplus"><div class="lbl">Food recovered from pay</div><div class="val" id="prHR">₹0.00</div></div>
+      </div>
+      <div class="divider"></div>
+      <div class="readouts">
+        <div class="digit-box total"><div class="lbl">Pay to staff (net)</div><div class="val" id="prGS">₹0.00</div></div>
+        <div class="digit-box total"><div class="lbl">Pay to hotel (balance)</div><div class="val" id="prGH">₹0.00</div></div>
+        <div class="digit-box surplus"><div class="lbl">Total cash needed</div><div class="val" id="prGT">₹0.00</div></div>
+      </div>
     </div>
   </section>
 
@@ -4342,7 +4382,7 @@ function toggleCcBlock(headerEl){
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
   finance:  ['cash','surplus','notestock','cashledger','buscash','luberegister','lubeindent','eodloan'],
-  staffops: ['staff','duty','maintenance','admin'],
+  staffops: ['staff','duty','maintenance','payroll','admin'],
   addons:   ['addonreport']
 };
 function tabGroupOf(name){
@@ -4376,6 +4416,7 @@ function switchTab(name){
   if(name==='duty') renderDutyTab();
   if(name==='maintenance') renderMaintenanceTab();
   if(name==='admin') renderAdminTab();
+  if(name==='payroll') renderPayrollTab();
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
   if(name==='notestock') renderNoteStockTab();
@@ -4400,6 +4441,91 @@ function updateNavCrumb(name){
   const groupLabel = groupBtn.textContent.trim();
   const tabLabel = tabBtn.textContent.trim();
   crumbEl.innerHTML = '<span>'+groupLabel+'</span><span class="crumb-sep">›</span><span class="crumb-current">'+tabLabel+'</span>';
+}
+
+/* ============== PAYROLL TAB ============== */
+// state.payroll = { settings:{start,dim,mealRate,hotel,extra,paidHotel}, staff:{ staffId:{type,rate,absent,advance,meals,deduct} } }
+let prAsof = null;
+function ensurePayroll(){
+  if(!state.payroll || typeof state.payroll !== 'object') state.payroll = {};
+  const p = state.payroll;
+  const now = new Date();
+  if(!p.settings) p.settings = {};
+  const st = p.settings;
+  if(!st.start) st.start = localDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+  if(!st.dim) st.dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  if(st.mealRate == null) st.mealRate = 60;
+  if(st.hotel == null) st.hotel = '';
+  if(st.extra == null) st.extra = 0;
+  if(st.paidHotel == null) st.paidHotel = 0;
+  if(!p.staff || typeof p.staff !== 'object') p.staff = {};
+  return p;
+}
+function prStaffRec(id){
+  const p = ensurePayroll();
+  if(!p.staff[id]) p.staff[id] = {type:'monthly', rate:0, absent:0, advance:0, meals:0, deduct:true};
+  return p.staff[id];
+}
+function prSet(k, v){
+  const st = ensurePayroll().settings;
+  st[k] = (k==='start' || k==='hotel') ? v : (parseFloat(v)||0);
+  prCalc(true);
+}
+function prAsofChange(v){ prAsof = v; prCalc(false); }
+function prSetStaff(id, k, v){
+  const r = prStaffRec(id);
+  r[k] = (k==='type') ? v : (k==='deduct' ? !!v : (parseFloat(v)||0));
+  prCalc(true);
+}
+function renderPayrollTab(){
+  const p = ensurePayroll(), st = p.settings;
+  if(!prAsof) prAsof = localDateStr(new Date());
+  document.getElementById('prStart').value = st.start;
+  document.getElementById('prAsof').value = prAsof;
+  document.getElementById('prDim').value = st.dim;
+  document.getElementById('prMeal').value = st.mealRate;
+  document.getElementById('prHotel').value = st.hotel;
+  document.getElementById('prExtra').value = st.extra;
+  document.getElementById('prPaidHotel').value = st.paidHotel;
+  const staff = (state.staff||[]).slice();
+  document.getElementById('prBody').innerHTML = staff.map(s=>{
+    const r = prStaffRec(s.id), id = s.id;
+    return `<tr>
+      <td class="staff-name-cell">${escapeHtml(s.name)}</td>
+      <td><select onchange="prSetStaff('${id}','type',this.value)"><option value="monthly"${r.type==='monthly'?' selected':''}>Monthly</option><option value="daily"${r.type==='daily'?' selected':''}>Daily</option></select></td>
+      <td><input type="number" min="0" style="width:90px" value="${r.rate}" oninput="prSetStaff('${id}','rate',this.value)"></td>
+      <td><input type="number" min="0" style="width:70px" value="${r.absent}" oninput="prSetStaff('${id}','absent',this.value)"></td>
+      <td class="num" id="prD_${id}"></td><td class="num" id="prE_${id}"></td>
+      <td><input type="number" min="0" style="width:90px" value="${r.advance}" oninput="prSetStaff('${id}','advance',this.value)"></td>
+      <td><input type="number" min="0" style="width:70px" value="${r.meals}" oninput="prSetStaff('${id}','meals',this.value)"></td>
+      <td class="num" id="prF_${id}"></td>
+      <td style="text-align:center;"><input type="checkbox" ${r.deduct?'checked':''} onchange="prSetStaff('${id}','deduct',this.checked)"></td>
+      <td class="num" id="prN_${id}"></td></tr>`;
+  }).join('') || '<tr><td colspan="11">No staff yet — add staff in the Staff tab.</td></tr>';
+  prCalc(false);
+}
+function prCalc(save){
+  const p = ensurePayroll(), st = p.settings;
+  const a = new Date(st.start), b = new Date(prAsof || localDateStr(new Date()));
+  const elapsed = Math.max(0, Math.floor((b - a)/864e5) + 1);
+  const money = v => '₹' + fmtNum(v);
+  let tE=0, tA=0, tF=0, tN=0, rec=0;
+  (state.staff||[]).forEach(s=>{
+    const r = prStaffRec(s.id), id = s.id;
+    const paid = Math.max(0, elapsed - r.absent);
+    const earn = r.type==='monthly' ? r.rate/(st.dim||30)*paid : r.rate*paid;
+    const food = r.meals * st.mealRate;
+    const net = earn - r.advance - (r.deduct ? food : 0);
+    const set = (k,t)=>{ const el = document.getElementById(k+'_'+id); if(el) el.textContent = t; };
+    set('prD', paid); set('prE', fmtNum(earn)); set('prF', fmtNum(food)); set('prN', fmtNum(net));
+    tE+=earn; tA+=r.advance; tF+=food; tN+=net; if(r.deduct) rec+=food;
+  });
+  const T = (id,v)=>{ const el = document.getElementById(id); if(el) el.textContent = v; };
+  T('prTE', fmtNum(tE)); T('prTA', fmtNum(tA)); T('prTF', fmtNum(tF)); T('prTN', fmtNum(tN));
+  const bill = tF + st.extra, bal = bill - st.paidHotel;
+  T('prHF', money(tF)); T('prHT', money(bill)); T('prHB', money(bal)); T('prHR', money(rec));
+  T('prGS', money(tN)); T('prGH', money(Math.max(bal,0))); T('prGT', money(tN + Math.max(bal,0)));
+  if(save && typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 
 /* ============== WEEKLY MAINTENANCE TAB ============== */
