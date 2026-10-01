@@ -1999,13 +1999,13 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <div class="field"><label>Meal rate ₹</label><input type="number" id="prMeal" min="0" oninput="prSet('mealRate',this.value)"></div>
       </div>
       <div style="overflow-x:auto;">
-        <table style="min-width:900px;">
-          <thead><tr><th>Staff</th><th>Pay type</th><th>Rate ₹</th><th>Absent days</th><th class="num">Days paid</th><th class="num">Earned ₹</th><th>Advance ₹</th><th>Meals eaten</th><th class="num">Food ₹</th><th>Deduct food</th><th class="num">Net pay ₹</th></tr></thead>
+        <table style="min-width:980px;">
+          <thead><tr><th>Staff</th><th>Pay type</th><th>Rate ₹</th><th>Absent days</th><th class="num">Days paid</th><th class="num">Earned ₹</th><th class="num">Incentive ₹</th><th>Advance ₹</th><th>Meals eaten</th><th class="num">Food ₹</th><th>Deduct food</th><th class="num">Net pay ₹</th></tr></thead>
           <tbody id="prBody"></tbody>
-          <tfoot><tr><th colspan="5">Total</th><th class="num" id="prTE"></th><th class="num" id="prTA"></th><th></th><th class="num" id="prTF"></th><th></th><th class="num" id="prTN"></th></tr></tfoot>
+          <tfoot><tr><th colspan="5">Total</th><th class="num" id="prTE"></th><th class="num" id="prTI"></th><th class="num" id="prTA"></th><th></th><th class="num" id="prTF"></th><th></th><th class="num" id="prTN"></th></tr></tfoot>
         </table>
       </div>
-      <div class="hint">Monthly pay = rate ÷ days in month × days paid. Daily pay = rate × days paid. Days paid = days from period start to the "as of" date (both included) minus absent days. Net = earned − advance − food (if ticked).</div>
+      <div class="hint">Monthly pay = rate ÷ days in month × days paid. Daily pay = rate × days paid. Days paid = days from period start to the "as of" date (both included) minus absent days. Net = earned + no-leave incentive (if included) − advance − food (if ticked).</div>
       <div class="divider"></div>
       <h2>Food &amp; Hotel Payment</h2>
       <div class="row">
@@ -2025,6 +2025,41 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <div class="digit-box total"><div class="lbl">Pay to hotel (balance)</div><div class="val" id="prGH">₹0.00</div></div>
         <div class="digit-box surplus"><div class="lbl">Total cash needed</div><div class="val" id="prGT">₹0.00</div></div>
       </div>
+
+      <!-- ===== No-Leave Incentive (Payroll) ===== -->
+      <div class="divider"></div>
+      <h2>🎁 No-Leave Incentive <span class="tag">Bonus for staff who took no leave in the month · with Surplus / Short data</span></h2>
+      <div class="row" style="align-items:end;">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="nlMonth" onchange="renderNoLeaveIncentive(); prCalc(false)">
+        </div>
+        <div class="field">
+          <label>Incentive amount per staff (₹)</label>
+          <input type="number" id="noLeaveIncentiveInput" min="0" step="1" value="0" style="width:140px;" onchange="setNoLeaveIncentive(this.value)">
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-size:13px;cursor:pointer;"><input type="checkbox" id="nlIncInPay" onchange="prSetIncInPay(this.checked)"> Add this incentive to each staff member's Net pay and Total cash needed</label>
+      <div class="hint" id="noLeaveIncNote" style="margin-bottom:8px;"></div>
+      <h3 style="font-size:14px;margin:10px 0 6px;">Incentive for <span id="noLeaveIncMonthLabel">This Month</span></h3>
+      <div style="overflow-x:auto;">
+        <table style="min-width:620px;">
+          <thead>
+            <tr>
+              <th>Staff</th>
+              <th class="num">Days on Leave</th>
+              <th>Eligibility</th>
+              <th class="num">Incentive ₹</th>
+              <th class="num">Surplus ₹</th>
+              <th class="num">Shortfall ₹</th>
+              <th class="num">Net Surplus / Short ₹</th>
+            </tr>
+          </thead>
+          <tbody id="noLeaveIncBody"></tbody>
+          <tfoot><tr><th colspan="3">Total</th><th class="num" id="noLeaveIncTotal">₹0.00</th><th class="num" id="nlTotSur"></th><th class="num" id="nlTotSho"></th><th class="num" id="nlTotNet"></th></tr></tfoot>
+        </table>
+      </div>
+      <div class="hint">A staff member qualifies only if they were not marked Holiday on any day of the month (from the Duty Roster). Surplus / Shortfall come from the saved Cash Denomination records for the same month. When the box above is ticked, the incentive is added to Net pay in the table at the top.</div>
     </div>
   </section>
 
@@ -2130,7 +2165,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       <div class="row" style="align-items:end;">
         <div class="field">
           <label>Month</label>
-          <input type="month" id="dutyLeaveMonth" onchange="renderDutyMonthlyLeaveSummary(); renderNoLeaveIncentive()">
+          <input type="month" id="dutyLeaveMonth" onchange="renderDutyMonthlyLeaveSummary()">
         </div>
       </div>
       <table>
@@ -2138,36 +2173,6 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <tbody id="dutyLeaveMonthBody"></tbody>
       </table>
       <div class="empty" id="dutyLeaveMonthEmpty" style="display:none;">No leave recorded for this month.</div>
-
-      <!-- ===== No-Leave Incentive: SET THE AMOUNT ===== -->
-      <div class="divider" style="margin-top:22px;"></div>
-      <h2 style="font-size:16px;">⚙️ No-Leave Incentive — Set Amount <span class="tag">Paid to each staff who took zero leave in the month</span></h2>
-      <div class="row" style="align-items:end;">
-        <div class="field">
-          <label>Incentive amount per staff (₹)</label>
-          <input type="number" id="noLeaveIncentiveInput" min="0" step="1" value="0" style="width:140px;" onchange="setNoLeaveIncentive(this.value)">
-        </div>
-      </div>
-      <div class="hint">Change this any time — the table below updates instantly and the amount is saved with the rest of the app data. A staff member qualifies for a month only if they were not marked Holiday on any day of it.</div>
-
-      <!-- ===== No-Leave Incentive: MONTHLY TABLE (with Surplus / Short data) ===== -->
-      <h2 style="font-size:16px;margin-top:22px;">🎁 No-Leave Incentive — <span id="noLeaveIncMonthLabel">This Month</span> <span class="tag">Uses the month selected above · includes Surplus / Short data</span></h2>
-      <div class="hint" id="noLeaveIncNote" style="margin-bottom:8px;"></div>
-      <table>
-        <thead>
-          <tr>
-            <th>Staff</th>
-            <th class="num">Days on Leave</th>
-            <th>Eligibility</th>
-            <th class="num">Incentive ₹</th>
-            <th class="num">Surplus ₹</th>
-            <th class="num">Shortfall ₹</th>
-            <th class="num">Net Surplus / Short ₹</th>
-          </tr>
-        </thead>
-        <tbody id="noLeaveIncBody"></tbody>
-      </table>
-      <div class="calc-line total" style="margin-top:10px;"><span>Total No-Leave Incentive</span><span class="mono" id="noLeaveIncTotal">₹0.00</span></div>
     </div>
   </section>
 
@@ -4489,6 +4494,7 @@ function ensurePayroll(){
   if(st.hotel == null) st.hotel = '';
   if(st.extra == null) st.extra = 0;
   if(st.paidHotel == null) st.paidHotel = 0;
+  if(st.incInPay == null) st.incInPay = true;
   if(!p.staff || typeof p.staff !== 'object') p.staff = {};
   return p;
 }
@@ -4501,6 +4507,17 @@ function prSet(k, v){
   const st = ensurePayroll().settings;
   st[k] = (k==='start' || k==='hotel') ? v : (parseFloat(v)||0);
   prCalc(true);
+}
+function prSetIncInPay(v){ ensurePayroll().settings.incInPay = !!v; prCalc(true); }
+// leave days per staff id for a YYYY-MM month, from the Duty Roster
+function nlLeaveDays(ym){
+  const leave = {};
+  Object.keys(state.duty || {}).forEach(date=>{
+    if(date.slice(0,7) !== ym) return;
+    const ids = state.duty[date] && Array.isArray(state.duty[date].holiday) ? state.duty[date].holiday : [];
+    ids.forEach(sid=>{ leave[sid] = (leave[sid] || 0) + 1; });
+  });
+  return leave;
 }
 function prAsofChange(v){ prAsof = v; prCalc(false); }
 function prSetStaff(id, k, v){
@@ -4518,6 +4535,7 @@ function renderPayrollTab(){
   document.getElementById('prHotel').value = st.hotel;
   document.getElementById('prExtra').value = st.extra;
   document.getElementById('prPaidHotel').value = st.paidHotel;
+  const cb = document.getElementById('nlIncInPay'); if(cb) cb.checked = !!st.incInPay;
   const staff = (state.staff||[]).slice();
   document.getElementById('prBody').innerHTML = staff.map(s=>{
     const r = prStaffRec(s.id), id = s.id;
@@ -4526,33 +4544,39 @@ function renderPayrollTab(){
       <td><select onchange="prSetStaff('${id}','type',this.value)"><option value="monthly"${r.type==='monthly'?' selected':''}>Monthly</option><option value="daily"${r.type==='daily'?' selected':''}>Daily</option></select></td>
       <td><input type="number" min="0" style="width:90px" value="${r.rate}" oninput="prSetStaff('${id}','rate',this.value)"></td>
       <td><input type="number" min="0" style="width:70px" value="${r.absent}" oninput="prSetStaff('${id}','absent',this.value)"></td>
-      <td class="num" id="prD_${id}"></td><td class="num" id="prE_${id}"></td>
+      <td class="num" id="prD_${id}"></td><td class="num" id="prE_${id}"></td><td class="num" id="prI_${id}"></td>
       <td><input type="number" min="0" style="width:90px" value="${r.advance}" oninput="prSetStaff('${id}','advance',this.value)"></td>
       <td><input type="number" min="0" style="width:70px" value="${r.meals}" oninput="prSetStaff('${id}','meals',this.value)"></td>
       <td class="num" id="prF_${id}"></td>
       <td style="text-align:center;"><input type="checkbox" ${r.deduct?'checked':''} onchange="prSetStaff('${id}','deduct',this.checked)"></td>
       <td class="num" id="prN_${id}"></td></tr>`;
-  }).join('') || '<tr><td colspan="11">No staff yet — add staff in the Staff tab.</td></tr>';
+  }).join('') || '<tr><td colspan="12">No staff yet — add staff in the Staff tab.</td></tr>';
   prCalc(false);
+  renderNoLeaveIncentive();
 }
 function prCalc(save){
   const p = ensurePayroll(), st = p.settings;
   const a = new Date(st.start), b = new Date(prAsof || localDateStr(new Date()));
   const elapsed = Math.max(0, Math.floor((b - a)/864e5) + 1);
   const money = v => '₹' + fmtNum(v);
-  let tE=0, tA=0, tF=0, tN=0, rec=0;
+  const nlMonthEl = document.getElementById('nlMonth');
+  const nlYm = (nlMonthEl && nlMonthEl.value) || (prAsof || localDateStr(new Date())).slice(0,7);
+  const nlLeave = nlLeaveDays(nlYm);
+  const nlAmt = getNoLeaveIncentive();
+  let tE=0, tI=0, tA=0, tF=0, tN=0, rec=0;
   (state.staff||[]).forEach(s=>{
     const r = prStaffRec(s.id), id = s.id;
     const paid = Math.max(0, elapsed - r.absent);
     const earn = r.type==='monthly' ? r.rate/(st.dim||30)*paid : r.rate*paid;
     const food = r.meals * st.mealRate;
-    const net = earn - r.advance - (r.deduct ? food : 0);
+    const inc = (st.incInPay && !nlLeave[id]) ? nlAmt : 0;
+    const net = earn + inc - r.advance - (r.deduct ? food : 0);
     const set = (k,t)=>{ const el = document.getElementById(k+'_'+id); if(el) el.textContent = t; };
-    set('prD', paid); set('prE', fmtNum(earn)); set('prF', fmtNum(food)); set('prN', fmtNum(net));
-    tE+=earn; tA+=r.advance; tF+=food; tN+=net; if(r.deduct) rec+=food;
+    set('prD', paid); set('prE', fmtNum(earn)); set('prI', fmtNum(inc)); set('prF', fmtNum(food)); set('prN', fmtNum(net));
+    tE+=earn; tI+=inc; tA+=r.advance; tF+=food; tN+=net; if(r.deduct) rec+=food;
   });
   const T = (id,v)=>{ const el = document.getElementById(id); if(el) el.textContent = v; };
-  T('prTE', fmtNum(tE)); T('prTA', fmtNum(tA)); T('prTF', fmtNum(tF)); T('prTN', fmtNum(tN));
+  T('prTE', fmtNum(tE)); T('prTI', fmtNum(tI)); T('prTA', fmtNum(tA)); T('prTF', fmtNum(tF)); T('prTN', fmtNum(tN));
   const bill = tF + st.extra, bal = bill - st.paidHotel;
   T('prHF', money(tF)); T('prHT', money(bill)); T('prHB', money(bal)); T('prHR', money(rec));
   T('prGS', money(tN)); T('prGH', money(Math.max(bal,0))); T('prGT', money(tN + Math.max(bal,0)));
@@ -5247,9 +5271,8 @@ function renderDutyMonthlyLeaveSummary(){
   ).join('');
 }
 // ---- No-Leave Incentive ------------------------------------------------
-// A flat ₹ amount (set in the "No-Leave Incentive — Set Amount" box, saved in state.noLeaveIncentive) for every
-// staff member who has NO Holiday day in the chosen month. The month is the
-// same one picked for "Total Leave Taken This Month". The Surplus / Shortfall
+// A flat ₹ amount (set in the Payroll tab, saved in state.noLeaveIncentive) for every
+// staff member who has NO Holiday day in the chosen month. The month is picked in the Payroll tab. The Surplus / Shortfall
 // columns are pulled live from the Cash Denomination records (state.cash —
 // the same data behind the Staff Surplus / Short Data tab) for that month.
 function getNoLeaveIncentive(){
@@ -5261,17 +5284,18 @@ function setNoLeaveIncentive(val){
   state.noLeaveIncentive = (isFinite(v) && v >= 0) ? v : 0;
   scheduleAutosave();
   renderNoLeaveIncentive();
+  prCalc(false);
 }
 function renderNoLeaveIncentive(){
   const body = document.getElementById('noLeaveIncBody');
-  const monthInp = document.getElementById('dutyLeaveMonth');
+  const monthInp = document.getElementById('nlMonth');
   if(!body || !monthInp) return;
 
   const amtInp = document.getElementById('noLeaveIncentiveInput');
   const amount = getNoLeaveIncentive();
   if(amtInp && document.activeElement !== amtInp) amtInp.value = amount;
 
-  if(!monthInp.value) monthInp.value = (dutyWeekStart || todayStr()).slice(0,7);
+  if(!monthInp.value) monthInp.value = (prAsof || todayStr()).slice(0,7);
   const ym = monthInp.value;
 
   const lbl = document.getElementById('noLeaveIncMonthLabel');
@@ -5312,7 +5336,7 @@ function renderNoLeaveIncentive(){
     note.style.display = bits.length ? 'block' : 'none';
   }
 
-  let total = 0;
+  let total = 0, tSur = 0, tSho = 0;
   const rows = visibleStaffList().map(s=>{
     const days = leave[s.id] || 0;
     const eligible = days === 0;
@@ -5321,6 +5345,7 @@ function renderNoLeaveIncentive(){
     const sur = ss[s.id] ? ss[s.id].surplus : 0;
     const sho = ss[s.id] ? ss[s.id].shortfall : 0;
     const net = sur - sho;
+    tSur += sur; tSho += sho;
     const elig = eligible
       ? `<span class="badge surplus">${inProgress ? 'On track' : 'Eligible'}</span>`
       : `<span class="badge shortfall">Not eligible</span>`;
@@ -5338,6 +5363,10 @@ function renderNoLeaveIncentive(){
   body.innerHTML = rows || '<tr><td colspan="7" class="empty">No staff on the roster.</td></tr>';
   const totEl = document.getElementById('noLeaveIncTotal');
   if(totEl) totEl.textContent = fmt(total);
+  const setT = (id,v)=>{ const el = document.getElementById(id); if(el) el.textContent = v; };
+  setT('nlTotSur', fmtNum(tSur)); setT('nlTotSho', fmtNum(tSho));
+  const tNet = tSur - tSho;
+  setT('nlTotNet', (tNet>=0?'+':'') + fmtNum(tNet));
 }
 function renderDutyHolidaySummary(holidayCounts){
   const box = document.getElementById('dutyHolidaySummary');
