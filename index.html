@@ -2026,6 +2026,23 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <div class="digit-box surplus"><div class="lbl">Total cash needed</div><div class="val" id="prGT">₹0.00</div></div>
       </div>
 
+      <!-- ===== Incentive Rates (Payroll) ===== -->
+      <div class="divider"></div>
+      <h2>💰 Incentive Rates <span class="tag">All staff incentive rates in one place · saved automatically</span></h2>
+      <div style="overflow-x:auto;">
+        <table style="min-width:520px;">
+          <thead><tr><th>Incentive</th><th>Paid when</th><th class="num">Rate ₹</th></tr></thead>
+          <tbody>
+            <tr><td>No-leave incentive</td><td>Per staff, per month with zero leave</td><td class="num"><input type="number" id="noLeaveIncentiveInput" min="0" step="1" value="500" style="width:100px;" onchange="setNoLeaveIncentive(this.value)"></td></tr>
+            <tr><td>Add-on pouch — same day</td><td>Per 50-pouch box fully sold the day it's issued</td><td class="num"><input type="number" id="prRateAddonSame" min="0" step="1" value="25" style="width:100px;" onchange="setAddonSameDayIncentive(this.value)"></td></tr>
+            <tr><td>Add-on pouch — within 2 days</td><td>Per box fully sold within 2 days of issue</td><td class="num"><input type="number" id="prRateAddonTwo" min="0" step="1" value="15" style="width:100px;" onchange="setAddonTwoDayIncentive(this.value)"></td></tr>
+            <tr><td>Lube sale</td><td>Per lube unit sold</td><td class="num"><input type="number" id="prRateLube" min="0" step="1" value="5" style="width:100px;" onchange="setLubeRate(this.value)"></td></tr>
+            <tr><td>Distilled water sale</td><td>Per distilled-water unit sold</td><td class="num"><input type="number" id="prRateWater" min="0" step="1" value="2" style="width:100px;" onchange="setWaterRate(this.value)"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="hint">Changing a rate applies to new calculations and to the month-end incentive tables straight away. The add-on rates are the same ones shown in the Add-on &amp; Incentives tab, so editing either place updates both.</div>
+
       <!-- ===== No-Leave Incentive (Payroll) ===== -->
       <div class="divider"></div>
       <h2>🎁 No-Leave Incentive <span class="tag">Bonus for staff who took no leave in the month · with Surplus / Short data</span></h2>
@@ -2033,10 +2050,6 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <div class="field">
           <label>Month</label>
           <input type="month" id="nlMonth" onchange="renderNoLeaveIncentive(); prCalc(false)">
-        </div>
-        <div class="field">
-          <label>Incentive amount per staff (₹)</label>
-          <input type="number" id="noLeaveIncentiveInput" min="0" step="1" value="0" style="width:140px;" onchange="setNoLeaveIncentive(this.value)">
         </div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-size:13px;cursor:pointer;"><input type="checkbox" id="nlIncInPay" onchange="prSetIncInPay(this.checked)"> Add this incentive to each staff member's Net pay and Total cash needed</label>
@@ -2814,8 +2827,8 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       </div>
 
       <div class="cc-receipt" style="max-width:440px;">
-        <div class="calc-line"><span>Lube Incentive (₹5 × qty)</span><span class="mono" id="eodLubeIncentive">₹0.00</span></div>
-        <div class="calc-line"><span>Distilled Water Incentive (₹2 × qty)</span><span class="mono" id="eodWaterIncentive">₹0.00</span></div>
+        <div class="calc-line"><span>Lube Incentive (₹<span class="lubeRateLbl">5</span> × qty)</span><span class="mono" id="eodLubeIncentive">₹0.00</span></div>
+        <div class="calc-line"><span>Distilled Water Incentive (₹<span class="waterRateLbl">2</span> × qty)</span><span class="mono" id="eodWaterIncentive">₹0.00</span></div>
         <div class="calc-line"><span>Breakfast Amount</span><span class="mono" id="eodBreakfastDisplay">₹0.00</span></div>
         <div class="calc-line"><span>Add-on Pouch Incentive (today, closed boxes)</span><span class="mono" id="eodAddonToday">₹0.00</span></div>
         <div class="calc-line total"><span>Total EOD Payout</span><span class="mono" id="eodTotalPayout">₹0.00</span></div>
@@ -3706,8 +3719,10 @@ let state = {
   qrScanLog: [],   // [{code, type, staffId, date, ts}] — every QR serial ever scanned, for dedup
   lubeLitresPerUnit: 1, // litres in one lube unit/bottle sold — used to convert Lube Sold (units) into litres
   addonSameDayIncentive: 25, // ₹ paid when a 50-pouch box is fully sold the same day it's issued — editable via the Add-on & Incentives tab
+  lubeIncentiveRate: 5, // ₹ per lube unit sold — editable in the Payroll tab → Incentive Rates
+  waterIncentiveRate: 2, // ₹ per distilled-water unit sold — editable in the Payroll tab → Incentive Rates
   addonTwoDayIncentive: 15, // ₹ paid when a 50-pouch box is fully sold within 2 days of the issue date — editable via the Add-on & Incentives tab
-  noLeaveIncentive: 0, // ₹ paid to each staff who took no leave (no Holiday day) in a month — editable in the Duty Roster tab
+  noLeaveIncentive: 500, // ₹ paid to each staff who took no leave (no Holiday day) in a month — editable in the Duty Roster tab
   surplusPaid: {} // { "YYYY-MM::staffId": true } — Month-End Summary "Paid" checklist tick per staff per month
 };
 const ADDON_BOX_SIZE = 50;
@@ -3715,6 +3730,8 @@ const ADDON_SAME_DAY_INCENTIVE_DEFAULT = 25;
 const ADDON_TWO_DAY_INCENTIVE_DEFAULT = 15;
 const LUBE_SALE_INCENTIVE = 5;
 const WATER_SALE_INCENTIVE = 2;
+function getLubeRate(){ const v = parseFloat(state.lubeIncentiveRate); return (isFinite(v) && v >= 0) ? v : LUBE_SALE_INCENTIVE; }
+function getWaterRate(){ const v = parseFloat(state.waterIncentiveRate); return (isFinite(v) && v >= 0) ? v : WATER_SALE_INCENTIVE; }
 // A box issued at/after this many minutes past midnight (11:00 AM) has its
 // incentive clock start the NEXT calendar day instead of today.
 const ADDON_CUTOFF_MINUTES = 11 * 60;
@@ -4494,7 +4511,7 @@ function ensurePayroll(){
   if(st.hotel == null) st.hotel = '';
   if(st.extra == null) st.extra = 0;
   if(st.paidHotel == null) st.paidHotel = 0;
-  if(st.incInPay == null) st.incInPay = true;
+  if(st.incInPayUserSet !== true) st.incInPay = true; // included in net payable until the box is unticked by hand
   if(!p.staff || typeof p.staff !== 'object') p.staff = {};
   return p;
 }
@@ -4508,7 +4525,7 @@ function prSet(k, v){
   st[k] = (k==='start' || k==='hotel') ? v : (parseFloat(v)||0);
   prCalc(true);
 }
-function prSetIncInPay(v){ ensurePayroll().settings.incInPay = !!v; prCalc(true); }
+function prSetIncInPay(v){ const st = ensurePayroll().settings; st.incInPay = !!v; st.incInPayUserSet = true; prCalc(true); }
 // leave days per staff id for a YYYY-MM month, from the Duty Roster
 function nlLeaveDays(ym){
   const leave = {};
@@ -4552,6 +4569,7 @@ function renderPayrollTab(){
       <td class="num" id="prN_${id}"></td></tr>`;
   }).join('') || '<tr><td colspan="12">No staff yet — add staff in the Staff tab.</td></tr>';
   prCalc(false);
+  renderIncentiveRates();
   renderNoLeaveIncentive();
 }
 function prCalc(save){
@@ -5275,13 +5293,16 @@ function renderDutyMonthlyLeaveSummary(){
 // staff member who has NO Holiday day in the chosen month. The month is picked in the Payroll tab. The Surplus / Shortfall
 // columns are pulled live from the Cash Denomination records (state.cash —
 // the same data behind the Staff Surplus / Short Data tab) for that month.
+const NO_LEAVE_INCENTIVE_DEFAULT = 500;
 function getNoLeaveIncentive(){
+  if(state.noLeaveIncentiveUserSet !== true) return NO_LEAVE_INCENTIVE_DEFAULT; // ₹500 until changed by hand
   const v = parseFloat(state.noLeaveIncentive);
-  return (isFinite(v) && v >= 0) ? v : 0;
+  return (isFinite(v) && v >= 0) ? v : NO_LEAVE_INCENTIVE_DEFAULT;
 }
 function setNoLeaveIncentive(val){
   const v = parseFloat(val);
-  state.noLeaveIncentive = (isFinite(v) && v >= 0) ? v : 0;
+  state.noLeaveIncentive = (isFinite(v) && v >= 0) ? v : NO_LEAVE_INCENTIVE_DEFAULT;
+  state.noLeaveIncentiveUserSet = true;
   scheduleAutosave();
   renderNoLeaveIncentive();
   prCalc(false);
@@ -5331,7 +5352,7 @@ function renderNoLeaveIncentive(){
     const bits = [];
     if(!hasRoster) bits.push('No duty roster has been entered for this month, so nobody shows any leave yet.');
     if(inProgress) bits.push('This month is still in progress — "On track" means no leave so far; it is only final once the month ends.');
-    if(amount === 0) bits.push('Incentive amount is ₹0 — set it above.');
+    if(amount === 0) bits.push('Incentive amount is ₹0 — set it in Incentive Rates above.');
     note.textContent = bits.join(' ');
     note.style.display = bits.length ? 'block' : 'none';
   }
@@ -7481,6 +7502,36 @@ function renderAddonIncentiveSettings(){
   const twoDayInp = document.getElementById('addonTwoDayIncentiveInput');
   if(sameDayInp && document.activeElement !== sameDayInp) sameDayInp.value = sameDayVal;
   if(twoDayInp && document.activeElement !== twoDayInp) twoDayInp.value = twoDayVal;
+  if(typeof renderIncentiveRates === 'function') renderIncentiveRates();
+}
+
+
+// ---- Incentive Rates (Payroll tab) --------------------------------------
+function setLubeRate(val){
+  const v = parseFloat(val);
+  state.lubeIncentiveRate = (isFinite(v) && v >= 0) ? v : LUBE_SALE_INCENTIVE;
+  scheduleAutosave();
+  renderIncentiveRates();
+  if(typeof renderEodPayout === 'function' && document.getElementById('eodLubeIncentive')) renderEodPayout();
+  if(typeof renderLubeWaterMonthlySummary === 'function') renderLubeWaterMonthlySummary();
+}
+function setWaterRate(val){
+  const v = parseFloat(val);
+  state.waterIncentiveRate = (isFinite(v) && v >= 0) ? v : WATER_SALE_INCENTIVE;
+  scheduleAutosave();
+  renderIncentiveRates();
+  if(typeof renderEodPayout === 'function' && document.getElementById('eodLubeIncentive')) renderEodPayout();
+  if(typeof renderLubeWaterMonthlySummary === 'function') renderLubeWaterMonthlySummary();
+}
+function renderIncentiveRates(){
+  const put = (id, val)=>{ const el = document.getElementById(id); if(el && document.activeElement !== el) el.value = val; };
+  put('noLeaveIncentiveInput', getNoLeaveIncentive());
+  put('prRateAddonSame', getAddonSameDayIncentive());
+  put('prRateAddonTwo', getAddonTwoDayIncentive());
+  put('prRateLube', getLubeRate());
+  put('prRateWater', getWaterRate());
+  document.querySelectorAll('.lubeRateLbl').forEach(e=>{ e.textContent = getLubeRate(); });
+  document.querySelectorAll('.waterRateLbl').forEach(e=>{ e.textContent = getWaterRate(); });
 }
 
 function incentiveForDays(diffDays){
@@ -7888,11 +7939,13 @@ function renderEodPayout(){
   const breakfastInp = document.getElementById('eodBreakfastAmt');
   if(!breakfastEditing) breakfastInp.value = (rec.breakfast||0).toFixed(2);
 
-  const lubeInc = rec.lube * LUBE_SALE_INCENTIVE;
-  const waterInc = rec.water * WATER_SALE_INCENTIVE;
+  const lubeInc = rec.lube * getLubeRate();
+  const waterInc = rec.water * getWaterRate();
   const addonInc = computeTodayAddonIncentive(staffId, date);
   const total = lubeInc + waterInc + (rec.breakfast||0) + addonInc;
 
+  document.querySelectorAll('.lubeRateLbl').forEach(e=>{ e.textContent = getLubeRate(); });
+  document.querySelectorAll('.waterRateLbl').forEach(e=>{ e.textContent = getWaterRate(); });
   document.getElementById('eodLubeIncentive').textContent = fmt(lubeInc);
   document.getElementById('eodWaterIncentive').textContent = fmt(waterInc);
   document.getElementById('eodBreakfastDisplay').textContent = fmt(rec.breakfast||0);
@@ -7982,8 +8035,8 @@ function computeLubeWaterMonthlySummary(month){
       waterQty += byDate[date].water || 0;
     });
     const lubeLitres = lubeQty * litresPerUnit;
-    const lubeInc = lubeQty * LUBE_SALE_INCENTIVE;
-    const waterInc = waterQty * WATER_SALE_INCENTIVE;
+    const lubeInc = lubeQty * getLubeRate();
+    const waterInc = waterQty * getWaterRate();
     const total = lubeInc + waterInc;
     grandTotal += total;
     grandLubeLitres += lubeLitres;
