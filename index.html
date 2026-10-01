@@ -2130,7 +2130,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
       <div class="row" style="align-items:end;">
         <div class="field">
           <label>Month</label>
-          <input type="month" id="dutyLeaveMonth" onchange="renderDutyMonthlyLeaveSummary()">
+          <input type="month" id="dutyLeaveMonth" onchange="renderDutyMonthlyLeaveSummary(); renderNoLeaveIncentive()">
         </div>
       </div>
       <table>
@@ -2138,6 +2138,36 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <tbody id="dutyLeaveMonthBody"></tbody>
       </table>
       <div class="empty" id="dutyLeaveMonthEmpty" style="display:none;">No leave recorded for this month.</div>
+
+      <!-- ===== No-Leave Incentive: SET THE AMOUNT ===== -->
+      <div class="divider" style="margin-top:22px;"></div>
+      <h2 style="font-size:16px;">⚙️ No-Leave Incentive — Set Amount <span class="tag">Paid to each staff who took zero leave in the month</span></h2>
+      <div class="row" style="align-items:end;">
+        <div class="field">
+          <label>Incentive amount per staff (₹)</label>
+          <input type="number" id="noLeaveIncentiveInput" min="0" step="1" value="0" style="width:140px;" onchange="setNoLeaveIncentive(this.value)">
+        </div>
+      </div>
+      <div class="hint">Change this any time — the table below updates instantly and the amount is saved with the rest of the app data. A staff member qualifies for a month only if they were not marked Holiday on any day of it.</div>
+
+      <!-- ===== No-Leave Incentive: MONTHLY TABLE (with Surplus / Short data) ===== -->
+      <h2 style="font-size:16px;margin-top:22px;">🎁 No-Leave Incentive — <span id="noLeaveIncMonthLabel">This Month</span> <span class="tag">Uses the month selected above · includes Surplus / Short data</span></h2>
+      <div class="hint" id="noLeaveIncNote" style="margin-bottom:8px;"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Staff</th>
+            <th class="num">Days on Leave</th>
+            <th>Eligibility</th>
+            <th class="num">Incentive ₹</th>
+            <th class="num">Surplus ₹</th>
+            <th class="num">Shortfall ₹</th>
+            <th class="num">Net Surplus / Short ₹</th>
+          </tr>
+        </thead>
+        <tbody id="noLeaveIncBody"></tbody>
+      </table>
+      <div class="calc-line total" style="margin-top:10px;"><span>Total No-Leave Incentive</span><span class="mono" id="noLeaveIncTotal">₹0.00</span></div>
     </div>
   </section>
 
@@ -3672,6 +3702,7 @@ let state = {
   lubeLitresPerUnit: 1, // litres in one lube unit/bottle sold — used to convert Lube Sold (units) into litres
   addonSameDayIncentive: 25, // ₹ paid when a 50-pouch box is fully sold the same day it's issued — editable via the Add-on & Incentives tab
   addonTwoDayIncentive: 15, // ₹ paid when a 50-pouch box is fully sold within 2 days of the issue date — editable via the Add-on & Incentives tab
+  noLeaveIncentive: 0, // ₹ paid to each staff who took no leave (no Holiday day) in a month — editable in the Duty Roster tab
   surplusPaid: {} // { "YYYY-MM::staffId": true } — Month-End Summary "Paid" checklist tick per staff per month
 };
 const ADDON_BOX_SIZE = 50;
@@ -5174,6 +5205,7 @@ function renderDutyTab(){
   document.getElementById('dutyBody').innerHTML = rows;
   renderDutyHolidaySummary(holidayCounts);
   renderDutyMonthlyLeaveSummary();
+  renderNoLeaveIncentive();
 }
 // ---- Total leave (Holiday) taken by each staff member, for a whole
 // calendar month — scans every date stored in state.duty (not just the
@@ -5213,6 +5245,99 @@ function renderDutyMonthlyLeaveSummary(){
   body.innerHTML = withLeave.map(s=>
     `<tr><td>${escapeHtml(s.name)}</td><td class="num">${counts[s.id]}</td></tr>`
   ).join('');
+}
+// ---- No-Leave Incentive ------------------------------------------------
+// A flat ₹ amount (set in the "No-Leave Incentive — Set Amount" box, saved in state.noLeaveIncentive) for every
+// staff member who has NO Holiday day in the chosen month. The month is the
+// same one picked for "Total Leave Taken This Month". The Surplus / Shortfall
+// columns are pulled live from the Cash Denomination records (state.cash —
+// the same data behind the Staff Surplus / Short Data tab) for that month.
+function getNoLeaveIncentive(){
+  const v = parseFloat(state.noLeaveIncentive);
+  return (isFinite(v) && v >= 0) ? v : 0;
+}
+function setNoLeaveIncentive(val){
+  const v = parseFloat(val);
+  state.noLeaveIncentive = (isFinite(v) && v >= 0) ? v : 0;
+  scheduleAutosave();
+  renderNoLeaveIncentive();
+}
+function renderNoLeaveIncentive(){
+  const body = document.getElementById('noLeaveIncBody');
+  const monthInp = document.getElementById('dutyLeaveMonth');
+  if(!body || !monthInp) return;
+
+  const amtInp = document.getElementById('noLeaveIncentiveInput');
+  const amount = getNoLeaveIncentive();
+  if(amtInp && document.activeElement !== amtInp) amtInp.value = amount;
+
+  if(!monthInp.value) monthInp.value = (dutyWeekStart || todayStr()).slice(0,7);
+  const ym = monthInp.value;
+
+  const lbl = document.getElementById('noLeaveIncMonthLabel');
+  if(lbl){
+    const d = new Date(ym + '-01T00:00:00');
+    lbl.textContent = isNaN(d) ? ym : d.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  }
+
+  // Leave days per staff + whether any roster exists for this month
+  const leave = {};
+  let hasRoster = false;
+  Object.keys(state.duty || {}).forEach(date=>{
+    if(date.slice(0,7) !== ym) return;
+    hasRoster = true;
+    const ids = state.duty[date] && Array.isArray(state.duty[date].holiday) ? state.duty[date].holiday : [];
+    ids.forEach(sid=>{ leave[sid] = (leave[sid] || 0) + 1; });
+  });
+
+  // Surplus / Shortfall per staff for the same month
+  const ss = {};
+  Object.keys(state.cash || {}).filter(d=>d.startsWith(ym)).forEach(date=>{
+    Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      if(!ss[sid]) ss[sid] = {surplus:0, shortfall:0};
+      const diff = Number(rec && rec.difference) || 0;
+      if(diff > 0) ss[sid].surplus += diff;
+      else if(diff < 0) ss[sid].shortfall += Math.abs(diff);
+    });
+  });
+
+  const inProgress = ym >= thisMonthStr(); // current (or future) month isn't finished yet
+  const note = document.getElementById('noLeaveIncNote');
+  if(note){
+    const bits = [];
+    if(!hasRoster) bits.push('No duty roster has been entered for this month, so nobody shows any leave yet.');
+    if(inProgress) bits.push('This month is still in progress — "On track" means no leave so far; it is only final once the month ends.');
+    if(amount === 0) bits.push('Incentive amount is ₹0 — set it above.');
+    note.textContent = bits.join(' ');
+    note.style.display = bits.length ? 'block' : 'none';
+  }
+
+  let total = 0;
+  const rows = visibleStaffList().map(s=>{
+    const days = leave[s.id] || 0;
+    const eligible = days === 0;
+    const inc = eligible ? amount : 0;
+    total += inc;
+    const sur = ss[s.id] ? ss[s.id].surplus : 0;
+    const sho = ss[s.id] ? ss[s.id].shortfall : 0;
+    const net = sur - sho;
+    const elig = eligible
+      ? `<span class="badge surplus">${inProgress ? 'On track' : 'Eligible'}</span>`
+      : `<span class="badge shortfall">Not eligible</span>`;
+    return `<tr>
+      <td class="staff-name-cell">${escapeHtml(s.name)}</td>
+      <td class="num">${days}</td>
+      <td>${elig}</td>
+      <td class="num">${fmtNum(inc)}</td>
+      <td class="num">${fmtNum(sur)}</td>
+      <td class="num">${fmtNum(sho)}</td>
+      <td class="num" style="${net<0?'color:var(--shortfall);':net>0?'color:var(--surplus);':''}font-weight:600;">${net>=0?'+':''}${fmtNum(net)}</td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = rows || '<tr><td colspan="7" class="empty">No staff on the roster.</td></tr>';
+  const totEl = document.getElementById('noLeaveIncTotal');
+  if(totEl) totEl.textContent = fmt(total);
 }
 function renderDutyHolidaySummary(holidayCounts){
   const box = document.getElementById('dutyHolidaySummary');
