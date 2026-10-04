@@ -267,7 +267,7 @@
   .duty-cell{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
   .duty-chip{font-family:'Inter',sans-serif;font-size:12px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;line-height:1.3;}
   .duty-chip:hover{border-color:var(--navy);}
-  .duty-chip.on{background:#1E8E5A;border-color:#1E8E5A;color:#fff;font-weight:700;box-shadow:0 0 0 3px rgba(30,142,90,.28);}
+  .duty-chip.on:not(.manual){background:#1E8E5A !important;border-color:#1E8E5A !important;color:#fff !important;font-weight:700;box-shadow:0 0 0 3px rgba(30,142,90,.35);}
   .duty-chip.on:hover{background:#17724A;border-color:#17724A;}
   .duty-chip.manual{background:var(--petrol);border-color:var(--petrol);color:#3a2205;}
   .duty-chip.manual:hover{background:var(--petrol-dark);color:#fff;}
@@ -1313,10 +1313,10 @@
  [data-theme="stone"] .duty-chip.manual, [data-theme="neon-purple"] .duty-chip.manual, [data-theme="citrus"] .duty-chip.manual, [data-theme="velocity"] .duty-chip.manual, [data-theme="arclight"] .duty-chip.manual{color:#fff;}
  [data-theme="stone"] .duty-chip.holiday, [data-theme="neon-purple"] .duty-chip.holiday, [data-theme="citrus"] .duty-chip.holiday, [data-theme="velocity"] .duty-chip.holiday, [data-theme="arclight"] .duty-chip.holiday{color:#fff;border-color:var(--holiday);}
  /* Selected / holiday / manual chips must stay highlighted in every theme */
- [data-theme] .duty-chip.on:not(.manual){background:#1E8E5A;border-color:#1E8E5A;color:#fff;font-weight:700;box-shadow:0 0 0 3px rgba(30,142,90,.35);}
+ [data-theme] .duty-chip.on:not(.manual){background:#1E8E5A !important;border-color:#1E8E5A !important;color:#fff !important;font-weight:700;box-shadow:0 0 0 3px rgba(30,142,90,.35);}
  [data-theme] .duty-chip.on:not(.manual):hover{background:#17724A;border-color:#17724A;}
  [data-theme] .duty-chip.manual{background:var(--petrol);border-color:var(--petrol);color:#fff;}
- [data-theme] .duty-chip.holiday{background:var(--holiday);border-color:var(--holiday);color:#fff;font-weight:700;box-shadow:0 0 0 3px rgba(138,79,191,.35);}
+ [data-theme] .duty-chip.holiday{background:var(--holiday) !important;border-color:var(--holiday) !important;color:#fff !important;font-weight:700;box-shadow:0 0 0 3px rgba(138,79,191,.35);}
  [data-theme="stone"] .duty-add, [data-theme="neon-purple"] .duty-add, [data-theme="citrus"] .duty-add, [data-theme="velocity"] .duty-add, [data-theme="arclight"] .duty-add{color:var(--muted);}
 
  [data-theme="neon-purple"] .digit-box{background:#0A0716;border-color:color-mix(in srgb, var(--petrol) 22%, transparent);box-shadow:inset 0 0 14px rgba(0,0,0,.65),0 0 16px color-mix(in srgb, var(--petrol) 10%, transparent);}
@@ -5213,13 +5213,17 @@ function dutyCellHtml(date, shift, cell){
     const on = cell.staff.indexOf(s.id) >= 0;
     return `<button type="button" class="duty-chip${on ? ' on' : ''}" aria-pressed="${on}" onclick="toggleDutyStaff('${date}','${shift}','${s.id}')">${on ? '✓ ' : ''}${escapeHtml(s.name)}</button>`;
   }).join('');
+  const known = new Set(state.staff.map(s=>s.id));
+  const orphanChips = cell.staff.filter(id=>!known.has(id)).map(id=>
+    `<button type="button" class="duty-chip on" title="This staff member was removed — tap to take off this shift" onclick="toggleDutyStaff('${date}','${shift}','${id}')">✓ (removed staff) ✕</button>`
+  ).join('');
   const manualChips = cell.manual.map(m=>
     `<button type="button" class="duty-chip on manual" title="Tap to remove" onclick="removeManualDutyEntry('${date}','${shift}','${m.id}')">${escapeHtml(m.text)} ✕</button>`
   ).join('');
   const addBtn = `<button type="button" class="duty-add" onclick="addManualDutyEntry('${date}','${shift}')" title="Type a name or note manually">+ Type manually</button>`;
   const hasAny = cell.staff.length || cell.manual.length;
   const clearBtn = hasAny ? `<button type="button" class="duty-clear" onclick="clearDutyCell('${date}','${shift}')">Clear</button>` : '';
-  return `<div class="duty-cell">${staffChips}${manualChips}${addBtn}${clearBtn}</div>`;
+  return `<div class="duty-cell">${staffChips}${orphanChips}${manualChips}${addBtn}${clearBtn}</div>`;
 }
 function dutyHolidayCellHtml(date, holidayIds){
   const chips = state.staff.map(s=>{
