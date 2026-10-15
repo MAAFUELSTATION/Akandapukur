@@ -1584,6 +1584,29 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 @media (min-width:1400px){
   .card h2{ font-size:20px; }
 }
+
+  /* ===== Food Coupon tab ===== */
+  .fc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:14px 0 4px;}
+  .fc-card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:13px 16px;}
+  .fc-card .lbl{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px;}
+  .fc-card .val{font-family:'JetBrains Mono',monospace;font-size:21px;font-weight:700;color:var(--navy);}
+  .fc-card.issued{border-left-color:var(--diesel);background:#F2F7FE;}
+  .fc-card.used{border-left-color:var(--petrol);background:#FDF7EA;}
+  .fc-card.left{border-left-color:var(--surplus);background:#F0FAF4;}
+  .fc-card.left .val{color:var(--surplus);}
+  .fc-card.lapsed{border-left-color:var(--shortfall);background:#FDF2F1;}
+  .fc-card.lapsed .val{color:var(--shortfall);}
+  .fc-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;margin-left:6px;}
+  .fc-badge.open{background:#E3F5EA;color:var(--surplus);}
+  .fc-badge.closed{background:#FBE5E3;color:var(--shortfall);}
+  .fc-badge.future{background:#EEE8F7;color:var(--holiday);}
+  #tab-foodcoupon td.num, #tab-foodcoupon th.num{text-align:right;font-family:'JetBrains Mono',monospace;}
+  #tab-foodcoupon .fc-use{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  #tab-foodcoupon .fc-use input{width:76px;}
+  #tab-foodcoupon .fc-use select{max-width:110px;}
+  #tab-foodcoupon tr.fc-jump{cursor:pointer;}
+  #tab-foodcoupon tr.fc-jump:hover td{background:#F3F8FE;}
+  #tab-foodcoupon .fc-zero{color:var(--muted);}
 </style>
 </head>
 <body class="app-locked">
@@ -1794,6 +1817,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
   <button class="tab-btn" data-tab="maintenance" onclick="switchTab('maintenance')">🛠️ Maintenance</button>
   <button class="tab-btn" data-tab="payroll" onclick="switchTab('payroll')">💵 Payroll</button>
+  <button class="tab-btn" data-tab="foodcoupon" onclick="switchTab('foodcoupon')">🍽️ Food Coupon</button>
   <button class="tab-btn" data-tab="admin" onclick="switchTab('admin')">🔑 Admin</button>
 </nav>
 <nav class="tabs" data-group="addons" style="display:none;">
@@ -2652,6 +2676,64 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <section id="tab-lubeindent" class="tab">
     <div class="card" style="padding:0;overflow:hidden;">
       <iframe id="lubeIndentFrame" title="Lube Indent" style="width:100%;border:none;display:block;min-height:520px;background:#F6F3EC;" scrolling="no"></iframe>
+    </div>
+  </section>
+
+  <!-- ===================== FOOD COUPON TAB ===================== -->
+  <!-- Meal tokens for staff. A token is only good for its own period (one day
+       or one month, chosen below) — whatever is unused simply lapses and is
+       never added to the next period. -->
+  <section id="tab-foodcoupon" class="tab">
+    <div class="card">
+      <h2>🍽️ Food Coupon <span class="tag">Give meal tokens to staff · unused balance lapses, never carried forward</span></h2>
+      <div class="row">
+        <button class="btn ghost small" onclick="fcShift(-1)">← Prev</button>
+        <button class="btn amber small" onclick="fcToday()">Today</button>
+        <button class="btn ghost small" onclick="fcShift(1)">Next →</button>
+        <div class="field"><label>Date</label><input type="date" id="fcDate" onchange="fcPickDate(this.value)"></div>
+        <div class="field"><label>Token is valid for</label>
+          <select id="fcMode" onchange="fcSetMode(this.value)">
+            <option value="daily">One day (resets every day)</option>
+            <option value="monthly">One month (resets every month)</option>
+          </select>
+        </div>
+      </div>
+      <div id="fcPeriodLabel" style="font-weight:600;color:var(--navy);font-size:15px;margin-top:4px;"></div>
+      <div class="fc-cards" id="fcSummary"></div>
+    </div>
+
+    <div class="card">
+      <h2>🎟️ Give Food Token</h2>
+      <div class="row">
+        <div class="field"><label>Token amount per staff (₹)</label><input type="number" id="fcPerHead" min="0" step="1" onchange="fcSetPerHead(this.value)"></div>
+        <button class="btn amber" onclick="fcIssueAll()">🎟️ Give to All Staff</button>
+      </div>
+      <div class="hint">Gives this amount to every staff member for the period shown above. You can also type a different token amount for any one person in the table below.</div>
+    </div>
+
+    <div class="card">
+      <h2>👥 Staff Balance <span class="tag">Token − meals eaten = net available</span></h2>
+      <div class="maint-wrap"><table>
+        <thead><tr><th>Staff</th><th class="num">Token Given (₹)</th><th class="num">Used (₹)</th><th class="num" id="fcBalHead">Net Balance</th><th>Record a meal</th></tr></thead>
+        <tbody id="fcBody"></tbody>
+      </table></div>
+      <div class="hint" style="margin-top:10px;">A meal can't be more than the staff member's remaining balance. When the period ends, any balance left is lost — the next day/month starts fresh at the new token amount only.</div>
+    </div>
+
+    <div class="card">
+      <h2>🧾 Meals Taken <span class="tag" id="fcLogTag"></span></h2>
+      <div class="maint-wrap"><table>
+        <thead><tr><th>Time</th><th>Staff</th><th>Meal</th><th class="num">Amount (₹)</th><th></th></tr></thead>
+        <tbody id="fcLogBody"></tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h2>📅 Past Periods <span class="tag">Tap a row to open it</span></h2>
+      <div class="maint-wrap"><table>
+        <thead><tr><th>Period</th><th class="num">Token Given (₹)</th><th class="num">Used (₹)</th><th class="num">Unused (₹)</th><th>Status</th></tr></thead>
+        <tbody id="fcHistBody"></tbody>
+      </table></div>
     </div>
   </section>
 
@@ -4441,7 +4523,7 @@ function toggleCcBlock(headerEl){
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
   finance:  ['cash','surplus','notestock','cashledger','buscash','luberegister','lubeindent','eodloan'],
-  staffops: ['staff','duty','maintenance','payroll','admin'],
+  staffops: ['staff','duty','maintenance','payroll','foodcoupon','admin'],
   addons:   ['addonreport']
 };
 function tabGroupOf(name){
@@ -4476,6 +4558,7 @@ function switchTab(name){
   if(name==='maintenance') renderMaintenanceTab();
   if(name==='admin') renderAdminTab();
   if(name==='payroll') renderPayrollTab();
+  if(name==='foodcoupon') renderFoodCouponTab();
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
   if(name==='notestock') renderNoteStockTab();
@@ -4605,6 +4688,173 @@ function prCalc(save){
   T('prHF', money(tF)); T('prHT', money(bill)); T('prHB', money(bal)); T('prHR', money(rec));
   T('prGS', money(tN)); T('prGH', money(Math.max(bal,0))); T('prGT', money(tN + Math.max(bal,0)));
   if(save && typeof scheduleAutosave === 'function') scheduleAutosave();
+}
+
+/* ============== FOOD COUPON TAB ============== */
+// state.foodCoupon = { mode:'daily'|'monthly', perHead, periods:{ "<YYYY-MM-DD or YYYY-MM>": { issued:{staffId:amount}, log:[{id,sid,amt,meal,at}] } } }
+// Each period stands alone: balance = that period's token − that period's meals.
+// Nothing is ever copied into the next period, so unused balance simply lapses.
+let fcDate = null;
+function ensureFoodCoupon(){
+  if(!state.foodCoupon || typeof state.foodCoupon !== 'object') state.foodCoupon = {};
+  const f = state.foodCoupon;
+  if(f.mode !== 'monthly') f.mode = 'daily';
+  if(f.perHead == null) f.perHead = 100;
+  if(!f.periods || typeof f.periods !== 'object') f.periods = {};
+  return f;
+}
+function fcKeyOf(d){ return ensureFoodCoupon().mode === 'monthly' ? d.slice(0,7) : d; }
+function fcViewKey(){ if(!fcDate) fcDate = localDateStr(new Date()); return fcKeyOf(fcDate); }
+function fcStart(key){ return key.length === 7 ? key + '-01' : key; }
+function fcEnd(key){
+  if(key.length !== 7) return key;
+  const y = +key.slice(0,4), m = +key.slice(5,7);
+  return localDateStr(new Date(y, m, 0));
+}
+// 'open' = today falls inside the period, 'closed' = it has ended, 'future' = not started
+function fcStatus(key){
+  const t = localDateStr(new Date());
+  if(fcEnd(key) < t) return 'closed';
+  if(fcStart(key) > t) return 'future';
+  return 'open';
+}
+function fcLabel(key){
+  if(key.length === 7) return new Date(key + '-01T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  return new Date(key + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+}
+function fcM(v){ return '₹' + (Number(v)||0).toLocaleString('en-IN',{maximumFractionDigits:2}); }
+function fcPeek(key){
+  const r = ensureFoodCoupon().periods[key];
+  return { issued: (r && r.issued) || {}, log: (r && Array.isArray(r.log)) ? r.log : [] };
+}
+function fcRec(key){
+  const f = ensureFoodCoupon();
+  if(!f.periods[key]) f.periods[key] = {issued:{}, log:[]};
+  const r = f.periods[key];
+  if(!r.issued || typeof r.issued !== 'object') r.issued = {};
+  if(!Array.isArray(r.log)) r.log = [];
+  return r;
+}
+function fcUsed(rec, sid){ return rec.log.reduce((t,e)=> e.sid === sid ? t + (Number(e.amt)||0) : t, 0); }
+function fcSum(obj){ return Object.keys(obj).reduce((t,k)=> t + (Number(obj[k])||0), 0); }
+function fcStaffName(id){ const s = (state.staff||[]).find(x=>x.id===id); return s ? s.name : 'Former staff'; }
+
+function fcToday(){ fcDate = localDateStr(new Date()); renderFoodCouponTab(); }
+function fcPickDate(v){ if(!v) return; fcDate = v; renderFoodCouponTab(); }
+function fcShift(n){
+  const f = ensureFoodCoupon();
+  if(!fcDate) fcDate = localDateStr(new Date());
+  if(f.mode === 'monthly'){
+    const d = new Date(fcDate + 'T00:00:00'); d.setMonth(d.getMonth() + n, 1); fcDate = localDateStr(d);
+  } else fcDate = addDaysStr(fcDate, n);
+  renderFoodCouponTab();
+}
+function fcJump(key){ fcDate = fcStart(key); renderFoodCouponTab(); window.scrollTo({top:0,behavior:'smooth'}); }
+function fcSetMode(v){ ensureFoodCoupon().mode = (v === 'monthly') ? 'monthly' : 'daily'; renderFoodCouponTab(); scheduleAutosave(); }
+function fcSetPerHead(v){ ensureFoodCoupon().perHead = Math.max(0, parseFloat(v) || 0); scheduleAutosave(); }
+
+function fcIssueAll(){
+  const f = ensureFoodCoupon(), key = fcViewKey(), amt = parseFloat(document.getElementById('fcPerHead').value) || 0;
+  if(!(amt > 0)){ alert('Enter a token amount greater than 0.'); return; }
+  const staff = state.staff || [];
+  if(!staff.length){ alert('No staff yet — add staff in the Staff tab.'); return; }
+  f.perHead = amt;
+  const r = fcRec(key);
+  const already = staff.some(s => (Number(r.issued[s.id])||0) > 0);
+  if(already && !confirm('Tokens are already given for ' + fcLabel(key) + '.\n\nAdd another ' + fcM(amt) + ' to every staff member on top of it?')) return;
+  staff.forEach(s => { r.issued[s.id] = (Number(r.issued[s.id])||0) + amt; });
+  renderFoodCouponTab(); scheduleAutosave();
+}
+function fcSetIssued(sid, v){
+  const key = fcViewKey(), r = fcRec(key), used = fcUsed(r, sid);
+  let n = Math.max(0, parseFloat(v) || 0);
+  if(n < used){ alert(fcStaffName(sid) + ' has already used ' + fcM(used) + ' — token can\'t be less than that.'); n = used; }
+  r.issued[sid] = n;
+  renderFoodCouponTab(); scheduleAutosave();
+}
+function fcUse(sid){
+  const key = fcViewKey(), r = fcRec(key);
+  const amtEl = document.getElementById('fcAmt_' + sid), mealEl = document.getElementById('fcMeal_' + sid);
+  const amt = parseFloat(amtEl && amtEl.value) || 0;
+  const bal = (Number(r.issued[sid])||0) - fcUsed(r, sid);
+  if(!(amt > 0)){ alert('Enter the meal amount.'); return; }
+  if((Number(r.issued[sid])||0) <= 0){ alert(fcStaffName(sid) + ' has no token for this period. Give a token first.'); return; }
+  if(amt > bal + 1e-9){ alert('Not enough balance. ' + fcStaffName(sid) + ' has only ' + fcM(bal) + ' left.'); return; }
+  r.log.push({id:'fl' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), sid, amt, meal: mealEl ? mealEl.value : 'Meal', at: Date.now()});
+  renderFoodCouponTab(); scheduleAutosave();
+}
+function fcRemoveLog(id){
+  const key = fcViewKey(), r = fcRec(key), e = r.log.find(x=>x.id===id);
+  if(!e) return;
+  if(!confirm('Remove this ' + fcM(e.amt) + ' meal for ' + fcStaffName(e.sid) + '? The amount goes back to their balance.')) return;
+  r.log = r.log.filter(x=>x.id!==id);
+  renderFoodCouponTab(); scheduleAutosave();
+}
+function fcDefaultMeal(){ const h = new Date().getHours(); return h < 11 ? 'Breakfast' : (h < 17 ? 'Lunch' : 'Dinner'); }
+
+function renderFoodCouponTab(){
+  const f = ensureFoodCoupon();
+  if(!fcDate) fcDate = localDateStr(new Date());
+  const key = fcViewKey(), st = fcStatus(key), rec = fcPeek(key);
+  document.getElementById('fcDate').value = fcDate;
+  document.getElementById('fcMode').value = f.mode;
+  const pe = document.getElementById('fcPerHead'); if(document.activeElement !== pe) pe.value = f.perHead;
+  const badge = st === 'open' ? '<span class="fc-badge open">Open</span>'
+              : st === 'closed' ? '<span class="fc-badge closed">Ended — unused balance lapsed</span>'
+              : '<span class="fc-badge future">Not started</span>';
+  document.getElementById('fcPeriodLabel').innerHTML = escapeHtml(fcLabel(key)) + badge;
+
+  const staff = state.staff || [];
+  const mealRate = (state.payroll && state.payroll.settings && Number(state.payroll.settings.mealRate)) || 60;
+  const meal = fcDefaultMeal();
+  let tIssued = 0, tUsed = 0;
+  document.getElementById('fcBalHead').textContent = st === 'closed' ? 'Lapsed (₹)' : 'Net Balance (₹)';
+  document.getElementById('fcBody').innerHTML = staff.map(s=>{
+    const iss = Number(rec.issued[s.id]) || 0, used = fcUsed(rec, s.id), bal = iss - used;
+    tIssued += iss; tUsed += used;
+    const balCell = st === 'closed'
+      ? '<span class="' + (bal > 0 ? '' : 'fc-zero') + '" style="' + (bal > 0 ? 'color:var(--shortfall);font-weight:700;' : '') + '">' + fcM(bal) + '</span>'
+      : '<span style="font-weight:700;color:' + (bal > 0 ? 'var(--surplus)' : 'var(--muted)') + ';">' + fcM(bal) + '</span>';
+    return '<tr>'
+      + '<td class="staff-name-cell">' + escapeHtml(s.name) + '</td>'
+      + '<td class="num"><input type="number" min="0" step="1" style="width:90px;text-align:right;" value="' + iss + '" onchange="fcSetIssued(\'' + s.id + '\', this.value)"></td>'
+      + '<td class="num">' + fcM(used) + '</td>'
+      + '<td class="num">' + balCell + '</td>'
+      + '<td><div class="fc-use"><input type="number" min="0" step="1" id="fcAmt_' + s.id + '" value="' + mealRate + '" onkeydown="if(event.key===\'Enter\')fcUse(\'' + s.id + '\')">'
+      + '<select id="fcMeal_' + s.id + '">' + ['Breakfast','Lunch','Dinner','Tea & Snacks'].map(m=>'<option' + (m === meal ? ' selected' : '') + '>' + m.replace('&','&amp;') + '</option>').join('') + '</select>'
+      + '<button class="btn amber small" onclick="fcUse(\'' + s.id + '\')">Use</button></div></td>'
+      + '</tr>';
+  }).join('') || '<tr><td colspan="5">No staff yet — add staff in the Staff tab.</td></tr>';
+
+  const left = tIssued - tUsed;
+  document.getElementById('fcSummary').innerHTML =
+      '<div class="fc-card issued"><div class="lbl">Token Given</div><div class="val">' + fcM(tIssued) + '</div></div>'
+    + '<div class="fc-card used"><div class="lbl">Meals Used</div><div class="val">' + fcM(tUsed) + '</div></div>'
+    + (st === 'closed'
+        ? '<div class="fc-card lapsed"><div class="lbl">Lapsed (not carried forward)</div><div class="val">' + fcM(left) + '</div></div>'
+        : '<div class="fc-card left"><div class="lbl">Net Available Balance</div><div class="val">' + fcM(left) + '</div></div>');
+
+  // meals log for this period
+  const log = rec.log.slice().sort((a,b)=> b.at - a.at);
+  document.getElementById('fcLogTag').textContent = log.length + (log.length === 1 ? ' meal' : ' meals');
+  document.getElementById('fcLogBody').innerHTML = log.map(e=>
+      '<tr><td>' + new Date(e.at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) + '</td>'
+    + '<td>' + escapeHtml(fcStaffName(e.sid)) + '</td><td>' + escapeHtml(e.meal || 'Meal') + '</td>'
+    + '<td class="num">' + fcM(e.amt) + '</td>'
+    + '<td><button class="btn ghost small" onclick="fcRemoveLog(\'' + e.id + '\')">Remove</button></td></tr>'
+  ).join('') || '<tr><td colspan="5" class="fc-zero">No meals recorded for this period.</td></tr>';
+
+  // history of every period, newest first
+  const keys = Object.keys(f.periods).filter(k=>{
+    const r = fcPeek(k); return fcSum(r.issued) > 0 || r.log.length;
+  }).sort().reverse();
+  document.getElementById('fcHistBody').innerHTML = keys.map(k=>{
+    const r = fcPeek(k), iss = fcSum(r.issued), used = r.log.reduce((t,e)=>t+(Number(e.amt)||0),0), un = iss - used, s2 = fcStatus(k);
+    const status = s2 === 'closed' ? (un > 0 ? '<span style="color:var(--shortfall);font-weight:700;">Lapsed ' + fcM(un) + '</span>' : '<span class="fc-zero">Fully used</span>')
+                 : s2 === 'open' ? '<span style="color:var(--surplus);font-weight:700;">Available ' + fcM(un) + '</span>'
+                 : '<span class="fc-zero">Not started</span>';
+    return '<tr class="fc-jump" onclick="fcJump(\'' + k + '\')"><td>' + escapeHtml(fcLabel(k)) + '</td><td class="num">' + fcM(iss) + '</td><td class="num">' + fcM(used) + '</td><td class="num">' + fcM(un) + '</td><td>' + status + '</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="fc-zero">No tokens given yet.</td></tr>';
 }
 
 /* ============== WEEKLY MAINTENANCE TAB ============== */
