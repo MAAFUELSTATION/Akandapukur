@@ -595,7 +595,7 @@
   #tab-cash .card h2{font-size:22px;}
   #tab-cash .cc-block-title{font-size:18px;}
 
-  /* Counter number shown inline in the Online / UPI and Additional Online labels. */
+  /* Counter number shown inline in the Online / UPI and XR labels. */
   .cc-counter-badge{display:inline-block;font-size:.82em;font-weight:800;letter-spacing:.4px;padding:1px 8px;margin:0 6px;border-radius:5px;background:var(--petrol,#0b6e6e);color:#fff;vertical-align:baseline;text-transform:uppercase;}
   #tab-cash .field label{font-size:13px;}
   #tab-cash .field input,#tab-cash .field select{font-size:17px;padding:11px 12px;min-height:46px;}
@@ -1805,6 +1805,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
 <nav class="tabs" data-group="finance" style="display:none;">
   <button class="tab-btn" data-tab="cash" onclick="switchTab('cash')">🧮 Cash Denomination Calculator</button>
   <button class="tab-btn" data-tab="surplus" onclick="switchTab('surplus')">📒 Staff Surplus / Short Data</button>
+  <button class="tab-btn" data-tab="onlinetotals" onclick="switchTab('onlinetotals')">📲 Online Totals</button>
   <button class="tab-btn" data-tab="notestock" onclick="switchTab('notestock')">💵 Note Stock</button>
   <button class="tab-btn" data-tab="cashledger" onclick="switchTab('cashledger')">💰 Cash Ledger</button>
   <button class="tab-btn" data-tab="buscash" onclick="switchTab('buscash')">🚌 Bus Cash Tracker</button>
@@ -2305,7 +2306,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
               <input type="number" id="cardAmt" min="0" step="0.01" value="0" oninput="calcCash()">
             </div>
             <div class="field">
-              <label>Online Amount ₹</label>
+              <label>XR</label>
               <input type="number" id="onlineAmt2" min="0" step="0.01" value="0" oninput="calcCash()">
               <select id="onlineCounter2" style="margin-top:5px;" onchange="calcCash()">
                 <option value="">— Counter No. —</option>
@@ -2349,7 +2350,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
           </div>
           <div class="calc-line"><span>+ Online / UPI</span><span class="mono" id="calcOnline">₹0.00</span></div>
           <div class="calc-line"><span>+ Card / POS</span><span class="mono" id="calcCard">₹0.00</span></div>
-          <div class="calc-line"><span>+ Additional Online</span><span class="mono" id="calcOnline2">₹0.00</span></div>
+          <div class="calc-line"><span>+ XR</span><span class="mono" id="calcOnline2">₹0.00</span></div>
           <div class="calc-line"><span>+ Deposit</span><span class="mono" id="calcDeposit">₹0.00</span></div>
           <div class="calc-line"><span>+ Loan Given</span><span class="mono" id="calcLoan">₹0.00</span></div>
           <div class="calc-line"><span>+ Testing HSD</span><span class="mono" id="calcTHSD">₹0.00</span></div>
@@ -2437,6 +2438,57 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <tbody id="surplusBody"></tbody>
       </table>
       <div class="empty" id="surplusEmpty" style="display:none;">No cash reconciliation records saved for this month/staff yet.</div>
+    </div>
+  </section>
+
+  <!-- ===================== ONLINE TOTALS TAB (admin-only) ===================== -->
+  <section id="tab-onlinetotals" class="tab">
+    <div class="card">
+      <h2>All Daily Online Total <span class="tag">Paytm + Card · Google Pay (Nasir)</span></h2>
+      <div class="row">
+        <div class="field">
+          <label>Month</label>
+          <input type="month" id="olMonth" onchange="renderOnlineTotalsTab()">
+        </div>
+      </div>
+      <div class="readouts" style="margin-top:6px;">
+        <div class="digit-box total"><div class="lbl">Month Online Total</div><div class="val" id="olGrand">₹0.00</div></div>
+        <div class="digit-box"><div class="lbl">Paytm (Online + XR)</div><div class="val" id="olPaytmTot">₹0.00</div></div>
+        <div class="digit-box"><div class="lbl">Card / POS</div><div class="val" id="olCardTot">₹0.00</div></div>
+        <div class="digit-box"><div class="lbl">Google Pay — Nasir</div><div class="val" id="olGpayTot">₹0.00</div></div>
+      </div>
+      <table style="margin-top:14px;">
+        <thead>
+          <tr><th>Date</th><th class="num">Paytm ₹</th><th class="num">Card / POS ₹</th><th class="num">Google Pay (Nasir) ₹</th><th class="num">Day Total ₹</th></tr>
+        </thead>
+        <tbody id="olDailyBody"></tbody>
+        <tfoot id="olDailyFoot"></tfoot>
+      </table>
+      <div class="empty" id="olEmpty" style="display:none;">No online / card amounts saved for this month yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Rest of Staff — Online + Card <span class="tag">Paytm &amp; Card / POS</span></h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Staff</th><th class="num">Online / UPI ₹</th><th class="num">XR ₹</th><th class="num">Card / POS ₹</th><th class="num">Total ₹</th></tr>
+        </thead>
+        <tbody id="olRestBody"></tbody>
+        <tfoot id="olRestFoot"></tfoot>
+      </table>
+      <div class="empty" id="olRestEmpty" style="display:none;">No records for this month.</div>
+    </div>
+
+    <div class="card">
+      <h2>Nasir — Google Pay <span class="tag">Kept separate</span></h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th class="num">Google Pay (Online / UPI) ₹</th><th class="num">Google Pay (XR) ₹</th><th class="num">Google Pay Total ₹</th><th class="num">Card / POS ₹</th></tr>
+        </thead>
+        <tbody id="olNasirBody"></tbody>
+        <tfoot id="olNasirFoot"></tfoot>
+      </table>
+      <div class="empty" id="olNasirEmpty" style="display:none;">No Google Pay records for Nasir this month.</div>
     </div>
   </section>
 
@@ -4522,7 +4574,7 @@ function toggleCcBlock(headerEl){
 // Which category each tab lives under, for the grouped nav below.
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
-  finance:  ['cash','surplus','notestock','cashledger','buscash','luberegister','lubeindent','eodloan'],
+  finance:  ['cash','surplus','onlinetotals','notestock','cashledger','buscash','luberegister','lubeindent','eodloan'],
   staffops: ['staff','duty','maintenance','payroll','foodcoupon','admin'],
   addons:   ['addonreport']
 };
@@ -4561,6 +4613,7 @@ function switchTab(name){
   if(name==='foodcoupon') renderFoodCouponTab();
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
+  if(name==='onlinetotals') renderOnlineTotalsTab();
   if(name==='notestock') renderNoteStockTab();
   if(name==='eodloan') renderAdminLoansTab();
   if(name==='dipchart') renderDipChartTab();
@@ -5047,7 +5100,7 @@ function renderAdminTab(){
             ${counterDefaultOptionsHtml('Online/UPI Counter', (state.counterDefaults && state.counterDefaults[s.id] && state.counterDefaults[s.id].onlineCounter) || '')}
           </select>
           <select style="flex:1;min-width:150px;" onchange="updateCounterDefault('${s.id}','onlineCounter2',this.value)">
-            ${counterDefaultOptionsHtml('Additional Online Counter', (state.counterDefaults && state.counterDefaults[s.id] && state.counterDefaults[s.id].onlineCounter2) || '')}
+            ${counterDefaultOptionsHtml('XR Counter', (state.counterDefaults && state.counterDefaults[s.id] && state.counterDefaults[s.id].onlineCounter2) || '')}
           </select>
         </div>`).join('');
     }
@@ -8527,6 +8580,72 @@ function staffNameById(id){
   const s = state.staff.find(x=>x.id===id);
   return s ? s.name : '(removed staff)';
 }
+/* ============== ONLINE TOTALS TAB ============== */
+// Nasir is the only staff member who collects through Google Pay, so his
+// online amounts (Online/UPI + XR) are reported as Google Pay and kept apart.
+// Every other staff member's online amounts are Paytm, shown together with Card/POS.
+function olIsNasir(sid){
+  const s = state.staff.find(x=>x.id===sid);
+  return !!s && String(s.name||'').trim().toLowerCase()==='nasir';
+}
+function renderOnlineTotalsTab(){
+  const mInp = document.getElementById('olMonth');
+  if(!mInp.value) mInp.value = thisMonthStr();
+  const month = mInp.value;
+  const rupee = n => '₹'+fmtNum(n);
+  const days = {}, rest = [], nasir = [];
+  Object.keys(state.cash||{}).filter(d=>d.startsWith(month)).sort().forEach(date=>{
+    Object.entries(state.cash[date]).forEach(([sid,rec])=>{
+      const on = Number(rec.onlineAmt)||0, xr = Number(rec.onlineAmt2)||0, card = Number(rec.cardAmt)||0;
+      if(!on && !xr && !card) return;
+      const d = days[date] || (days[date] = {paytm:0, card:0, gpay:0});
+      d.card += card;
+      if(olIsNasir(sid)){
+        d.gpay += on + xr;
+        nasir.push({date,on,xr,card});
+      } else {
+        d.paytm += on + xr;
+        rest.push({date,sid,on,xr,card});
+      }
+    });
+  });
+
+  // --- all daily online totals ---
+  const dates = Object.keys(days).sort();
+  let tP=0,tC=0,tG=0;
+  document.getElementById('olDailyBody').innerHTML = dates.map(dt=>{
+    const d = days[dt]; tP+=d.paytm; tC+=d.card; tG+=d.gpay;
+    return `<tr><td>${dt}</td><td class="num">${fmtNum(d.paytm)}</td><td class="num">${fmtNum(d.card)}</td><td class="num">${fmtNum(d.gpay)}</td><td class="num"><b>${fmtNum(d.paytm+d.card+d.gpay)}</b></td></tr>`;
+  }).join('');
+  document.getElementById('olDailyFoot').innerHTML = dates.length
+    ? `<tr><td>Month Total</td><td class="num">${fmtNum(tP)}</td><td class="num">${fmtNum(tC)}</td><td class="num">${fmtNum(tG)}</td><td class="num">${fmtNum(tP+tC+tG)}</td></tr>` : '';
+  document.getElementById('olEmpty').style.display = dates.length ? 'none' : 'block';
+  document.getElementById('olGrand').textContent = rupee(tP+tC+tG);
+  document.getElementById('olPaytmTot').textContent = rupee(tP);
+  document.getElementById('olCardTot').textContent = rupee(tC);
+  document.getElementById('olGpayTot').textContent = rupee(tG);
+
+  // --- rest of staff: online + card ---
+  let rO=0,rX=0,rC=0;
+  document.getElementById('olRestBody').innerHTML = rest.map(r=>{
+    rO+=r.on; rX+=r.xr; rC+=r.card;
+    return `<tr><td>${r.date}</td><td class="staff-name-cell">${escapeHtml(staffNameById(r.sid))}</td><td class="num">${fmtNum(r.on)}</td><td class="num">${fmtNum(r.xr)}</td><td class="num">${fmtNum(r.card)}</td><td class="num"><b>${fmtNum(r.on+r.xr+r.card)}</b></td></tr>`;
+  }).join('');
+  document.getElementById('olRestFoot').innerHTML = rest.length
+    ? `<tr><td colspan="2">Total</td><td class="num">${fmtNum(rO)}</td><td class="num">${fmtNum(rX)}</td><td class="num">${fmtNum(rC)}</td><td class="num">${fmtNum(rO+rX+rC)}</td></tr>` : '';
+  document.getElementById('olRestEmpty').style.display = rest.length ? 'none' : 'block';
+
+  // --- Nasir: Google Pay ---
+  let nO=0,nX=0,nC=0;
+  document.getElementById('olNasirBody').innerHTML = nasir.map(r=>{
+    nO+=r.on; nX+=r.xr; nC+=r.card;
+    return `<tr><td>${r.date}</td><td class="num">${fmtNum(r.on)}</td><td class="num">${fmtNum(r.xr)}</td><td class="num"><b>${fmtNum(r.on+r.xr)}</b></td><td class="num">${fmtNum(r.card)}</td></tr>`;
+  }).join('');
+  document.getElementById('olNasirFoot').innerHTML = nasir.length
+    ? `<tr><td>Total</td><td class="num">${fmtNum(nO)}</td><td class="num">${fmtNum(nX)}</td><td class="num">${fmtNum(nO+nX)}</td><td class="num">${fmtNum(nC)}</td></tr>` : '';
+  document.getElementById('olNasirEmpty').style.display = nasir.length ? 'none' : 'block';
+}
+
 function renderSurplusTab(){
   populateSurplusStaffFilter();
   const mInp = document.getElementById('surplusMonth');
@@ -8837,7 +8956,7 @@ function exportDataExcel(){
         'Cash Counted': rec.cashCounted,
         'Online Amount': rec.onlineAmt,
         'Card Amount': rec.cardAmt,
-        'Additional Online Amount': rec.onlineAmt2,
+        'XR Amount': rec.onlineAmt2,
         'Loan/Deposit Net': (Number(rec.loan)||0) - (Number(rec.deposit)||0),
         'Sales Amount': rec.salesAmount,
         'Final Value': rec.finalValue,
