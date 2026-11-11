@@ -4131,7 +4131,16 @@ function initServerSync(retryCount){
   socket.on('state:updated', payload=>{
     if(!payload || !payload.state) return;
     applyingRemoteUpdate = true;
-    state = payload.state;
+    // FIX: if this device has edits that haven't reached the server yet (e.g. an
+    // add-on box sale typed within the 500ms autosave delay, a save still in
+    // flight, or a slow/sleeping server), do NOT throw them away. Merge them
+    // with the incoming copy using the same 3-way merge used for 409 conflicts.
+    const hadUnsyncedLocal = !!lastSyncedState && getStateSignature() !== lastSyncedStateSignature;
+    const localBeforeRemote = hadUnsyncedLocal ? snapshotCurrentState() : null;
+    const serverCopyClone = JSON.parse(JSON.stringify(payload.state));
+    state = hadUnsyncedLocal
+      ? smartMergeValue(lastSyncedState, localBeforeRemote, payload.state)
+      : payload.state;
     if(!state.rates) state.rates = {};
     if(!state.cash) state.cash = {};
     if(!state.cashUnlocks) state.cashUnlocks = {};
@@ -4150,6 +4159,12 @@ function initServerSync(retryCount){
     if(payload.updatedAt) lastKnownUpdatedAt = payload.updatedAt;
     lastSyncedStateSignature = getStateSignature();
     lastSyncedState = snapshotCurrentState();
+    if(hadUnsyncedLocal){
+      // Merged state still contains local-only edits: remember the SERVER copy as
+      // the new common base and force the next push to go through.
+      lastSyncedState = serverCopyClone;
+      lastSyncedStateSignature = null;
+    }
     saveConflictPending = false;
     try{ window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state, sidCounter, ngoCounter})); }catch(e){}
     setAutosaveStatus('Updated from another device ✓ ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
@@ -4157,6 +4172,7 @@ function initServerSync(retryCount){
     const activeTab = document.querySelector('.tab-btn.active');
     if(activeTab) switchTab(activeTab.dataset.tab);
     applyingRemoteUpdate = false;
+    if(hadUnsyncedLocal) scheduleAutosave();
   });
 }
 
