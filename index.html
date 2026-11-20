@@ -1607,6 +1607,37 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   #tab-foodcoupon tr.fc-jump{cursor:pointer;}
   #tab-foodcoupon tr.fc-jump:hover td{background:#F3F8FE;}
   #tab-foodcoupon .fc-zero{color:var(--muted);}
+  /* ===== Attendance & Salary tab ===== */
+  #tab-attsal .as-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;align-items:end;}
+  #tab-attsal .as-f{display:flex;flex-direction:column;gap:4px;}
+  #tab-attsal .as-f label{font-size:12px;color:var(--muted);}
+  #tab-attsal input,#tab-attsal select{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);}
+  #tab-attsal .as-f input{width:120px;}
+  #tab-attsal .as-subs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--line);}
+  #tab-attsal .as-subs button{background:none;border:0;border-bottom:3px solid transparent;padding:8px 12px;font:inherit;color:var(--muted);cursor:pointer;}
+  #tab-attsal .as-subs button.on{color:var(--ink);font-weight:600;border-bottom-color:var(--petrol);}
+  #tab-attsal .as-legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted);margin-bottom:10px;}
+  #tab-attsal .as-legend b{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:5px;margin-right:5px;font-size:12px;}
+  #tab-attsal .as-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;}
+  #tab-attsal table{border-collapse:collapse;width:100%;}
+  #tab-attsal th,#tab-attsal td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;font-size:13.5px;}
+  #tab-attsal th{font-weight:600;color:var(--muted);font-size:12.5px;}
+  #tab-attsal .num{text-align:right;font-variant-numeric:tabular-nums;}
+  #tab-attsal .as-grid th,#tab-attsal .as-grid td{text-align:center;padding:3px;min-width:30px;}
+  #tab-attsal .as-grid .as-name{text-align:left;position:sticky;left:0;background:var(--paper);min-width:120px;padding-left:10px;z-index:1;}
+  #tab-attsal .as-grid .as-sun{background:rgba(120,120,120,.12);}
+  #tab-attsal .as-cell{width:28px;height:28px;padding:0;border:1px solid var(--line);border-radius:5px;background:transparent;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;}
+  #tab-attsal b.as-cell{cursor:default;}
+  #tab-attsal .as-cell.P,#tab-attsal .as-cell.N{background:rgba(30,142,90,.22);color:var(--surplus);border-color:transparent;}
+  #tab-attsal .as-cell.A{background:rgba(209,67,67,.22);color:var(--shortfall);border-color:transparent;}
+  #tab-attsal .as-cell.H,#tab-attsal .as-cell.E{background:rgba(214,164,25,.28);color:var(--ink);border-color:transparent;}
+  #tab-attsal .as-cell.L{background:rgba(29,99,214,.22);color:var(--diesel);border-color:transparent;}
+  #tab-attsal .as-in{width:96px;text-align:right;}
+  #tab-attsal .as-neg{color:var(--shortfall);}
+  #tab-attsal .as-tot td{font-weight:700;border-bottom:0;}
+  #tab-attsal .as-box{display:flex;gap:28px;flex-wrap:wrap;margin-top:14px;padding:12px 16px;border:1px solid var(--line);border-radius:10px;}
+  #tab-attsal .as-box span{display:block;font-size:12.5px;color:var(--muted);}
+  #tab-attsal .as-box b{font-size:18px;}
 </style>
 </head>
 <body class="app-locked">
@@ -1818,6 +1849,7 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
   <button class="tab-btn" data-tab="duty" onclick="switchTab('duty')">🗓️ Duty Roster</button>
   <button class="tab-btn" data-tab="maintenance" onclick="switchTab('maintenance')">🛠️ Maintenance</button>
   <button class="tab-btn" data-tab="payroll" onclick="switchTab('payroll')">💵 Payroll</button>
+  <button class="tab-btn" data-tab="attsal" onclick="switchTab('attsal')">🗓️ Attendance &amp; Salary</button>
   <button class="tab-btn" data-tab="foodcoupon" onclick="switchTab('foodcoupon')">🍽️ Food Coupon</button>
   <button class="tab-btn" data-tab="admin" onclick="switchTab('admin')">🔑 Admin</button>
 </nav>
@@ -2786,6 +2818,14 @@ select option, select optgroup{ color:#1A1A1A; background:#ffffff; }
         <thead><tr><th>Period</th><th class="num">Token Given (₹)</th><th class="num">Used (₹)</th><th class="num">Unused (₹)</th><th>Status</th></tr></thead>
         <tbody id="fcHistBody"></tbody>
       </table></div>
+    </div>
+  </section>
+
+  <!-- ===================== ATTENDANCE & SALARY TAB ===================== -->
+  <section id="tab-attsal" class="tab">
+    <div class="card">
+      <h2>🗓️ Attendance &amp; Salary <span class="tag">Monthly attendance, salary deduction, full-attendance bonus and meals</span></h2>
+      <div id="attSalRoot"></div>
     </div>
   </section>
 
@@ -4591,7 +4631,7 @@ function toggleCcBlock(headerEl){
 const TAB_GROUPS = {
   sales:    ['sales','salesreport','tanks','dipchart','devices'],
   finance:  ['cash','surplus','onlinetotals','notestock','cashledger','buscash','luberegister','lubeindent','eodloan'],
-  staffops: ['staff','duty','maintenance','payroll','foodcoupon','admin'],
+  staffops: ['staff','duty','maintenance','payroll','attsal','foodcoupon','admin'],
   addons:   ['addonreport']
 };
 function tabGroupOf(name){
@@ -4626,6 +4666,7 @@ function switchTab(name){
   if(name==='maintenance') renderMaintenanceTab();
   if(name==='admin') renderAdminTab();
   if(name==='payroll') renderPayrollTab();
+  if(name==='attsal') renderAttSalTab();
   if(name==='foodcoupon') renderFoodCouponTab();
   if(name==='cash') renderCashTab();
   if(name==='surplus') renderSurplusTab();
@@ -5400,6 +5441,176 @@ function updateAdminAccount(){
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+/* ============== ATTENDANCE & SALARY TAB ============== */
+// state.attSal = { cfg:{divisor,bonus,maxLeaves,mealRate}, sal:{staffId:amount},
+//   att:{"YYYY-MM":{staffId:{day:'P'|'A'|'H'|'L'}}}, meal:{"YYYY-MM":{staffId:{day:'E'|'N'}}}, adv:{"YYYY-MM":{staffId:amount}} }
+// Staff come from the Staff tab (state.staff). Everything is saved with the rest of the app state.
+(function(){
+  var sub = 'att', month = null, wired = false;
+  var NEXT = {'':'P', P:'A', A:'H', H:'L', L:''};
+  var MNEXT = {'':'E', E:'N', N:''};
+  function root(){ return document.getElementById('attSalRoot'); }
+  function D(){
+    if(!state.attSal || typeof state.attSal !== 'object') state.attSal = {};
+    var s = state.attSal;
+    if(!s.cfg || typeof s.cfg !== 'object') s.cfg = {};
+    if(s.cfg.divisor == null) s.cfg.divisor = 'cal';
+    if(s.cfg.bonus == null) s.cfg.bonus = 500;
+    if(s.cfg.maxLeaves == null) s.cfg.maxLeaves = 0;
+    if(s.cfg.mealRate == null) s.cfg.mealRate = 50;
+    ['sal','att','meal','adv'].forEach(function(k){ if(!s[k] || typeof s[k] !== 'object') s[k] = {}; });
+    return s;
+  }
+  function save(){ if(typeof scheduleAutosave === 'function') scheduleAutosave(); }
+  function inr(n){ return '₹' + (Math.round((Number(n)||0)*100)/100).toLocaleString('en-IN',{maximumFractionDigits:2}); }
+  function ym(){ var p = month.split('-'); return [Number(p[0]), Number(p[1])]; }
+  function dim(){ var p = ym(); return new Date(p[0], p[1], 0).getDate(); }
+  function dow(d){ var p = ym(); return new Date(p[0], p[1]-1, d).getDay(); }
+  function cell(map, id, d){ return (((map[month]||{})[id])||{})[d] || ''; }
+  function salOf(id){
+    var d = D();
+    if(d.sal[id] != null && d.sal[id] !== '') return Number(d.sal[id]) || 0;
+    var r = state.payroll && state.payroll.staff && state.payroll.staff[id];
+    return (r && r.type === 'monthly') ? (Number(r.rate) || 0) : 0;
+  }
+  function calc(id){
+    var d = D(), cfg = d.cfg, days = dim(), salary = salOf(id);
+    var c = {P:0, A:0, H:0, L:0}, i, v;
+    for(i = 1; i <= days; i++){ v = cell(d.att, id, i); if(v) c[v]++; }
+    var div = cfg.divisor === 'cal' ? days : Number(cfg.divisor);
+    var perDay = salary / div;
+    var absentDays = c.A + c.H * 0.5;
+    var ded = Math.min(salary, absentDays * perDay);
+    var adv = Number((d.adv[month] || {})[id]) || 0;
+    var leaves = c.A + c.H + c.L, marked = c.P + leaves;
+    var bonus = (marked === days && leaves <= cfg.maxLeaves) ? cfg.bonus : 0;
+    var eat = 0, not = 0;
+    for(i = 1; i <= days; i++){ v = cell(d.meal, id, i); if(v === 'E') eat++; else if(v === 'N') not++; }
+    var hotel = eat * cfg.mealRate, refund = not * cfg.mealRate;
+    return {salary:salary, c:c, perDay:perDay, absentDays:absentDays, ded:ded, adv:adv, bonus:bonus,
+      eat:eat, not:not, hotel:hotel, refund:refund,
+      net: Math.max(0, salary - ded - adv) + bonus + refund};
+  }
+  function head(days, extra){
+    var h = '<tr><th class="as-name">Staff</th>', i;
+    for(i = 1; i <= days; i++) h += '<th class="' + (dow(i) === 0 ? 'as-sun' : '') + '">' + i + '</th>';
+    return h + extra + '</tr>';
+  }
+  function gridView(kind, staff){
+    var d = D(), days = dim(), map = kind === 'att' ? d.att : d.meal, rows = '', totHotel = 0, totEat = 0;
+    var extra = kind === 'att' ? '<th>P</th><th>A</th><th>½</th><th>L</th>' : '<th>Eaten</th><th>Not eaten</th><th>Hotel pays</th><th>Added to salary</th>';
+    staff.forEach(function(s){
+      var k = calc(s.id), r = '<tr><td class="as-name">' + escapeHtml(s.name) + '</td>', i, x;
+      for(i = 1; i <= days; i++){
+        x = cell(map, s.id, i);
+        r += '<td class="' + (dow(i) === 0 ? 'as-sun' : '') + '"><button class="as-cell ' + x + '" data-cell="' + kind + '" data-id="' + escapeHtml(s.id) + '" data-d="' + i + '" aria-label="' + escapeHtml(s.name) + ' day ' + i + '">' + (x === 'H' ? '½' : x) + '</button></td>';
+      }
+      if(kind === 'att') r += '<td>' + k.c.P + '</td><td>' + k.c.A + '</td><td>' + k.c.H + '</td><td>' + k.c.L + '</td>';
+      else { r += '<td>' + k.eat + '</td><td>' + k.not + '</td><td>' + inr(k.hotel) + '</td><td>' + inr(k.refund) + '</td>'; totHotel += k.hotel; totEat += k.eat; }
+      rows += r + '</tr>';
+    });
+    var legend = kind === 'att'
+      ? 'Tap a cell to cycle: <span><b class="as-cell P">P</b>Present</span><span><b class="as-cell A">A</b>Absent (deducted)</span><span><b class="as-cell H">½</b>Half day</span><span><b class="as-cell L">L</b>Paid leave</span><button class="btn ghost small" data-act="allp">Mark blank days Present up to today</button>'
+      : 'Tap a cell to cycle: <span><b class="as-cell E">E</b>Eaten (hotel is paid)</span><span><b class="as-cell N">N</b>Not eaten (amount added to salary)</span><button class="btn ghost small" data-act="alle">Mark blank days Eaten up to today</button>';
+    var foot = kind === 'att'
+      ? '<div class="hint">Sundays are shaded. Blank days are not deducted, so mark absences as A. The full-attendance bonus needs every day of the month marked and leaves (A, ½, L) within the allowed number above.</div>'
+      : '<div class="as-box"><div><span>Meal rate</span><b>' + inr(D().cfg.mealRate) + '</b></div><div><span>Meals eaten</span><b>' + totEat + '</b></div><div><span>Total to pay the hotel</span><b>' + inr(totHotel) + '</b></div></div><div class="hint">One meal per day. Blank days count as neither, so mark every day for an accurate hotel bill.</div>';
+    return '<div class="as-legend">' + legend + '</div><div class="as-wrap"><table class="as-grid">' + head(days, extra) + rows + '</table></div>' + foot;
+  }
+  function salView(staff){
+    var t = {sal:0, ded:0, adv:0, bon:0, ref:0, net:0, hotel:0, eat:0};
+    var rows = staff.map(function(s){
+      var k = calc(s.id);
+      t.sal += k.salary; t.ded += k.ded; t.adv += k.adv; t.bon += k.bonus; t.ref += k.refund; t.net += k.net; t.hotel += k.hotel; t.eat += k.eat;
+      return '<tr><td>' + escapeHtml(s.name) + '</td><td class="num">' + inr(k.salary) + '</td><td class="num">' + inr(k.perDay) + '</td><td class="num">' + k.absentDays + '</td>' +
+        '<td class="num as-neg">' + (k.ded ? '−' + inr(k.ded) : '—') + '</td><td class="num">' + (k.bonus ? '+' + inr(k.bonus) : '—') + '</td><td class="num">' + (k.refund ? '+' + inr(k.refund) : '—') + '</td>' +
+        '<td class="num"><input type="number" min="0" step="any" class="as-in" value="' + (k.adv || '') + '" placeholder="0" data-adv="' + escapeHtml(s.id) + '" aria-label="Advance or other deduction for ' + escapeHtml(s.name) + '"></td>' +
+        '<td class="num"><b>' + inr(k.net) + '</b></td></tr>';
+    }).join('');
+    return '<div class="as-wrap"><table class="as-tbl"><tr><th>Staff</th><th class="num">Salary</th><th class="num">Per day</th><th class="num">Days deducted</th><th class="num">Attendance deduction</th><th class="num">Full-attendance bonus</th><th class="num">Meals not eaten</th><th class="num">Advance / other (edit)</th><th class="num">Net pay</th></tr>' + rows +
+      '<tr class="as-tot"><td>Total</td><td class="num">' + inr(t.sal) + '</td><td></td><td></td><td class="num as-neg">−' + inr(t.ded) + '</td><td class="num">+' + inr(t.bon) + '</td><td class="num">+' + inr(t.ref) + '</td><td class="num">−' + inr(t.adv) + '</td><td class="num">' + inr(t.net) + '</td></tr></table></div>' +
+      '<div class="as-box"><div><span>Total net salary</span><b>' + inr(t.net) + '</b></div><div><span>Hotel bill (' + t.eat + ' meals eaten)</span><b>' + inr(t.hotel) + '</b></div></div>' +
+      '<div class="hint">Net pay = salary − attendance deduction − advance/other + bonus + meal amount for meals not eaten. Deduction = (absent days + ½ × half days) × salary ÷ divisor.</div>' +
+      '<div class="row" style="margin-top:10px"><button class="btn amber small" data-act="csv">Download CSV</button></div>';
+  }
+  function payView(staff){
+    var rows = staff.map(function(s){
+      return '<tr><td>' + escapeHtml(s.name) + '</td><td class="num"><input type="number" min="0" step="any" class="as-in" value="' + (salOf(s.id) || '') + '" placeholder="0" data-salary="' + escapeHtml(s.id) + '" aria-label="Monthly salary for ' + escapeHtml(s.name) + '"></td></tr>';
+    }).join('');
+    return '<div class="as-wrap" style="max-width:420px"><table class="as-tbl"><tr><th>Staff</th><th class="num">Monthly salary (₹)</th></tr>' + rows + '</table></div><div class="hint">Staff names come from the Staff tab. Where no salary is set here, the monthly rate from the Payroll tab is used.</div>';
+  }
+  function render(){
+    var r = root(); if(!r) return;
+    if(!month) month = localDateStr(new Date()).slice(0,7);
+    var d = D(), c = d.cfg, staff = (state.staff || []).slice();
+    var old = r.querySelector('.as-wrap'), left = old ? old.scrollLeft : 0;
+    var subs = [['att','Attendance'],['meal','Meals'],['sal','Salary report'],['pay','Salaries']];
+    var html = '<div class="as-row">' +
+      '<div class="as-f"><label for="asMonth">Month</label><input type="month" id="asMonth" value="' + month + '"></div>' +
+      '<div class="as-f"><label for="asDiv">Salary divisor</label><select id="asDiv" data-cfg="divisor"><option value="cal"' + (c.divisor === 'cal' ? ' selected' : '') + '>Days in month</option><option value="30"' + (c.divisor === '30' ? ' selected' : '') + '>30 days</option><option value="26"' + (c.divisor === '26' ? ' selected' : '') + '>26 days</option></select></div>' +
+      '<div class="as-f"><label for="asBonus">Full-attendance bonus ₹</label><input type="number" id="asBonus" min="0" data-cfg="bonus" value="' + c.bonus + '"></div>' +
+      '<div class="as-f"><label for="asMaxL">Leaves allowed for bonus</label><input type="number" id="asMaxL" min="0" data-cfg="maxLeaves" value="' + c.maxLeaves + '"></div>' +
+      '<div class="as-f"><label for="asMeal">Meal rate ₹</label><input type="number" id="asMeal" min="0" data-cfg="mealRate" value="' + c.mealRate + '"></div></div>' +
+      '<div class="as-subs">' + subs.map(function(s){ return '<button class="' + (sub === s[0] ? 'on' : '') + '" data-sub="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div>';
+    if(!staff.length) html += '<div class="hint">No staff yet. Add staff in the Staff tab first.</div>';
+    else html += sub === 'att' ? gridView('att', staff) : sub === 'meal' ? gridView('meal', staff) : sub === 'sal' ? salView(staff) : payView(staff);
+    r.innerHTML = html;
+    var nw = r.querySelector('.as-wrap'); if(nw) nw.scrollLeft = left;
+    if(!wired){ wired = true; wire(r); }
+  }
+  function fillBlanks(kind){
+    var d = D(), map = kind === 'att' ? d.att : d.meal, days = dim(), p = ym(), t = new Date(), last = days;
+    if(t.getFullYear() === p[0] && t.getMonth() + 1 === p[1]) last = t.getDate();
+    else if(new Date(p[0], p[1] - 1, 1) > t) last = 0;
+    map[month] = map[month] || {};
+    (state.staff || []).forEach(function(s){
+      map[month][s.id] = map[month][s.id] || {};
+      for(var i = 1; i <= last; i++){
+        if(map[month][s.id][i]) continue;
+        if(kind === 'att' && dow(i) === 0) continue;
+        map[month][s.id][i] = kind === 'att' ? 'P' : 'E';
+      }
+    });
+    save(); render();
+  }
+  function csv(){
+    var q = function(s){ return '"' + String(s).replace(/"/g, '""') + '"'; };
+    var out = ['Staff,Salary,Per day,Days deducted,Attendance deduction,Full-attendance bonus,Meals not eaten (added),Other deduction,Net pay,Meals eaten,Hotel bill'];
+    (state.staff || []).forEach(function(s){
+      var k = calc(s.id);
+      out.push([q(s.name), k.salary, k.perDay.toFixed(2), k.absentDays, k.ded.toFixed(2), k.bonus, k.refund, k.adv, k.net.toFixed(2), k.eat, k.hotel].join(','));
+    });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([out.join('\n')], {type:'text/csv'}));
+    a.download = 'salary-' + month + '.csv';
+    a.click();
+  }
+  function wire(r){
+    r.addEventListener('click', function(e){
+      var t = e.target.closest('[data-sub],[data-cell],[data-act]'); if(!t || !r.contains(t)) return;
+      if(t.dataset.sub){ sub = t.dataset.sub; render(); return; }
+      if(t.dataset.act === 'allp'){ fillBlanks('att'); return; }
+      if(t.dataset.act === 'alle'){ fillBlanks('meal'); return; }
+      if(t.dataset.act === 'csv'){ csv(); return; }
+      if(t.dataset.cell){
+        var d = D(), kind = t.dataset.cell, map = kind === 'att' ? d.att : d.meal, id = t.dataset.id, day = t.dataset.d;
+        map[month] = map[month] || {}; map[month][id] = map[month][id] || {};
+        var nx = (kind === 'att' ? NEXT : MNEXT)[map[month][id][day] || ''];
+        if(nx) map[month][id][day] = nx; else delete map[month][id][day];
+        save(); render();
+      }
+    });
+    r.addEventListener('change', function(e){
+      var t = e.target, d = D();
+      if(t.id === 'asMonth'){ if(t.value){ month = t.value; render(); } return; }
+      if(t.dataset.cfg){ d.cfg[t.dataset.cfg] = t.dataset.cfg === 'divisor' ? t.value : Math.max(0, Number(t.value) || 0); save(); render(); return; }
+      if(t.dataset.salary){ d.sal[t.dataset.salary] = Math.max(0, Number(t.value) || 0); save(); render(); return; }
+      if(t.dataset.adv){ d.adv[month] = d.adv[month] || {}; d.adv[month][t.dataset.adv] = Math.max(0, Number(t.value) || 0); save(); render(); }
+    });
+  }
+  window.renderAttSalTab = render;
+})();
 
 /* ============== DUTY ROSTER TAB ============== */
 // Lets staff duty be planned a week ahead: a Mon–Sun grid of Morning/
