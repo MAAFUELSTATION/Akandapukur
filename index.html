@@ -5458,7 +5458,9 @@ function escapeHtml(str){
     if(s.cfg.divisor == null) s.cfg.divisor = 'cal';
     if(s.cfg.bonus == null) s.cfg.bonus = 500;
     if(s.cfg.maxLeaves == null) s.cfg.maxLeaves = 0;
-    if(s.cfg.mealRate == null) s.cfg.mealRate = 50;
+    if(s.cfg.mealRateEat == null) s.cfg.mealRateEat = (s.cfg.mealRate != null ? s.cfg.mealRate : 50);
+    if(s.cfg.mealRateNot == null) s.cfg.mealRateNot = (s.cfg.mealRate != null ? s.cfg.mealRate : 50);
+    if(s.cfg.skipSettled == null) s.cfg.skipSettled = true;
     ['sal','att','meal','adv'].forEach(function(k){ if(!s[k] || typeof s[k] !== 'object') s[k] = {}; });
     return s;
   }
@@ -5474,6 +5476,20 @@ function escapeHtml(str){
     var r = state.payroll && state.payroll.staff && state.payroll.staff[id];
     return (r && r.type === 'monthly') ? (Number(r.rate) || 0) : 0;
   }
+  // Surplus / short from the Cash Denomination records (state.cash[date][staffId].difference), summed for the month
+  function ssOf(id){
+    var sur = 0, sh = 0;
+    Object.keys(state.cash || {}).forEach(function(date){
+      if(date.indexOf(month) !== 0) return;
+      var rec = (state.cash[date] || {})[id]; if(!rec) return;
+      var df = Number(rec.difference) || 0;
+      if(df > 0) sur += df; else if(df < 0) sh += -df;
+    });
+    var net = sur - sh;
+    var settled = !!(state.surplusPaid && state.surplusPaid[month + '::' + id]);
+    return {sur:sur, sh:sh, net:net, settled:settled, applied:(settled && D().cfg.skipSettled) ? 0 : net};
+  }
+  function sgn(n){ return n ? (n > 0 ? '+' : '−') + inr(Math.abs(n)) : '—'; }
   function calc(id){
     var d = D(), cfg = d.cfg, days = dim(), salary = salOf(id);
     var c = {P:0, A:0, H:0, L:0}, i, v;
@@ -5487,10 +5503,10 @@ function escapeHtml(str){
     var bonus = (marked === days && leaves <= cfg.maxLeaves) ? cfg.bonus : 0;
     var eat = 0, not = 0;
     for(i = 1; i <= days; i++){ v = cell(d.meal, id, i); if(v === 'E') eat++; else if(v === 'N') not++; }
-    var hotel = eat * cfg.mealRate, refund = not * cfg.mealRate;
+    var hotel = eat * cfg.mealRateEat, refund = not * cfg.mealRateNot, ss = ssOf(id);
     return {salary:salary, c:c, perDay:perDay, absentDays:absentDays, ded:ded, adv:adv, bonus:bonus,
-      eat:eat, not:not, hotel:hotel, refund:refund,
-      net: Math.max(0, salary - ded - adv) + bonus + refund};
+      eat:eat, not:not, hotel:hotel, refund:refund, ss:ss,
+      net: Math.max(0, salary - ded - adv + ss.applied) + bonus + refund};
   }
   function head(days, extra){
     var h = '<tr><th class="as-name">Staff</th>', i;
@@ -5515,23 +5531,24 @@ function escapeHtml(str){
       : 'Tap a cell to cycle: <span><b class="as-cell E">E</b>Eaten (hotel is paid)</span><span><b class="as-cell N">N</b>Not eaten (amount added to salary)</span><button class="btn ghost small" data-act="alle">Mark blank days Eaten up to today</button>';
     var foot = kind === 'att'
       ? '<div class="hint">Sundays are shaded. Blank days are not deducted, so mark absences as A. The full-attendance bonus needs every day of the month marked and leaves (A, ½, L) within the allowed number above.</div>'
-      : '<div class="as-box"><div><span>Meal rate</span><b>' + inr(D().cfg.mealRate) + '</b></div><div><span>Meals eaten</span><b>' + totEat + '</b></div><div><span>Total to pay the hotel</span><b>' + inr(totHotel) + '</b></div></div><div class="hint">One meal per day. Blank days count as neither, so mark every day for an accurate hotel bill.</div>';
+      : '<div class="as-box"><div><span>Hotel rate (eaten)</span><b>' + inr(D().cfg.mealRateEat) + '</b></div><div><span>Staff amount (not eaten)</span><b>' + inr(D().cfg.mealRateNot) + '</b></div><div><span>Meals eaten</span><b>' + totEat + '</b></div><div><span>Total to pay the hotel</span><b>' + inr(totHotel) + '</b></div></div><div class="hint">One meal per day. Blank days count as neither, so mark every day for an accurate hotel bill.</div>';
     return '<div class="as-legend">' + legend + '</div><div class="as-wrap"><table class="as-grid">' + head(days, extra) + rows + '</table></div>' + foot;
   }
   function salView(staff){
-    var t = {sal:0, ded:0, adv:0, bon:0, ref:0, net:0, hotel:0, eat:0};
+    var t = {sal:0, ded:0, adv:0, bon:0, ref:0, ss:0, net:0, hotel:0, eat:0};
     var rows = staff.map(function(s){
       var k = calc(s.id);
-      t.sal += k.salary; t.ded += k.ded; t.adv += k.adv; t.bon += k.bonus; t.ref += k.refund; t.net += k.net; t.hotel += k.hotel; t.eat += k.eat;
+      t.sal += k.salary; t.ded += k.ded; t.adv += k.adv; t.bon += k.bonus; t.ref += k.refund; t.ss += k.ss.applied; t.net += k.net; t.hotel += k.hotel; t.eat += k.eat;
       return '<tr><td>' + escapeHtml(s.name) + '</td><td class="num">' + inr(k.salary) + '</td><td class="num">' + inr(k.perDay) + '</td><td class="num">' + k.absentDays + '</td>' +
         '<td class="num as-neg">' + (k.ded ? '−' + inr(k.ded) : '—') + '</td><td class="num">' + (k.bonus ? '+' + inr(k.bonus) : '—') + '</td><td class="num">' + (k.refund ? '+' + inr(k.refund) : '—') + '</td>' +
+        '<td class="num' + (k.ss.applied < 0 ? ' as-neg' : '') + '"' + (k.ss.settled && D().cfg.skipSettled && k.ss.net ? ' title="Already marked settled in the Staff Surplus / Short tab"' : '') + '>' + (k.ss.settled && D().cfg.skipSettled && k.ss.net ? 'Settled (' + sgn(k.ss.net) + ')' : sgn(k.ss.applied)) + '</td>' +
         '<td class="num"><input type="number" min="0" step="any" class="as-in" value="' + (k.adv || '') + '" placeholder="0" data-adv="' + escapeHtml(s.id) + '" aria-label="Advance or other deduction for ' + escapeHtml(s.name) + '"></td>' +
         '<td class="num"><b>' + inr(k.net) + '</b></td></tr>';
     }).join('');
-    return '<div class="as-wrap"><table class="as-tbl"><tr><th>Staff</th><th class="num">Salary</th><th class="num">Per day</th><th class="num">Days deducted</th><th class="num">Attendance deduction</th><th class="num">Full-attendance bonus</th><th class="num">Meals not eaten</th><th class="num">Advance / other (edit)</th><th class="num">Net pay</th></tr>' + rows +
-      '<tr class="as-tot"><td>Total</td><td class="num">' + inr(t.sal) + '</td><td></td><td></td><td class="num as-neg">−' + inr(t.ded) + '</td><td class="num">+' + inr(t.bon) + '</td><td class="num">+' + inr(t.ref) + '</td><td class="num">−' + inr(t.adv) + '</td><td class="num">' + inr(t.net) + '</td></tr></table></div>' +
+    return '<div class="as-wrap"><table class="as-tbl"><tr><th>Staff</th><th class="num">Salary</th><th class="num">Per day</th><th class="num">Days deducted</th><th class="num">Attendance deduction</th><th class="num">Full-attendance bonus</th><th class="num">Meals not eaten</th><th class="num">Surplus / short</th><th class="num">Advance / other (edit)</th><th class="num">Net pay</th></tr>' + rows +
+      '<tr class="as-tot"><td>Total</td><td class="num">' + inr(t.sal) + '</td><td></td><td></td><td class="num as-neg">−' + inr(t.ded) + '</td><td class="num">+' + inr(t.bon) + '</td><td class="num">+' + inr(t.ref) + '</td><td class="num' + (t.ss < 0 ? ' as-neg' : '') + '">' + sgn(t.ss) + '</td><td class="num">−' + inr(t.adv) + '</td><td class="num">' + inr(t.net) + '</td></tr></table></div>' +
       '<div class="as-box"><div><span>Total net salary</span><b>' + inr(t.net) + '</b></div><div><span>Hotel bill (' + t.eat + ' meals eaten)</span><b>' + inr(t.hotel) + '</b></div></div>' +
-      '<div class="hint">Net pay = salary − attendance deduction − advance/other + bonus + meal amount for meals not eaten. Deduction = (absent days + ½ × half days) × salary ÷ divisor.</div>' +
+      '<div class="hint">Net pay = salary − attendance deduction − advance/other + surplus (or − short) from the Staff Surplus / Short tab + bonus + amount for meals not eaten. Deduction = (absent days + ½ × half days) × salary ÷ divisor.</div>' +
       '<div class="row" style="margin-top:10px"><button class="btn amber small" data-act="csv">Download CSV</button></div>';
   }
   function payView(staff){
@@ -5551,7 +5568,9 @@ function escapeHtml(str){
       '<div class="as-f"><label for="asDiv">Salary divisor</label><select id="asDiv" data-cfg="divisor"><option value="cal"' + (c.divisor === 'cal' ? ' selected' : '') + '>Days in month</option><option value="30"' + (c.divisor === '30' ? ' selected' : '') + '>30 days</option><option value="26"' + (c.divisor === '26' ? ' selected' : '') + '>26 days</option></select></div>' +
       '<div class="as-f"><label for="asBonus">Full-attendance bonus ₹</label><input type="number" id="asBonus" min="0" data-cfg="bonus" value="' + c.bonus + '"></div>' +
       '<div class="as-f"><label for="asMaxL">Leaves allowed for bonus</label><input type="number" id="asMaxL" min="0" data-cfg="maxLeaves" value="' + c.maxLeaves + '"></div>' +
-      '<div class="as-f"><label for="asMeal">Meal rate ₹</label><input type="number" id="asMeal" min="0" data-cfg="mealRate" value="' + c.mealRate + '"></div></div>' +
+      '<div class="as-f"><label for="asMealE">Hotel rate per meal eaten ₹</label><input type="number" id="asMealE" min="0" data-cfg="mealRateEat" value="' + c.mealRateEat + '"></div>' +
+      '<div class="as-f"><label for="asMealN">Staff amount per meal not eaten ₹</label><input type="number" id="asMealN" min="0" data-cfg="mealRateNot" value="' + c.mealRateNot + '"></div>' +
+      '<div class="as-f"><label for="asSkip">Surplus/short already settled</label><select id="asSkip" data-cfg="skipSettled"><option value="1"' + (c.skipSettled ? ' selected' : '') + '>Don\'t add again</option><option value="0"' + (!c.skipSettled ? ' selected' : '') + '>Add anyway</option></select></div></div>' +
       '<div class="as-subs">' + subs.map(function(s){ return '<button class="' + (sub === s[0] ? 'on' : '') + '" data-sub="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div>';
     if(!staff.length) html += '<div class="hint">No staff yet. Add staff in the Staff tab first.</div>';
     else html += sub === 'att' ? gridView('att', staff) : sub === 'meal' ? gridView('meal', staff) : sub === 'sal' ? salView(staff) : payView(staff);
@@ -5576,10 +5595,10 @@ function escapeHtml(str){
   }
   function csv(){
     var q = function(s){ return '"' + String(s).replace(/"/g, '""') + '"'; };
-    var out = ['Staff,Salary,Per day,Days deducted,Attendance deduction,Full-attendance bonus,Meals not eaten (added),Other deduction,Net pay,Meals eaten,Hotel bill'];
+    var out = ['Staff,Salary,Per day,Days deducted,Attendance deduction,Full-attendance bonus,Meals not eaten (added),Surplus/short,Other deduction,Net pay,Meals eaten,Hotel bill'];
     (state.staff || []).forEach(function(s){
       var k = calc(s.id);
-      out.push([q(s.name), k.salary, k.perDay.toFixed(2), k.absentDays, k.ded.toFixed(2), k.bonus, k.refund, k.adv, k.net.toFixed(2), k.eat, k.hotel].join(','));
+      out.push([q(s.name), k.salary, k.perDay.toFixed(2), k.absentDays, k.ded.toFixed(2), k.bonus, k.refund, k.ss.applied, k.adv, k.net.toFixed(2), k.eat, k.hotel].join(','));
     });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([out.join('\n')], {type:'text/csv'}));
@@ -5604,7 +5623,7 @@ function escapeHtml(str){
     r.addEventListener('change', function(e){
       var t = e.target, d = D();
       if(t.id === 'asMonth'){ if(t.value){ month = t.value; render(); } return; }
-      if(t.dataset.cfg){ d.cfg[t.dataset.cfg] = t.dataset.cfg === 'divisor' ? t.value : Math.max(0, Number(t.value) || 0); save(); render(); return; }
+      if(t.dataset.cfg){ d.cfg[t.dataset.cfg] = t.dataset.cfg === 'divisor' ? t.value : t.dataset.cfg === 'skipSettled' ? t.value === '1' : Math.max(0, Number(t.value) || 0); save(); render(); return; }
       if(t.dataset.salary){ d.sal[t.dataset.salary] = Math.max(0, Number(t.value) || 0); save(); render(); return; }
       if(t.dataset.adv){ d.adv[month] = d.adv[month] || {}; d.adv[month][t.dataset.adv] = Math.max(0, Number(t.value) || 0); save(); render(); }
     });
